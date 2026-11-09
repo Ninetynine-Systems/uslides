@@ -49,8 +49,8 @@ export default defineConfig({
     }),
   ],
   build: {
-    // The editor chunk (CodeMirror, about 520 kB) loads lazily and only on wide screens. The main chunk is under 400 kB.
-    chunkSizeWarningLimit: 600,
+    // The editor chunk (CodeMirror, about 305 kB) loads lazily and only on wide screens. The main chunk is about 650 kB, so the limit sits just above it.
+    chunkSizeWarningLimit: 700,
   },
   test: {
     include: ['tests/unit/**/*.test.ts'],

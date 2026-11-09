@@ -146,15 +146,25 @@ export function App() {
     });
   }, [openDeck, refreshList, notify]);
 
+  const flushRef = useRef(flush);
+  flushRef.current = flush;
+
   // Once per page load: ask for permanent storage, show the Safari note, and watch for a new version.
   useEffect(() => {
     if (pwaStarted) return;
     pwaStarted = true;
     void requestPersistence();
     if (shouldShowSafariNote()) notify(SAFARI_NOTE, { sticky: true, onDismiss: dismissSafariNote });
+    let applying = false;
     const updateSW = registerSW({
       onNeedRefresh() {
-        notify('', { sticky: true, action: { label: 'Update available — reload', run: () => void updateSW(true) } });
+        const apply = () => {
+          if (applying) return; // ignore repeat clicks
+          applying = true;
+          // Save what was typed in the last moment first: the reload would drop it.
+          flushRef.current().catch(() => undefined).then(() => updateSW(true), () => undefined);
+        };
+        notify('', { sticky: true, action: { label: 'Update available — reload', run: apply } });
       },
     });
   }, [notify]);

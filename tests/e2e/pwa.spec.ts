@@ -88,7 +88,7 @@ test('update flow: the notice appears, nothing reloads by itself, clicking reloa
   const { server, setRoot } = staticServer(a);
   await listen(server, 4176);
   try {
-    await page.goto('http://127.0.0.1:4176/');
+    await page.goto('http://127.0.0.1:4176/?test');
     await serviceWorkerActive(page);
     await page.reload();
     await openMenu(page);
@@ -107,9 +107,14 @@ test('update flow: the notice appears, nothing reloads by itself, clicking reloa
     await page.waitForTimeout(1500);
     expect(await page.evaluate(() => (window as unknown as { marker?: string }).marker)).toBe('same page');
 
+    // Typing right before the click must survive the reload.
+    await editor(page).click();
+    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.type('\nlast words');
     await Promise.all([page.waitForEvent('load'), update.click()]);
     expect(await page.evaluate(() => (window as unknown as { marker?: string }).marker)).toBeUndefined();
     await expect(page.locator('.us-stage').first()).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.__uslides!.getSource())).toContain('last words');
     await openMenu(page);
     await expect(page.getByText('build-b')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Update available — reload' })).toHaveCount(0);

@@ -62,7 +62,7 @@ export async function _resetForTests(): Promise<void> {
 }
 
 /** Strips a leading "./", collapses repeated "/", rejects ".." and absolute paths. */
-function normalizePath(path: string): string {
+export function normalizePath(path: string): string {
   if (path.startsWith('/')) throw new Error(`Invalid image path: ${path}`);
   const parts = path.split('/').filter((p) => p !== '' && p !== '.');
   if (parts.length === 0 || parts.includes('..')) throw new Error(`Invalid image path: ${path}`);
@@ -196,22 +196,28 @@ export async function getAllDecks(): Promise<DeckRecord[]> {
   return (await db()).getAll('decks');
 }
 
-/** Adds a deck with its images as a new deck (new id), keeping the given dates. Used by restore. */
-export async function addDeckWithImages(
-  source: string,
-  createdAt: number,
-  updatedAt: number,
-  images: Array<{ path: string; blob: Blob }>,
-): Promise<DeckRecord> {
-  const deck: DeckRecord = { id: crypto.randomUUID(), source, createdAt, updatedAt, revision: 1 };
-  // Read the bytes first: a transaction closes if we wait on anything but the database.
-  const rows: ImageRecord[] = [];
-  for (const img of images) {
-    rows.push({ deckId: deck.id, path: normalizePath(img.path), type: img.blob.type, bytes: await img.blob.arrayBuffer() });
-  }
+export type NewDeck = {
+  source: string;
+  createdAt: number;
+  updatedAt: number;
+  images: Array<{ path: string; type: string; bytes: ArrayBuffer }>;
+};
+
+/** Adds every deck (new ids, given dates) with its images in one transaction: all are added or none. Used by restore. */
+export async function addDecksWithImages(decks: NewDeck[]): Promise<void> {
+  const rows = decks.map((d) => {
+    const deck: DeckRecord = { id: crypto.randomUUID(), source: d.source, createdAt: d.createdAt, updatedAt: d.updatedAt, revision: 1 };
+    return { deck, images: d.images.map((i) => ({ deckId: deck.id, path: normalizePath(i.path), type: i.type, bytes: i.bytes })) };
+  });
   const tx = (await db()).transaction(['decks', 'images'], 'readwrite');
-  await tx.objectStore('decks').put(deck);
-  for (const row of rows) await tx.objectStore('images').put(row);
+  try {
+    for (const { deck, images } of rows) {
+      await tx.objectStore('decks').put(deck);
+      for (const img of images) await tx.objectStore('images').put(img);
+    }
+  } catch (err) {
+    tx.abort();
+    throw err;
+  }
   await tx.done;
-  return deck;
 }

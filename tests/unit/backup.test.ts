@@ -66,3 +66,29 @@ describe('backup', () => {
     expect(await listDecks()).toHaveLength(0)
   })
 })
+
+describe('all or nothing', () => {
+  const good = { source: '# Good', createdAt: 1, updatedAt: 2, images: [] as unknown[] }
+  const file = (...decks: unknown[]) => new Blob([JSON.stringify({ app: 'uslides', version: 1, decks })])
+  const image = (over: Record<string, string>) => ({ path: 'a.png', type: 'image/png', base64: 'AAEC', ...over })
+
+  it.each([
+    ['bad base64', { ...good, source: '# Bad', images: [image({ base64: '***not base64***' })] }],
+    ['bad path', { ...good, source: '# Bad', images: [image({ path: '../x.png' })] }],
+    ['disallowed image type', { ...good, source: '# Bad', images: [image({ type: 'text/html' })] }],
+  ])('a deck with %s as the second deck adds nothing', async (_n, bad) => {
+    await createDeck('# Existing')
+    await expect(importBackup(file(good, bad))).rejects.toThrow(/^This backup file is damaged: /)
+    expect(await listDecks()).toHaveLength(1)
+  })
+
+  it('a second deck of the wrong shape adds nothing', async () => {
+    await expect(importBackup(file(good, { source: 5 }))).rejects.toThrow(/^This backup file is damaged: /)
+    expect(await listDecks()).toHaveLength(0)
+  })
+
+  it('refuses a file over 200 MB', async () => {
+    const big = { size: 200 * 1024 * 1024 + 1, text: async () => '' } as unknown as Blob
+    await expect(importBackup(big)).rejects.toThrow('This backup file is too large to restore (over 200 MB).')
+  })
+})
