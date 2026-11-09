@@ -160,11 +160,11 @@ test.describe('with the File System Access API', () => {
     expect(await page.evaluate(() => window.__fakeFs.getText('f1'))).toBe('# Agent edit\n');
   });
 
-  test('a file that disappears is unlinked with a notice, and the deck stays', async ({ page }) => {
+  test('a file that stays missing for three polls is unlinked with a notice, and the deck stays', async ({ page }) => {
     await openLinkedFile(page);
     await page.evaluate(() => window.__fakeFs.remove('f1'));
     await expect(page.getByText("Can't read the linked file. It may have been moved or deleted.")).toBeVisible({
-      timeout: 3000,
+      timeout: 8000,
     });
     await expect(badge(page)).toHaveCount(0);
     await expect(page.locator('.us-stage', { hasText: 'Hello from disk' })).toHaveCount(1);
