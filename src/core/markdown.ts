@@ -63,7 +63,8 @@ const md = new MarkdownIt({ html: false, linkify: true });
 // Accept everything at parse time so a bad link still parses as a link; the render step then
 // drops it and keeps only its text (see us_links and the image rule).
 md.validateLink = () => true;
-md.block.ruler.before('html_block', 'comment_block', commentBlock);
+md.linkify.set({ fuzzyEmail: false });
+md.block.ruler.before('html_block', 'comment_block', commentBlock, { alt: ['paragraph', 'reference', 'blockquote'] });
 md.inline.ruler.before('html_inline', 'comment_inline', commentInline);
 
 // Mark links with a disallowed href so their tags are skipped; add target/rel to the rest.
@@ -112,6 +113,9 @@ md.renderer.rules.image = (tokens, idx, options, env, self) => {
   if (isRelative(src) && resolveImage) {
     const resolved = resolveImage(src);
     if (resolved === undefined) {
+      return `<span class="us-missing" data-src="${esc(src)}">Image not found: ${esc(src)}</span>`;
+    }
+    if (!resolved.startsWith('blob:') && !isAllowedImageSrc(resolved)) {
       return `<span class="us-missing" data-src="${esc(src)}">Image not found: ${esc(src)}</span>`;
     }
     finalSrc = resolved;

@@ -102,4 +102,35 @@ describe('renderMarkdown', () => {
       expect(out).not.toContain('<b>');
     });
   });
+
+  describe('review regressions', () => {
+    it('hides a multi-line comment with a blank line right after paragraph text', () => {
+      const out = renderMarkdown('Intro\n<!-- note: a\n\nb -->');
+      expect(out).not.toContain('note');
+      expect(out).not.toContain('&lt;!--');
+      expect(out).toContain('Intro');
+    });
+    it('does not linkify bare email addresses', () => {
+      const out = renderMarkdown('mail a@b.com now');
+      expect(out).not.toContain('<a');
+      expect(out).toContain('a@b.com');
+    });
+    it('rejects an unsafe value returned by the resolver', () => {
+      const out = renderMarkdown('![c](./chart.png)', { resolveImage: () => 'javascript:alert(1)' });
+      expect(out).not.toContain('<img');
+      expect(out).not.toContain('javascript:');
+      expect(out).toContain('us-missing');
+    });
+    it('accepts blob: and data:image values from the resolver', () => {
+      expect(renderMarkdown('![c](./a.png)', { resolveImage: () => 'blob:x' })).toContain('src="blob:x"');
+      expect(renderMarkdown('![c](./a.png)', { resolveImage: () => 'data:image/png;base64,AA' })).toContain('<img');
+    });
+    it('blocks javascript: via entities, references and autolinks; does not linkify ftp', () => {
+      expect(renderMarkdown('[x](javascript&colon;alert(1))')).not.toContain('<a');
+      expect(renderMarkdown('[x][r]\n\n[r]: javascript:alert(1)')).not.toContain('<a');
+      expect(renderMarkdown('![x][r]\n\n[r]: javascript:alert(1)')).not.toContain('<img');
+      expect(renderMarkdown('<javascript:alert(1)>')).not.toContain('<a');
+      expect(renderMarkdown('ftp://x.com')).not.toContain('<a');
+    });
+  });
 });
