@@ -16,9 +16,9 @@
 export function installFakeFs(): void {
   type FileData = { text?: string; base64?: string; modified: number };
   type Entry =
-    | { type: 'file'; name: string; file: FileData; removed?: boolean; perm: string }
-    | { type: 'dir'; name: string; files: Record<string, FileData>; perm: string };
-  type State = { entries: Record<string, Entry>; writes: Record<string, string[]>; nextPick: { file?: string; dir?: string }; grantOnRequest: boolean; clock: number };
+    | { type: 'file'; name: string; file: FileData; removed?: boolean; perm: string; write: string }
+    | { type: 'dir'; name: string; files: Record<string, FileData>; perm: string; write: string };
+  type State = { entries: Record<string, Entry>; writes: Record<string, string[]>; nextPick: { file?: string; dir?: string }; grantOnRequest: boolean; grantWriteOnRequest: boolean; clock: number };
 
   const KEY = '__fakeFsState';
   const load = (): State => {
@@ -28,7 +28,7 @@ export function installFakeFs(): void {
     } catch {
       /* fall through */
     }
-    return { entries: {}, writes: {}, nextPick: {}, grantOnRequest: true, clock: 1_700_000_000_000 };
+    return { entries: {}, writes: {}, nextPick: {}, grantOnRequest: true, grantWriteOnRequest: true, clock: 1_700_000_000_000 };
   };
   const state = load();
   const save = () => sessionStorage.setItem(KEY, JSON.stringify(state));
@@ -37,7 +37,14 @@ export function installFakeFs(): void {
   const notFound = (what: string) => new DOMException(`${what} not found`, 'NotFoundError');
   const rootOf = (id: string) => id.split('|')[0]!;
   const subOf = (id: string) => id.split('|').slice(1).join('|');
-  const permOf = (id: string) => state.entries[rootOf(id)]?.perm ?? 'denied';
+  // Read and write access are separate, as in Chrome: a picked file starts with read only.
+  const permOf = (id: string, mode = 'read') => {
+    const root = state.entries[rootOf(id)];
+    if (!root) return 'denied';
+    return mode === 'readwrite' ? (root.perm === 'granted' ? root.write : root.perm) : root.perm;
+  };
+  /** Test hooks that run after the next read of a file. Not saved: they last for one page load. */
+  const afterRead: Record<string, string> = {};
   const bytes = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   const fileData = (id: string): FileData => {
     const root = state.entries[rootOf(id)];
@@ -60,16 +67,18 @@ export function installFakeFs(): void {
       this.name = name;
       this.__fakeId = id;
     }
-    async queryPermission(): Promise<string> {
-      return permOf(this.__fakeId);
+    async queryPermission(opts?: { mode?: string }): Promise<string> {
+      return permOf(this.__fakeId, opts?.mode);
     }
-    async requestPermission(): Promise<string> {
+    async requestPermission(opts?: { mode?: string }): Promise<string> {
       const root = state.entries[rootOf(this.__fakeId)];
+      const mode = opts?.mode ?? 'read';
       if (root && state.grantOnRequest) {
         root.perm = 'granted';
+        if (mode === 'readwrite' && state.grantWriteOnRequest) root.write = 'granted';
         save();
       }
-      return permOf(this.__fakeId);
+      return permOf(this.__fakeId, mode);
     }
     async isSameEntry(other: FakeHandle): Promise<boolean> {
       return other.__fakeId === this.__fakeId;
@@ -84,10 +93,19 @@ export function installFakeFs(): void {
       const id = this.__fakeId;
       const data = fileData(id);
       const part: BlobPart = data.base64 !== undefined ? bytes(data.base64) : (data.text ?? '');
-      return new File([part], this.name, { lastModified: data.modified });
+      const file = new File([part], this.name, { lastModified: data.modified });
+      const later = afterRead[id];
+      if (later !== undefined) {
+        delete afterRead[id];
+        data.text = later;
+        data.modified = tick();
+        save();
+      }
+      return file;
     }
     async createWritable() {
       const id = this.__fakeId;
+      if (permOf(id, 'readwrite') !== 'granted') throw new DOMException('Write access was not granted', 'NotAllowedError');
       let pending = '';
       return {
         async write(chunk: unknown) {
@@ -199,7 +217,7 @@ export function installFakeFs(): void {
   const controls = {
     /** A single file, as returned by `showOpenFilePicker`. */
     createFile(id: string, name: string, text: string) {
-      state.entries[id] = { type: 'file', name, file: { text, modified: tick() }, perm: 'granted' };
+      state.entries[id] = { type: 'file', name, file: { text, modified: tick() }, perm: 'granted', write: 'prompt' };
       save();
     },
     /** An external edit (for example by an agent). */
@@ -223,7 +241,7 @@ export function installFakeFs(): void {
       for (const [path, v] of Object.entries(files)) {
         out[path] = typeof v === 'string' ? { text: v, modified: tick() } : { base64: v.base64, modified: tick() };
       }
-      state.entries[id] = { type: 'dir', name, files: out, perm: 'granted' };
+      state.entries[id] = { type: 'dir', name, files: out, perm: 'granted', write: 'granted' };
       save();
     },
     /** The id the next `showOpenFilePicker` call returns. */
@@ -237,8 +255,26 @@ export function installFakeFs(): void {
     },
     setPermission(id: string, perm: 'granted' | 'prompt' | 'denied') {
       const root = state.entries[id];
-      if (root) root.perm = perm;
+      if (root) {
+        root.perm = perm;
+        root.write = perm;
+      }
       save();
+    },
+    /** Sets only the write permission, leaving read as it is (a read-only handle is `prompt`). */
+    setWritePermission(id: string, perm: 'granted' | 'prompt' | 'denied') {
+      const root = state.entries[id];
+      if (root) root.write = perm;
+      save();
+    },
+    /** Whether the user allows writing when the app asks for read and write access. */
+    grantWriteOnRequest(grant: boolean) {
+      state.grantWriteOnRequest = grant;
+      save();
+    },
+    /** The file changes to `text` right after the next time the app reads it (the app sees the old text). */
+    changeAfterNextRead(id: string, text: string) {
+      afterRead[id] = text;
     },
     /** Whether `requestPermission` grants access (the user clicks Allow) or leaves it as it was. */
     grantOnRequest(grant: boolean) {
@@ -265,5 +301,8 @@ export type FakeFs = {
   pickDir(id: string): void;
   setPermission(id: string, perm: 'granted' | 'prompt' | 'denied'): void;
   grantOnRequest(grant: boolean): void;
+  setWritePermission(id: string, perm: 'granted' | 'prompt' | 'denied'): void;
+  grantWriteOnRequest(grant: boolean): void;
+  changeAfterNextRead(id: string, text: string): void;
   remove(id: string): void;
 };

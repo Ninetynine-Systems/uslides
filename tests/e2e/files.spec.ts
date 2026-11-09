@@ -49,9 +49,10 @@ test.describe('with the File System Access API', () => {
       .poll(() => page.evaluate(() => window.__fakeFs.getText('f1')), { timeout: 4000 })
       .toContain('typed in the app');
     // The write must not come back as a change from disk: the text stays as typed.
+    const writesBefore = await page.evaluate(() => window.__fakeFs.writes('f1').length);
     await page.waitForTimeout(2500);
     expect(await getSource(page)).toContain('typed in the app');
-    expect(await page.evaluate(() => window.__fakeFs.writes('f1').length)).toBeLessThan(5);
+    expect(await page.evaluate(() => window.__fakeFs.writes('f1').length)).toBe(writesBefore);
   });
 
   test('when both changed, the dialog lets you use the file', async ({ page }) => {
@@ -70,6 +71,65 @@ test.describe('with the File System Access API', () => {
     await expect(dialog).toBeHidden();
     await expect.poll(() => page.evaluate(() => window.__fakeFs.getText('f1'))).toContain('mine');
     expect(await getSource(page)).toContain('mine');
+  });
+
+  test('a picked file is read-only until the user allows writing, and syncing works either way', async ({ page }) => {
+    // (a) the user allows writing when asked: live sync and write-back both work
+    await openLinkedFile(page);
+    await expect(page.getByRole('button', { name: /Allow/ })).toHaveCount(0);
+    await page.evaluate(() => window.__fakeFs.setText('f1', '# Agent v2\n'));
+    await expect.poll(() => getSource(page), { timeout: 3000 }).toBe('# Agent v2\n');
+    await editor(page).click();
+    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.type('more');
+    await expect.poll(() => page.evaluate(() => window.__fakeFs.getText('f1')), { timeout: 4000 }).toContain('more');
+  });
+
+  test('when writing is declined the file is still followed, edits stay in the app, and Allow appears', async ({ page }) => {
+    await page.goto('/?test');
+    await expect(page.locator('.us-stage')).toHaveCount(4);
+    await page.evaluate(() => {
+      window.__fakeFs.grantWriteOnRequest(false);
+      window.__fakeFs.createFile('f1', 'talk.md', '# Hello from disk\n');
+      window.__fakeFs.pickFile('f1');
+    });
+    await page.getByRole('button', { name: 'Open', exact: true }).click();
+    await expect(badge(page)).toContainText('talk.md');
+    await expect(page.getByText('Edits stay in the app; allow writing to save them to the file')).toBeVisible();
+    const allow = page.getByRole('button', { name: 'Allow writing to the file' });
+    await expect(allow).toBeVisible();
+    // Reading still follows the file.
+    await page.evaluate(() => window.__fakeFs.setText('f1', '# Agent v2\n'));
+    await expect.poll(() => getSource(page), { timeout: 3000 }).toBe('# Agent v2\n');
+    // Typing does not write to the file.
+    await editor(page).click();
+    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.type('local only');
+    await page.waitForTimeout(2500);
+    expect(await getSource(page)).toContain('local only');
+    expect(await page.evaluate(() => window.__fakeFs.writes('f1').length)).toBe(0);
+    // Allowing writing saves the edit to the file.
+    await page.evaluate(() => window.__fakeFs.grantWriteOnRequest(true));
+    await allow.click();
+    await expect.poll(() => page.evaluate(() => window.__fakeFs.getText('f1')), { timeout: 4000 }).toContain('local only');
+    await expect(allow).toBeHidden();
+  });
+
+  test('a file changed between the poll and the write-back is not overwritten', async ({ page }) => {
+    await openLinkedFile(page);
+    await page.evaluate(() => window.__fakeFs.setPermission('f1', 'prompt'));
+    const allow = page.getByRole('button', { name: 'Allow access to the file again' });
+    await expect(allow).toBeVisible({ timeout: 3000 });
+    await editor(page).click();
+    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.type('mine');
+    await page.waitForTimeout(700); // saved to the browser, sync is paused
+    // The poll will read the old text; the agent writes right after that read.
+    await page.evaluate(() => window.__fakeFs.changeAfterNextRead('f1', '# Agent edit\n'));
+    await allow.click();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 4000 });
+    expect(await page.evaluate(() => window.__fakeFs.writes('f1').length)).toBe(0);
+    expect(await page.evaluate(() => window.__fakeFs.getText('f1'))).toBe('# Agent edit\n');
   });
 
   test('a file that disappears is unlinked with a notice, and the deck stays', async ({ page }) => {

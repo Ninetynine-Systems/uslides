@@ -49,8 +49,8 @@ export type UseDeck = {
   discard(): void;
   /** Takes a record that was written elsewhere (for example by rename) as the current one. */
   adopt(record: DeckRecord): void;
-  /** The text as last stored, for the open deck. Undefined until the deck has loaded. */
-  getSaved(): { id: string; source: string } | undefined;
+  /** The text as last stored, and the text now in the editor, for the open deck. Undefined until the deck has loaded. */
+  getSaved(): { id: string; source: string; latest: string } | undefined;
   /** Replaces the editor text with text that came from outside (a file on disk) and stores it. */
   applyExternal(text: string): Promise<void>;
   /** Updates fields of the current record that are not content (file links and sync fields). */
@@ -228,7 +228,7 @@ export function useDeck(id: string | undefined, options: Options): UseDeck {
 
   const getSaved = useCallback(() => {
     const s = session.current;
-    return s && s.revision > 0 ? { id: s.id, source: s.saved } : undefined;
+    return s && s.revision > 0 ? { id: s.id, source: s.saved, latest: s.latest } : undefined;
   }, []);
 
   const applyExternal = useCallback(

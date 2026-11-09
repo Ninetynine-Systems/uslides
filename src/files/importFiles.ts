@@ -1,6 +1,6 @@
 // Turning dropped or picked files into decks. No React in this file.
 import { createDeck, putImage, updateDeckMeta } from '../storage/db';
-import { listMarkdownFiles, readFile, rememberLink } from './fileLink';
+import { listMarkdownFiles, readFile, rememberLink, requestAccess } from './fileLink';
 
 const isMarkdown = (name: string) => /\.(md|markdown)$/i.test(name);
 const isImage = (f: File) => f.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(f.name);
@@ -35,6 +35,8 @@ export async function importFiles(files: File[] | FileSystemHandle[]): Promise<s
   if ('kind' in first) {
     const handle = (files as FileSystemHandle[]).find((h): h is FileSystemFileHandle => h.kind === 'file' && isMarkdown(h.name));
     if (!handle) throw new Error('Choose a Markdown (.md) file');
+    // A picked or dropped handle starts read-only. Ask for write access now, while the click is fresh.
+    await requestAccess(handle);
     const { text, modified } = await readFile(handle);
     return createLinked(text, modified, { file: handle });
   }
@@ -50,6 +52,7 @@ export async function importFiles(files: File[] | FileSystemHandle[]): Promise<s
 export async function openFolder(dir: FileSystemDirectoryHandle): Promise<
   { kind: 'one'; id: string } | { kind: 'choose'; files: FileSystemFileHandle[] } | { kind: 'none' }
 > {
+  await requestAccess(dir);
   const files = await listMarkdownFiles(dir);
   if (files.length === 0) return { kind: 'none' };
   if (files.length > 1) return { kind: 'choose', files };
@@ -58,6 +61,7 @@ export async function openFolder(dir: FileSystemDirectoryHandle): Promise<
 
 /** Makes a deck from one `.md` file in a folder, linked to the file and the folder. */
 export async function importFromFolder(dir: FileSystemDirectoryHandle, file: FileSystemFileHandle): Promise<string> {
+  await requestAccess(dir);
   const { text, modified } = await readFile(file);
   return createLinked(text, modified, { file, folder: dir });
 }

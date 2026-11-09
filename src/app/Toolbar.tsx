@@ -16,6 +16,7 @@ type Props = {
   /** The linked file, if any. */
   link?: { name: string; folder: boolean };
   needsAccess: boolean;
+  readOnly: boolean;
   onGrant(): void;
   onUnlink(): void;
 };
@@ -81,7 +82,7 @@ function ShareMenu({ onCopyLink }: { onCopyLink: Props['onCopyLink'] }) {
 
 export function Toolbar({
   listOpen, onToggleList, name, onRename, onDuplicate, onDelete, onPresent, onCopyLink,
-  onOpen, onOpenFolder, link, needsAccess, onGrant, onUnlink,
+  onOpen, onOpenFolder, link, needsAccess, readOnly, onGrant, onUnlink,
 }: Props) {
   return (
     <header className="toolbar">
@@ -90,9 +91,15 @@ export function Toolbar({
       </button>
       <h1 className="toolbar-name">{name}</h1>
       <div className="toolbar-actions">
-        {link && needsAccess && (
+        {link && (needsAccess || readOnly) && (
           <button type="button" onClick={onGrant}>
-            {link.folder ? 'Allow access to the folder again' : 'Allow access to the file again'}
+            {needsAccess
+              ? link.folder
+                ? 'Allow access to the folder again'
+                : 'Allow access to the file again'
+              : link.folder
+                ? 'Allow writing to the folder'
+                : 'Allow writing to the file'}
           </button>
         )}
         {link && <LinkedBadge name={link.name} onUnlink={onUnlink} />}

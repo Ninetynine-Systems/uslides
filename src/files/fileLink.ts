@@ -59,18 +59,26 @@ export async function writeFile(handle: FileSystemFileHandle, text: string): Pro
   return (await handle.getFile()).lastModified;
 }
 
-/** True when the browser lets us read and write this handle right now. Never asks the user. */
-export async function hasAccess(handle: unknown): Promise<boolean> {
+/** True when the browser lets us read (or read and write) this handle right now. Never asks the user. */
+export async function hasAccess(handle: unknown, mode: PermissionMode['mode'] = 'read'): Promise<boolean> {
   const h = handle as Partial<Permissioned> | undefined;
   if (!h?.queryPermission) return true;
-  return (await h.queryPermission({ mode: 'readwrite' })) === 'granted';
+  try {
+    return (await h.queryPermission({ mode })) === 'granted';
+  } catch {
+    return false;
+  }
 }
 
-/** Asks the user for access. The browser only allows this inside a click. */
+/** Asks the user for read and write access. The browser only allows this inside a click or drop. */
 export async function requestAccess(handle: unknown): Promise<boolean> {
   const h = handle as Partial<Permissioned> | undefined;
   if (!h?.requestPermission) return true;
-  return (await h.requestPermission({ mode: 'readwrite' })) === 'granted';
+  try {
+    return (await h.requestPermission({ mode: 'readwrite' })) === 'granted';
+  } catch {
+    return false;
+  }
 }
 
 type WatchOptions = {

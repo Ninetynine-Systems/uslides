@@ -400,6 +400,7 @@ export function App() {
         onOpenFolder={supportsFolderLink() ? openFolderClick : undefined}
         link={ready ? sync.link : undefined}
         needsAccess={sync.needsAccess}
+        readOnly={sync.readOnly}
         onGrant={guarded(sync.grant)}
         onUnlink={guarded(sync.unlink)}
       />
