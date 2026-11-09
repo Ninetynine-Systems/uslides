@@ -74,6 +74,51 @@ test('a box cannot be dragged off the grid', async ({ page }) => {
   await expect.poll(() => getSource(page)).toBe(source);
 });
 
+test('a clamped drag adds no undo step', async ({ page }) => {
+  const source = '# A\n\n::: box col=9-12 row=4-6\nAt the edge\n:::\n';
+  const edited = `${source}Unrelated edit\n`;
+  await openDeck(page, source);
+  await editor(page).focus();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.insertText('Unrelated edit\n');
+  await expect.poll(() => getSource(page)).toBe(edited);
+
+  const box = await page.locator('.us-box[data-box="0"]').boundingBox();
+  const stage = await page.locator('.us-stage').boundingBox();
+  if (!box || !stage) throw new Error('The box is not visible');
+  const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await drag(page, from, { x: from.x + stage.width, y: from.y + stage.height });
+  await expect.poll(() => getSource(page)).toBe(edited);
+
+  await editor(page).focus();
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(() => getSource(page)).toBe(source);
+});
+
+test('pointer cancellation clears a drag without writing an edit', async ({ page }) => {
+  const source = '# A\n\n::: box col=1-3 row=1-2\nMove me\n:::\n';
+  await openDeck(page, source);
+  const box = await page.locator('.us-box[data-box="0"]').boundingBox();
+  const stage = await page.locator('.us-stage').boundingBox();
+  if (!box || !stage) throw new Error('The box is not visible');
+  const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + stage.width / 12, from.y, { steps: 4 });
+  await expect(page.locator('.us-ghost')).toBeVisible();
+  await page.locator('.slide-frame').dispatchEvent('pointercancel', {
+    pointerId: 1,
+    pointerType: 'mouse',
+    bubbles: true,
+  });
+
+  await expect(page.locator('.us-ghost')).toHaveCount(0);
+  await expect(page.locator('.slide-frame')).not.toHaveClass(/us-dragging/);
+  await page.mouse.up();
+  await expect.poll(() => getSource(page)).toBe(source);
+});
+
 test('the landing outline and grid lines show while dragging, even with the grid off', async ({ page }) => {
   await openDeck(page, '# A\n\n::: box col=1-3 row=1-2\nMove me\n:::\n');
   await page.getByLabel('Grid lines').uncheck();

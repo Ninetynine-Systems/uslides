@@ -56,6 +56,11 @@ function pointNear(a: Point, b: Point): boolean {
   return Math.hypot(a.x - b.x, a.y - b.y) <= 4;
 }
 
+function sameArea(a: GridArea, b: GridArea): boolean {
+  return a.col[0] === b.col[0] && a.col[1] === b.col[1]
+    && a.row[0] === b.row[0] && a.row[1] === b.row[1];
+}
+
 function areaStyle(stage: HTMLElement, frame: HTMLElement, grid: Grid, area: GridArea): CSSProperties {
   const stageRect = stage.getBoundingClientRect();
   const frameRect = frame.getBoundingClientRect();
@@ -302,14 +307,61 @@ export function Overlay({
         };
       }
 
+      try {
+        frame.setPointerCapture(event.pointerId);
+      } catch {
+        return;
+      }
       drag.current = nextDrag;
-      frame.setPointerCapture(event.pointerId);
       event.preventDefault();
+    };
+
+    const finishDrag = (event: PointerEvent, commit: boolean) => {
+      const current = drag.current;
+      if (!current || current.pointerId !== event.pointerId) return;
+      drag.current = null;
+      if (frame.hasPointerCapture(event.pointerId)) frame.releasePointerCapture(event.pointerId);
+      frame.classList.remove('us-dragging');
+      setGhost(null);
+
+      if (!commit) return;
+
+      if (current.moved) {
+        suppressClick.current = true;
+        window.setTimeout(() => {
+          suppressClick.current = false;
+        });
+        if (current.area) {
+          if (current.kind === 'draw') insert(current.area);
+          else if (!sameArea(current.area, current.original)) setSpan(current.boxIndex, current.area);
+        }
+        frame.focus({ preventScroll: true });
+        return;
+      }
+
+      if (current.kind !== 'move') return;
+      let next = current.boxIndex;
+      if (
+        current.selectedAtStart !== null &&
+        lastPoint.current &&
+        pointNear(lastPoint.current, current.start)
+      ) {
+        const index = current.hits.indexOf(current.selectedAtStart);
+        if (index !== -1) next = current.hits[(index + 1) % current.hits.length]!;
+      }
+      setSelected(next);
+      lastPoint.current = current.start;
+      const box = slide.boxes[next];
+      if (box) onMoveCursor(box.range.from);
     };
 
     const onPointerMove = (event: PointerEvent) => {
       const current = drag.current;
       if (!current || current.pointerId !== event.pointerId) return;
+      if (event.buttons === 0) {
+        finishDrag(event, false);
+        return;
+      }
       if (!current.moved && Math.hypot(event.clientX - current.start.x, event.clientY - current.start.y) < 4) return;
       current.moved = true;
       frame.classList.add('us-dragging');
@@ -332,45 +384,6 @@ export function Overlay({
       setGhost(area);
     };
 
-    const finishDrag = (event: PointerEvent, commit: boolean) => {
-      const current = drag.current;
-      if (!current || current.pointerId !== event.pointerId) return;
-      drag.current = null;
-      if (frame.hasPointerCapture(event.pointerId)) frame.releasePointerCapture(event.pointerId);
-      frame.classList.remove('us-dragging');
-      setGhost(null);
-
-      if (!commit) return;
-
-      if (current.moved) {
-        suppressClick.current = true;
-        window.setTimeout(() => {
-          suppressClick.current = false;
-        });
-        if (current.area) {
-          if (current.kind === 'draw') insert(current.area);
-          else setSpan(current.boxIndex, current.area);
-        }
-        frame.focus({ preventScroll: true });
-        return;
-      }
-
-      if (current.kind !== 'move') return;
-      let next = current.boxIndex;
-      if (
-        current.selectedAtStart !== null &&
-        lastPoint.current &&
-        pointNear(lastPoint.current, current.start)
-      ) {
-        const index = current.hits.indexOf(current.selectedAtStart);
-        if (index !== -1) next = current.hits[(index + 1) % current.hits.length]!;
-      }
-      setSelected(next);
-      lastPoint.current = current.start;
-      const box = slide.boxes[next];
-      if (box) onMoveCursor(box.range.from);
-    };
-
     const onClick = (event: MouseEvent) => {
       if (event.button !== 0) return;
       if (suppressClick.current) return;
@@ -387,6 +400,7 @@ export function Overlay({
     };
     const onPointerUp = (event: PointerEvent) => finishDrag(event, true);
     const onPointerCancel = (event: PointerEvent) => finishDrag(event, false);
+    const onLostPointerCapture = (event: PointerEvent) => finishDrag(event, false);
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (selected === null) return;
@@ -442,6 +456,7 @@ export function Overlay({
     frame.addEventListener('pointermove', onPointerMove);
     frame.addEventListener('pointerup', onPointerUp);
     frame.addEventListener('pointercancel', onPointerCancel);
+    frame.addEventListener('lostpointercapture', onLostPointerCapture);
     frame.addEventListener('click', onClick);
     frame.addEventListener('dblclick', onDoubleClick);
     frame.addEventListener('keydown', onKeyDown);
@@ -450,6 +465,7 @@ export function Overlay({
       frame.removeEventListener('pointermove', onPointerMove);
       frame.removeEventListener('pointerup', onPointerUp);
       frame.removeEventListener('pointercancel', onPointerCancel);
+      frame.removeEventListener('lostpointercapture', onLostPointerCapture);
       frame.removeEventListener('click', onClick);
       frame.removeEventListener('dblclick', onDoubleClick);
       frame.removeEventListener('keydown', onKeyDown);

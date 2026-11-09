@@ -107,8 +107,12 @@ export function Editor({ value, onChange, onCursorChange, warnings = [], onNotic
   useImperativeHandle(ref, () => ({
     applyEdit(result, opts) {
       const v = view.current;
-      if (!v || (result.changes.length === 0 && result.select === undefined)) return;
-      const changes = v.state.changes(result.changes);
+      if (!v) return;
+      const effectiveChanges = result.changes.filter(
+        (change) => change.insert !== v.state.doc.sliceString(change.from, change.to),
+      );
+      if (effectiveChanges.length === 0 && result.select === undefined) return;
+      const changes = v.state.changes(effectiveChanges);
       const select = result.select === undefined ? undefined : Math.min(Math.max(0, result.select), changes.newLength);
       v.dispatch({
         changes,
