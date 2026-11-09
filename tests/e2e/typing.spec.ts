@@ -97,6 +97,30 @@ test('a rendered block maps to the middle of three free-flowing pieces', async (
   await expect.poll(() => getSource(page)).toBe(source.replace('\nMiddle\n', '\nMiddle!\n'));
 });
 
+test('free-flowing text next to a box maps to the piece under the pointer', async ({ page }) => {
+  const source = 'Intro\n::: box col=10-12 row=5-6\nx\n:::\nTail';
+  await openDeck(page, source);
+
+  await page.locator('.us-loose').getByText('Tail', { exact: true }).dblclick();
+  await expect(typingArea(page)).toHaveText('Tail');
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.insertText('!');
+
+  await expect.poll(() => getSource(page)).toBe(source.replace('Tail', 'Tail!'));
+});
+
+test('a list split by a box maps each rendered list to its source piece', async ({ page }) => {
+  const source = '- First\n::: box col=10-12 row=5-6\nx\n:::\n- Tail';
+  await openDeck(page, source);
+
+  await page.locator('.us-loose').getByText('Tail', { exact: true }).dblclick();
+  await expect(typingArea(page)).toHaveText('- Tail');
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.insertText('!');
+
+  await expect.poll(() => getSource(page)).toBe(source.replace('- Tail', '- Tail!'));
+});
+
 test('a new box from Add box goes straight into typing', async ({ page }) => {
   await openDeck(page, '# A\n');
 
@@ -115,6 +139,73 @@ test('typing in an existing empty box keeps its closing marker on a separate lin
   await page.keyboard.insertText('Ready');
 
   await expect.poll(() => getSource(page)).toBe('::: box col=1-6\nReady\n:::\n');
+});
+
+test('typing a new line in a box keeps the typing area open', async ({ page }) => {
+  await openDeck(page, '::: box col=1-6\n\n:::\n');
+  await page.locator('.us-box[data-box="0"]').dblclick();
+  await expect(typingArea(page)).toBeFocused();
+
+  await page.keyboard.insertText('a');
+  await page.keyboard.press('Enter');
+  await page.keyboard.insertText('b');
+
+  await expect(typingArea(page).locator('.cm-line')).toHaveText(['a', 'b']);
+  await expect.poll(() => getSource(page)).toBe('::: box col=1-6\na\nb\n:::\n');
+});
+
+test('typing a new line in free-flowing text keeps the typing area open', async ({ page }) => {
+  await openDeck(page, 'Replace me');
+  await page.locator('.us-loose').getByText('Replace me', { exact: true }).dblclick();
+  await expect(typingArea(page)).toBeFocused();
+
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.insertText('a');
+  await page.keyboard.press('Enter');
+  await page.keyboard.insertText('b');
+
+  await expect(typingArea(page).locator('.cm-line')).toHaveText(['a', 'b']);
+  await expect.poll(() => getSource(page)).toBe('a\nb');
+});
+
+test('typing after a leading new line in a box keeps the blank first line', async ({ page }) => {
+  await openDeck(page, '::: box col=1-6\na\n:::\n');
+  await page.locator('.us-box[data-box="0"]').dblclick();
+  await expect(typingArea(page)).toBeFocused();
+
+  await page.keyboard.press('ControlOrMeta+Home');
+  await page.keyboard.press('Enter');
+  await page.keyboard.insertText('z');
+
+  await expect(typingArea(page).locator('.cm-line')).toHaveText(['', 'za']);
+  await expect.poll(() => getSource(page)).toBe('::: box col=1-6\n\nza\n:::\n');
+});
+
+test('double-clicking inside the typing area keeps the same typing target', async ({ page }) => {
+  await openDeck(page, 'Loose\n\n::: box col=1-12 row=1-6 valign=bottom\nBox\n:::');
+  const loose = page.locator('.us-loose').getByText('Loose', { exact: true });
+  const rect = await loose.boundingBox();
+  expect(rect).not.toBeNull();
+  await page.mouse.dblclick(rect!.x + rect!.width / 2, rect!.y + rect!.height / 2);
+  await expect(typingArea(page)).toHaveText('Loose');
+
+  await page.locator('.us-typing-area').dblclick({ position: { x: 5, y: 5 } });
+
+  await expect(typingArea(page)).toHaveText('Loose');
+});
+
+test('editing keys in the typing area leave the box in place', async ({ page }) => {
+  await openDeck(page, '::: box col=1-6 row=1-3\nabc\n:::\n');
+  await page.locator('.us-box[data-box="0"]').dblclick();
+  await expect(typingArea(page)).toBeFocused();
+  await page.keyboard.press('ControlOrMeta+End');
+
+  await page.keyboard.press('Delete');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.press('ArrowRight');
+
+  await expect(page.locator('.us-box[data-box="0"]')).toHaveCount(1);
+  await expect.poll(() => getSource(page)).toBe('::: box col=1-6 row=1-3\nab\n:::\n');
 });
 
 test('long text scrolls inside the box instead of growing it', async ({ page }) => {

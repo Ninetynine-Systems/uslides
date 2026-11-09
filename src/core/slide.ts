@@ -28,6 +28,8 @@ export type Slide = {
   color?: string;
   /** Markdown outside any box. Boxes, the slide comment and notes are removed. */
   loose: string;
+  /** Source offset for the start of each line in loose. */
+  looseLines: number[];
   /** Source ranges for each non-blank run of Markdown outside boxes. */
   looseRanges: SourceRange[];
   boxes: Box[];
@@ -183,6 +185,7 @@ export function parseSlide(
     index,
     grid: settings.grid,
     loose: '',
+    looseLines: [],
     looseRanges: [],
     boxes: [],
     notes: [],
@@ -261,14 +264,12 @@ export function parseSlide(
     close(null);
   }
 
-  slide.loose = trimBlankEnds(loose)
-    .map((l) => l.text ?? '')
-    .join('\n');
-
+  const pieces: Line[][] = [];
   let run: Line[] = [];
   const finishRun = () => {
     if (run.some((line) => line.text?.trim() !== '')) {
       slide.looseRanges.push({ from: run[0]!.range.from, to: run[run.length - 1]!.range.to });
+      pieces.push(trimBlankEnds(run));
     }
     run = [];
   };
@@ -278,5 +279,19 @@ export function parseSlide(
     run.push(line);
   }
   finishRun();
+
+  const rendered: string[] = [];
+  for (const [index, piece] of pieces.entries()) {
+    if (index > 0) {
+      const previous = pieces[index - 1]!.at(-1)!;
+      rendered.push('');
+      slide.looseLines.push(previous.range.to + 1);
+    }
+    for (const line of piece) {
+      rendered.push(line.text ?? '');
+      slide.looseLines.push(line.range.from);
+    }
+  }
+  slide.loose = rendered.join('\n');
   return { slide, warnings };
 }

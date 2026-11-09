@@ -29,6 +29,7 @@ type Props = {
   currentSlide: number;
   onEdit(make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }): void;
   onMoveCursor(pos: number): void;
+  getDeck(): Deck | undefined;
   getSource(): string;
   onUndo(): void;
   onRedo(): void;
@@ -68,6 +69,7 @@ function SlideCard(props: {
   editable: boolean;
   onEdit(make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }): void;
   onMoveCursor(pos: number): void;
+  getDeck(): Deck | undefined;
   getSource(): string;
   onUndo(): void;
   onRedo(): void;
@@ -77,7 +79,7 @@ function SlideCard(props: {
   onFit?(slide: Slide, results: FitResult[]): void;
 }) {
   const {
-    slide, deck, urls, showGrid, active, editable, onEdit, onMoveCursor, getSource, onUndo, onRedo, onSelect,
+    slide, deck, urls, showGrid, active, editable, onEdit, onMoveCursor, getDeck, getSource, onUndo, onRedo, onSelect,
   } = props;
   const frame = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState<HTMLElement | null>(null);
@@ -92,6 +94,7 @@ function SlideCard(props: {
     const stage = renderSlide(slide, deck.settings, {
       showGrid,
       markEmpty: true,
+      markLines: true,
       resolveImage: (src) => urls.get(imageKey(src)),
     });
     const unmount = mountScaled(stage, container);
@@ -133,6 +136,7 @@ function SlideCard(props: {
               theme={deck.settings.theme}
               onEdit={onEdit}
               onMoveCursor={onMoveCursor}
+              getDeck={getDeck}
               getSource={getSource}
               onUndo={onUndo}
               onRedo={onRedo}
@@ -157,7 +161,7 @@ function SlideCard(props: {
 
 export function Preview({
   deck, images, showGrid, onShowGridChange, view, onViewChange, currentSlide, onEdit, onMoveCursor,
-  getSource, onUndo, onRedo, editable, onSelectSlide, onFit,
+  getDeck, getSource, onUndo, onRedo, editable, onSelectSlide, onFit,
 }: Props) {
   const urls = useImageUrls(images);
   const slideCount = deck?.slides.length ?? 0;
@@ -220,6 +224,7 @@ export function Preview({
               editable={editable}
               onEdit={onEdit}
               onMoveCursor={onMoveCursor}
+              getDeck={getDeck}
               getSource={getSource}
               onUndo={onUndo}
               onRedo={onRedo}
@@ -258,6 +263,7 @@ export function Preview({
                 editable={editable}
                 onEdit={onEdit}
                 onMoveCursor={onMoveCursor}
+                getDeck={getDeck}
                 getSource={getSource}
                 onUndo={onUndo}
                 onRedo={onRedo}

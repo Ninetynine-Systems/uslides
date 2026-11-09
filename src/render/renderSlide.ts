@@ -10,6 +10,8 @@ export type RenderOptions = {
   showGrid?: boolean;
   /** Mark blank boxes so they stay visible in the editor preview. */
   markEmpty?: boolean;
+  /** Mark loose blocks with their source line (editor preview only). */
+  markLines?: boolean;
   resolveImage?: (src: string) => string | undefined;
 };
 
@@ -25,8 +27,45 @@ function isImageOnly(container: HTMLElement): boolean {
   );
 }
 
-function fill(el: HTMLElement, markdown: string, opts: RenderOptions): void {
-  el.innerHTML = renderMarkdown(markdown, { resolveImage: opts.resolveImage });
+function fill(el: HTMLElement, markdown: string, opts: RenderOptions, sourceLines = false): void {
+  el.innerHTML = renderMarkdown(markdown, { resolveImage: opts.resolveImage, sourceLines });
+  if (isImageOnly(el)) el.classList.add('us-image-only');
+}
+
+/** Renders source-disconnected loose pieces separately so Markdown blocks never join across a box. */
+function fillLoose(el: HTMLElement, slide: Slide, opts: RenderOptions): void {
+  const lines = slide.loose.split('\n');
+  let piece: { index: number; firstLine: number; lines: string[] } | undefined;
+  const finish = () => {
+    if (!piece) return;
+    const template = document.createElement('template');
+    template.innerHTML = renderMarkdown(piece.lines.join('\n'), {
+      resolveImage: opts.resolveImage,
+      sourceLines: opts.markLines,
+    });
+    if (opts.markLines) {
+      for (const marked of template.content.querySelectorAll<HTMLElement>('[data-line]')) {
+        marked.dataset.line = String(piece.firstLine + Number(marked.dataset.line));
+      }
+    }
+    el.append(template.content);
+    piece = undefined;
+  };
+
+  for (const [line, text] of lines.entries()) {
+    const offset = slide.looseLines[line];
+    const index = offset === undefined
+      ? -1
+      : slide.looseRanges.findIndex((range) => range.from <= offset && offset < range.to);
+    if (index < 0) {
+      finish();
+      continue;
+    }
+    if (piece && piece.index !== index) finish();
+    piece ??= { index, firstLine: line, lines: [] };
+    piece.lines.push(text);
+  }
+  finish();
   if (isImageOnly(el)) el.classList.add('us-image-only');
 }
 
@@ -64,7 +103,7 @@ export function renderSlide(slide: Slide, settings: DeckSettings, opts: RenderOp
   loose.style.setProperty('grid-column', `1 / ${cols + 1}`);
   loose.style.setProperty('grid-row', `1 / ${rows + 1}`);
   loose.style.zIndex = '0';
-  fill(loose, slide.loose, opts);
+  fillLoose(loose, slide, opts);
   stage.append(loose);
 
   slide.boxes.forEach((box, i) => stage.append(renderBox(box, i, opts)));

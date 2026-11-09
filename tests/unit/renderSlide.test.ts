@@ -74,4 +74,12 @@ describe('renderSlide', () => {
     const stage = render('![a](./x.png)', { resolveImage: () => 'https://example.com/x.png' });
     expect(stage.querySelector('img')!.getAttribute('src')).toBe('https://example.com/x.png');
   });
+
+  it('marks source lines only on loose preview blocks when asked', () => {
+    const source = '# Loose\n\n::: box\n# Box\n:::';
+    const marked = render(source, { markLines: true });
+    expect(marked.querySelector('.us-loose > h1')!.getAttribute('data-line')).toBe('0');
+    expect(marked.querySelector('.us-box [data-line]')).toBeNull();
+    expect(render(source).querySelector('[data-line]')).toBeNull();
+  });
 });

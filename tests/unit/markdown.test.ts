@@ -10,6 +10,15 @@ describe('renderMarkdown', () => {
     expect(renderMarkdown('```js\nlet x = 1;\n```')).toContain('<pre><code class="language-js">');
   });
 
+  it('marks top-level block openings with their source line only when asked', () => {
+    const source = '# Title\n\n- one\n- two';
+    const marked = renderMarkdown(source, { sourceLines: true });
+    expect(marked).toContain('<h1 data-line="0">');
+    expect(marked).toContain('<ul data-line="2">');
+    expect(marked).not.toMatch(/<li[^>]*data-line/);
+    expect(renderMarkdown(source)).not.toContain('data-line=');
+  });
+
   it('renders *** as a horizontal rule', () => {
     expect(renderMarkdown('***')).toContain('<hr>');
   });

@@ -13,8 +13,7 @@ import {
   type EditResult,
 } from '../../core/edit';
 import { clampNewBox, moveSpan, resizeSpan, type Edge, type GridArea } from '../../core/layout';
-import { renderMarkdown } from '../../core/markdown';
-import { parseDeck, type Deck } from '../../core/parse';
+import type { Deck } from '../../core/parse';
 import type { Box, Slide } from '../../core/slide';
 import type { Grid, SourceRange } from '../../core/types';
 import { FloatingBar } from './FloatingBar';
@@ -49,6 +48,7 @@ export type OverlayProps = {
   theme: 'light' | 'dark';
   onEdit: OnEdit;
   onMoveCursor(pos: number): void;
+  getDeck(): Deck | undefined;
   getSource(): string;
   onUndo(): void;
   onRedo(): void;
@@ -120,29 +120,17 @@ function targetRange(source: string, slide: Slide, target: TypingTarget): Source
   return range;
 }
 
-function blockCount(markdown: string): number {
-  const template = document.createElement('template');
-  template.innerHTML = renderMarkdown(markdown);
-  return template.content.children.length;
+function loosePieceForLine(slide: Slide, line: number): number | undefined {
+  const offset = slide.looseLines[line];
+  if (offset === undefined) return undefined;
+  const index = slide.looseRanges.findIndex((range) => range.from <= offset && offset < range.to);
+  return index < 0 ? undefined : index;
 }
 
-function looseBlockSpan(source: string, slide: Slide, pieceIndex: number): { from: number; count: number } | undefined {
-  let from = 0;
-  for (let index = 0; index < slide.looseRanges.length; index++) {
-    const range = targetRange(source, slide, { kind: 'loose', index });
-    if (!range) continue;
-    const count = blockCount(source.slice(range.from, range.to));
-    if (index === pieceIndex) return count > 0 ? { from, count } : undefined;
-    from += count;
-  }
-  return undefined;
-}
-
-/** Maps a rendered top-level block back to the loose source piece that produced it. */
+/** Maps a marked rendered block back to the loose source piece that produced it. */
 function loosePieceAt(
   stage: HTMLElement,
   slide: Slide,
-  source: string,
   clientX: number,
   clientY: number,
 ): number | undefined {
@@ -157,16 +145,23 @@ function loosePieceAt(
   if (!target) return undefined;
   const loose = target.closest<HTMLElement>('.us-loose');
   if (!loose || loose.parentElement !== stage) return undefined;
-  let block: Element = target;
-  while (block.parentElement && block.parentElement !== loose) block = block.parentElement;
-  if (block.parentElement !== loose) return undefined;
-  const blockIndex = [...loose.children].indexOf(block);
-  if (blockIndex < 0) return undefined;
-  for (let index = 0; index < slide.looseRanges.length; index++) {
-    const span = looseBlockSpan(source, slide, index);
-    if (span && blockIndex >= span.from && blockIndex < span.from + span.count) return index;
-  }
-  return undefined;
+  const block = target.closest<HTMLElement>('[data-line]');
+  if (!block || !loose.contains(block)) return undefined;
+  const line = Number(block.dataset.line);
+  return Number.isInteger(line) ? loosePieceForLine(slide, line) : undefined;
+}
+
+function loosePieceElements(stage: HTMLElement, slide: Slide, pieceIndex: number): Element[] {
+  const loose = stage.querySelector<HTMLElement>(':scope > .us-loose');
+  if (!loose) return [];
+  return [...loose.querySelectorAll<HTMLElement>('[data-line]')].filter((element) => {
+    const line = Number((element as HTMLElement).dataset.line);
+    return (
+      Number.isInteger(line) &&
+      loosePieceForLine(slide, line) === pieceIndex &&
+      element.querySelector('[data-line]') === null
+    );
+  });
 }
 
 function boundsOf(elements: Element[]): DOMRect | undefined {
@@ -201,6 +196,7 @@ export function Overlay({
   theme,
   onEdit,
   onMoveCursor,
+  getDeck,
   getSource,
   onUndo,
   onRedo,
@@ -230,9 +226,9 @@ export function Overlay({
     setTyping(next);
   }, []);
 
-  const beginTyping = useCallback((target: TypingTarget): boolean => {
-    const source = getSource();
-    const freshSlide = parseDeck(source).slides[slide.index];
+  const beginTyping = useCallback((target: TypingTarget, deck = getDeck()): boolean => {
+    const source = deck?.source ?? getSource();
+    const freshSlide = deck?.slides[slide.index];
     const range = freshSlide && targetRange(source, freshSlide, target);
     if (!range) return false;
     storeTyping({ ...target, from: range.from, text: source.slice(range.from, range.to) });
@@ -240,7 +236,7 @@ export function Overlay({
     lastPoint.current = null;
     onMoveCursor(range.from);
     return true;
-  }, [getSource, onMoveCursor, slide.index, storeTyping]);
+  }, [getDeck, getSource, onMoveCursor, slide.index, storeTyping]);
 
   useEffect(() => {
     if (active) return;
@@ -317,16 +313,10 @@ export function Overlay({
     if (typing.kind === 'box') {
       anchor = stage.querySelector<HTMLElement>(`:scope > .us-box[data-box="${typing.index}"]`)?.getBoundingClientRect();
     } else {
-      const source = getSource();
-      const freshSlide = parseDeck(source).slides[slide.index];
-      const span = freshSlide && looseBlockSpan(source, freshSlide, typing.index);
-      const loose = stage.querySelector<HTMLElement>(':scope > .us-loose');
-      if (span && loose) {
-        anchor = boundsOf([...loose.children].slice(span.from, span.from + span.count));
-      }
+      anchor = boundsOf(loosePieceElements(stage, slide, typing.index));
     }
     setTypingRect(anchor ? localRect(anchor, bounds) : null);
-  }, [frame, getSource, selected, slide.index, stage, typing]);
+  }, [frame, selected, slide, stage, typing]);
 
   useEffect(() => {
     updateGeometry();
@@ -419,29 +409,47 @@ export function Overlay({
     const localTo = edit.to - current.from;
     if (localFrom < 0 || localTo < localFrom || localTo > current.text.length) return;
     let found = false;
+    let start = current.from;
+    let reload: Typing | null = null;
     onEdit((deck) => {
       const freshSlide = deck.slides[slide.index];
       const range = freshSlide && targetRange(deck.source, freshSlide, current);
-      if (!range || localTo > range.to - range.from) return null;
+      if (!range) return null;
+      start = range.from;
+      if (deck.source.slice(start, start + current.text.length) !== current.text) {
+        // A leading blank line is deliberately outside the parser's trimmed range.
+        // Keep the start that was mapped through the previous local change while it still matches.
+        if (
+          current.text.startsWith('\n') &&
+          deck.source.slice(current.from, current.from + current.text.length) === current.text
+        ) {
+          start = current.from;
+        } else {
+          reload = { ...current, from: range.from, text: deck.source.slice(range.from, range.to) };
+          return null;
+        }
+      }
       found = true;
       let insert = edit.insert;
       if (current.kind === 'box' && current.text === '' && localFrom === 0 && localTo === 0 && insert !== '') {
         const box = freshSlide.boxes[current.index]!;
         const openingBreak = deck.source.indexOf('\n', box.range.from);
         if (openingBreak === -1 || openingBreak >= box.range.to) insert = `\n${insert}`;
-        else if (deck.source.startsWith(':::', range.from) && !insert.endsWith('\n')) insert += '\n';
+        else if (deck.source.startsWith(':::', start) && !insert.endsWith('\n')) insert += '\n';
       }
       return {
         changes: [{
-          from: range.from + localFrom,
-          to: range.from + localTo,
+          from: start + localFrom,
+          to: start + localTo,
           insert,
         }],
       };
     }, { userEvent: 'input.type' });
+    if (reload) return void storeTyping(reload);
     if (!found) return void storeTyping(null);
     storeTyping({
       ...current,
+      from: start,
       text: replaceText(current.text, localFrom, localTo, edit.insert),
     });
   }, [onEdit, slide.index, storeTyping]);
@@ -449,12 +457,13 @@ export function Overlay({
   const reloadTyping = useCallback(() => {
     const current = typingRef.current;
     if (!current) return;
-    const source = getSource();
-    const freshSlide = parseDeck(source).slides[slide.index];
+    const deck = getDeck();
+    const source = deck?.source ?? getSource();
+    const freshSlide = deck?.slides[slide.index];
     const range = freshSlide && targetRange(source, freshSlide, current);
     if (!range) return void storeTyping(null);
     storeTyping({ ...current, from: range.from, text: source.slice(range.from, range.to) });
-  }, [getSource, slide.index, storeTyping]);
+  }, [getDeck, getSource, slide.index, storeTyping]);
 
   const undoTyping = useCallback(() => {
     onUndo();
@@ -617,19 +626,19 @@ export function Overlay({
 
     const onDoubleClick = (event: MouseEvent) => {
       if (event.button !== 0) return;
-      const source = getSource();
-      const freshSlide = parseDeck(source).slides[slide.index];
+      if (event.target instanceof Element && event.target.closest('.us-typing-area')) return;
+      const freshDeck = getDeck();
+      const freshSlide = freshDeck?.slides[slide.index];
       const looseIndex = freshSlide && loosePieceAt(
         stage,
         freshSlide,
-        source,
         event.clientX,
         event.clientY,
       );
       if (looseIndex !== undefined) {
         event.preventDefault();
         onSelectSlide?.();
-        beginTyping({ kind: 'loose', index: looseIndex });
+        beginTyping({ kind: 'loose', index: looseIndex }, freshDeck);
         return;
       }
       const hits = boxesAt(stage, event.clientX, event.clientY);
@@ -637,7 +646,7 @@ export function Overlay({
         const boxIndex = selected !== null && hits.includes(selected) ? selected : hits[0]!;
         event.preventDefault();
         onSelectSlide?.();
-        beginTyping({ kind: 'box', index: boxIndex });
+        beginTyping({ kind: 'box', index: boxIndex }, freshDeck);
         return;
       }
       if (!isEmptyPoint(stage, event.clientX, event.clientY)) return;
@@ -718,7 +727,7 @@ export function Overlay({
       frame.removeEventListener('keydown', onKeyDown);
     };
   }, [
-    beginTyping, duplicate, frame, getSource, grid, insert, onMoveCursor, onSelectSlide, remove,
+    beginTyping, duplicate, frame, getDeck, grid, insert, onMoveCursor, onSelectSlide, remove,
     selected, setSpan, slide.boxes, slide.index, stage, withSelected,
   ]);
 

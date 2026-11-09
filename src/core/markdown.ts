@@ -4,10 +4,13 @@ import type { StateBlock, StateCore, StateInline } from 'markdown-it';
 export interface RenderOptions {
   /** Maps a relative image path to a loadable URL. Returns undefined when the image is not available. */
   resolveImage?: (src: string) => string | undefined;
+  /** Adds the source line to rendered top-level block openings. */
+  sourceLines?: boolean;
 }
 
 interface RenderEnv {
   resolveImage?: (src: string) => string | undefined;
+  sourceLines?: boolean;
 }
 
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
@@ -90,6 +93,16 @@ md.core.ruler.push('us_links', (state: StateCore) => {
   return true;
 });
 
+md.core.ruler.push('us_source_lines', (state: StateCore) => {
+  if (!(state.env as RenderEnv).sourceLines) return true;
+  for (const token of state.tokens) {
+    if (token.block && token.level === 0 && token.nesting !== -1 && token.map) {
+      token.attrSet('data-line', String(token.map[0]));
+    }
+  }
+  return true;
+});
+
 for (const rule of ['link_open', 'link_close'] as const) {
   const original = md.renderer.rules[rule];
   md.renderer.rules[rule] = (tokens, idx, options, env, self) => {
@@ -127,6 +140,6 @@ md.renderer.rules.image = (tokens, idx, options, env, self) => {
 };
 
 export function renderMarkdown(source: string, opts: RenderOptions = {}): string {
-  const env: RenderEnv = { resolveImage: opts.resolveImage };
+  const env: RenderEnv = { resolveImage: opts.resolveImage, sourceLines: opts.sourceLines };
   return md.render(source, env as Record<string, unknown>);
 }

@@ -167,18 +167,33 @@ export function App() {
   );
   const deckRef = useRef(current.deck);
   deckRef.current = current.deck;
+  const sourceRef = useRef(current.source);
+  sourceRef.current = current.source;
+  const getFreshDeck = useCallback(() => {
+    const parsed = flushParse();
+    if (parsed) deckRef.current = parsed;
+    return parsed ?? deckRef.current;
+  }, [flushParse]);
+  const getSource = useCallback(() => sourceRef.current, []);
+  const sourceChanged = useCallback((source: string) => {
+    sourceRef.current = source;
+    current.setSource(source);
+  }, [current.setSource]);
 
   /** Applies an edit made outside CodeMirror to the latest text, through CodeMirror's normal change path. */
   const editDeck = useCallback(
     (make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }) => {
       const target = editor.current;
       if (!target) return;
-      const deck = flushParse() ?? deckRef.current;
+      const cached = deckRef.current;
+      const deck = opts?.userEvent?.startsWith('input.type') && cached
+        ? { ...cached, source: sourceRef.current }
+        : getFreshDeck();
       if (!deck) return;
       const result = make(deck);
       if (result) target.applyEdit(result, opts);
     },
-    [flushParse],
+    [getFreshDeck],
   );
 
   useEffect(() => {
@@ -510,8 +525,6 @@ export function App() {
     };
   }, [openImported, reportError]);
 
-  const sourceRef = useRef(current.source);
-  sourceRef.current = current.source;
   const lookupRef = useRef({ folder: sync.folder, allowed: false, stored: current.images });
   lookupRef.current = { folder: sync.folder, allowed: ready && !sync.needsAccess, stored: current.images };
 
@@ -722,7 +735,7 @@ export function App() {
             <Editor
               ref={editor}
               value={current.source}
-              onChange={current.setSource}
+              onChange={sourceChanged}
               onCursorChange={(pos) => setCurrentSlide(slideAtPosition(deckRef.current, pos) - 1)}
               warnings={warnings}
               onNotice={notify}
@@ -740,7 +753,8 @@ export function App() {
           currentSlide={currentSlide}
           onEdit={editDeck}
           onMoveCursor={(pos) => editor.current?.moveCursorTo(pos, { focus: false })}
-          getSource={() => flushParse()?.source ?? current.source}
+          getDeck={getFreshDeck}
+          getSource={getSource}
           onUndo={() => editor.current?.undo()}
           onRedo={() => editor.current?.redo()}
           editable={wide}
