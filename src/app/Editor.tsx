@@ -1,11 +1,12 @@
 import { useEffect, useImperativeHandle, useRef, type Ref } from 'react';
-import { Annotation, EditorState, type Extension } from '@codemirror/state';
+import { Annotation, EditorState } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, isolateHistory } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { setDiagnostics, type Diagnostic } from '@codemirror/lint';
 import type { Warning } from '../core/types';
 import { dataUriFold } from './editor/dataUriFold';
+import { pasteImage } from './editor/pasteImage';
 
 /** Marks edits that came from the `value` prop, so they are not reported back through onChange. */
 const externalChange = Annotation.define<boolean>();
@@ -23,7 +24,8 @@ type Props = {
   value: string;
   onChange(value: string): void;
   warnings?: Warning[];
-  extensions?: Extension[];
+  /** Shows a message to the user (for example that a pasted image is too large). */
+  onNotice(text: string): void;
   ref?: Ref<EditorHandle>;
 };
 
@@ -35,11 +37,13 @@ function toDiagnostics(warnings: Warning[], length: number): Diagnostic[] {
   });
 }
 
-export function Editor({ value, onChange, warnings = [], extensions = [], ref }: Props) {
+export function Editor({ value, onChange, warnings = [], onNotice, ref }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | undefined>(undefined);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onNoticeRef = useRef(onNotice);
+  onNoticeRef.current = onNotice;
   const initial = useRef(value);
 
   useEffect(() => {
@@ -59,7 +63,7 @@ export function Editor({ value, onChange, warnings = [], extensions = [], ref }:
               onChangeRef.current(u.state.doc.toString());
             }
           }),
-          ...extensions,
+          pasteImage({ onNotice: (text) => onNoticeRef.current(text) }),
         ],
       }),
     });
@@ -68,7 +72,6 @@ export function Editor({ value, onChange, warnings = [], extensions = [], ref }:
       v.destroy();
       view.current = undefined;
     };
-    // The extensions are fixed for the life of the editor.
   }, []);
 
   // Text replaced from outside (opening another deck, a conflict, a reload from another tab).

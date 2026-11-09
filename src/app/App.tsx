@@ -4,7 +4,7 @@ import type { Slide } from '../core/slide';
 import type { FitResult } from '../render/fit';
 import { cutOffWarnings } from './cutOff';
 import { pickFolder, pickMarkdownFile, readFolderImage, supportsFileLink, supportsFolderLink } from '../files/fileLink';
-import { downloadMarkdown, exportHtml, fileSlug, printDeck, saveBlob } from '../export/download';
+import { downloadMarkdown, exportHtml, fileSlug, PlayerMissingError, printDeck, saveBlob } from '../export/download';
 import { baseType, packImages } from '../export/packImages';
 import { importFiles, importFromFolder, NO_MARKDOWN, openFolder, readDrop } from '../files/importFiles';
 import { LONG_LINK_CHARS, makeShareLink, readShareHash, ShareLinkError } from '../share/link';
@@ -18,7 +18,6 @@ import { dismissSafariNote, requestPersistence, SAFARI_NOTE, shouldShowSafariNot
 import { registerSW } from 'virtual:pwa-register';
 import { ConflictDialog, FilePicker } from './FileDialogs';
 import { isImageDrop } from './editor/dropMarker';
-import { pasteImage } from './editor/pasteImage';
 import { Notices, useNotices } from './Notices';
 import { Present } from './Present';
 import { imageKey, Preview, useImageUrls } from './Preview';
@@ -113,7 +112,7 @@ export function App() {
   }, []);
 
   const current = useDeck(deckId, { onNotice: notify, onChanged: refreshList });
-  const { flush, discard, adopt } = current;
+  const { flush, flushParse, discard, adopt } = current;
   const ready = current.record?.id === deckId;
   // fitSlide's results for each slide in the preview, so text cut off on a slide becomes an editor warning.
   const [fits, setFits] = useState<ReadonlyMap<Slide, FitResult[]>>(() => new Map());
@@ -128,6 +127,8 @@ export function App() {
     () => (current.deck ? [...current.warnings, ...cutOffWarnings(current.deck, fits)] : current.warnings),
     [current.deck, current.warnings, fits],
   );
+  const deckRef = useRef(current.deck);
+  deckRef.current = current.deck;
   const sync = useFileSync(current, notify);
   const folderImages = useFolderImages(sync.folder, current.source, ready && !sync.needsAccess, sync.version);
   // Folder first, then images stored in the browser; a path in neither shows the "not found" placeholder.
@@ -247,11 +248,13 @@ export function App() {
   /** Starts presenting. Adds a history entry, so Back leaves present mode. */
   const startPresenting = useCallback(
     (slide: number) => {
-      if (!deckId || !slideCount) return;
+      // Use the text as it is now, not as it was 150 ms ago.
+      const count = flushParse()?.slides.length ?? slideCount;
+      if (!deckId || !count) return;
       history.pushState({ present: true }, '', deckHash(deckId, slide));
       setPresenting(slide);
     },
-    [deckId, slideCount],
+    [deckId, slideCount, flushParse],
   );
 
   /** Changes slide while presenting. Replaces the history entry, so Back does not step through slides. */
@@ -276,7 +279,7 @@ export function App() {
 
   /** The slide the editor cursor is in: the one whose range holds it, else the last one starting before it. */
   const slideAtCursor = useCallback((): number => {
-    const slides = current.deck?.slides;
+    const slides = (flushParse() ?? current.deck)?.slides;
     const at = editor.current?.getCursor();
     if (!slides || at === undefined) return 1;
     let found = 0;
@@ -284,7 +287,7 @@ export function App() {
       if (slide.range.from <= at) found = i;
     });
     return found + 1;
-  }, [current.deck]);
+  }, [current.deck, flushParse]);
 
   // Ctrl/Cmd+Enter starts presenting. Runs before the editor sees the key, which would insert a line.
   useEffect(() => {
@@ -376,9 +379,6 @@ export function App() {
     };
   }, [openImported, reportError]);
 
-  /** Extensions for the editor, fixed for its life. Notices are the only thing they need from the app. */
-  const editorExtensions = useMemo(() => [pasteImage({ onNotice: notify })], [notify]);
-
   const sourceRef = useRef(current.source);
   sourceRef.current = current.source;
   const lookupRef = useRef({ folder: sync.folder, allowed: false, stored: current.images });
@@ -444,15 +444,23 @@ export function App() {
     if (!ready) return;
     await flush();
     const source = sourceRef.current;
-    const { blob, failed, tooLarge } = await exportHtml(source, fetchImage);
+    let result: Awaited<ReturnType<typeof exportHtml>>;
+    try {
+      result = await exportHtml(source, fetchImage);
+    } catch (err) {
+      if (err instanceof PlayerMissingError) return void notify(err.message);
+      throw err;
+    }
+    const { blob, failed, tooLarge } = result;
     saveBlob(blob, `${fileSlug(deckName(source))}.html`);
     if (failed.length > 0) notify(failedImagesNotice(failed, tooLarge));
   };
 
   const print = async () => {
     if (!ready || !current.deck) return;
+    const parsed = flushParse(); // the text as it is now, not as it was 150 ms ago
     await flush();
-    await printDeck(current.deck, (src) => printUrls.get(imageKey(src)));
+    await printDeck(parsed ?? deckRef.current!, (src) => printUrls.get(imageKey(src)));
   };
   const selectDeck = (id: string) => {
     if (id !== deckId) location.hash = deckHash(id);
@@ -491,9 +499,10 @@ export function App() {
     if (!deckId || !ready) return;
     if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
     const id = deckId;
-    discard();
+    // Do the steps that can fail first: until the switch below, the deck must still be saveable.
     const next = (await listDecks()).find((d) => d.id !== id);
     const nextId = next ? next.id : (await createDeck(NEW_DECK)).id;
+    discard();
     openDeck(nextId); // switch first so the deck being deleted is not saved again
     await deleteDeck(id);
     refreshList();
@@ -584,7 +593,7 @@ export function App() {
               value={current.source}
               onChange={current.setSource}
               warnings={warnings}
-              extensions={editorExtensions}
+              onNotice={notify}
             />
             </Suspense>
           )}

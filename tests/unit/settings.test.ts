@@ -46,6 +46,22 @@ describe('parseSettings', () => {
     expect(parseSettings('---\naspect: 4:3\n---\n').settings.aspect).toBe('4:3');
   });
 
+  it('warns about an unknown theme and uses light', () => {
+    const r = parseSettings('---\ntheme: gaia\n---\n');
+    expect(r.settings.theme).toBe('light');
+    expect(r.warnings.map((w) => w.message)).toEqual(['Unknown theme "gaia". Use light or dark.']);
+    expect(parseSettings('---\ntheme: default\n---\n').settings.theme).toBe('light');
+    expect(parseSettings('---\ntheme: Dark\n---\n').warnings).toHaveLength(1);
+    expect(parseSettings('---\ntheme: dark\n---\n').warnings).toEqual([]);
+    expect(parseSettings('---\ntheme: light\n---\n').warnings).toEqual([]);
+    expect(parseSettings('---\ntheme: 5\n---\n').settings.theme).toBe('light');
+  });
+
+  it('words the aspect warning the same way', () => {
+    const r = parseSettings('---\naspect: 3:2\n---\n');
+    expect(r.warnings.map((w) => w.message)).toEqual(['Invalid aspect "3:2". Use 16:9 or 4:3. Using 16:9.']);
+  });
+
   it('warns when a block with a known key is not valid YAML, and reads it as slides', () => {
     const src = '---\ntitle: Q3 review: what changed\ngrid: 12x6\n---\n# X';
     const r = parseSettings(src);

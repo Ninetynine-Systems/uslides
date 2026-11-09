@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { escapeForScript, unescapeFromScript } from '../../src/core/embed';
-import { buildHtml, exportHtml, fileSlug } from '../../src/export/download';
+import { buildHtml, exportHtml, fetchPlayerScript, fileSlug, PlayerMissingError } from '../../src/export/download';
 import { slideTarget } from '../../src/render/nav';
 
 describe('fileSlug', () => {
@@ -78,5 +78,39 @@ describe('exportHtml', () => {
     expect(html).toContain('data:image/png;base64,AQID');
     expect(html).toContain('missing.png');
     expect(html).not.toContain('a.png');
+  });
+});
+
+describe('fetchPlayerScript', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const reply = (body: string, type: string | null, status = 200) =>
+    vi.stubGlobal('fetch', async () => new Response(body, { status, headers: type ? { 'Content-Type': type } : {} }));
+
+  it('returns a JavaScript response', async () => {
+    reply('console.log(1)', 'text/javascript; charset=utf-8');
+    expect(await fetchPlayerScript()).toBe('console.log(1)');
+    reply('console.log(2)', 'application/javascript');
+    expect(await fetchPlayerScript()).toBe('console.log(2)');
+  });
+
+  it('rejects an HTML fallback page served with a 200', async () => {
+    reply('<!doctype html><html></html>', 'text/html');
+    await expect(fetchPlayerScript()).rejects.toBeInstanceOf(PlayerMissingError);
+  });
+
+  it('rejects a body that starts with "<" even with a JavaScript content type', async () => {
+    reply('  <!doctype html>', 'text/javascript');
+    await expect(fetchPlayerScript()).rejects.toBeInstanceOf(PlayerMissingError);
+  });
+
+  it('rejects a 404 and a response with no content type', async () => {
+    reply('nope', 'text/javascript', 404);
+    await expect(fetchPlayerScript()).rejects.toBeInstanceOf(PlayerMissingError);
+    reply('x', null);
+    await expect(fetchPlayerScript()).rejects.toBeInstanceOf(PlayerMissingError);
+  });
+
+  it('says what to do', () => {
+    expect(new PlayerMissingError().message).toBe('The offline player is missing. Reload the app and try again.');
   });
 });

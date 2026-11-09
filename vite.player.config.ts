@@ -19,6 +19,9 @@ function inlineCss(): Plugin {
           file.code =
             `(function(){var s=document.createElement('style');s.textContent=${JSON.stringify(css)};document.head.appendChild(s)})();\n` +
             file.code;
+          // The export puts this file inside an HTML <script>. "<!--" followed by "<script" would switch the
+          // HTML parser into a mode where "</script" no longer ends the element, so refuse to build such a file.
+          if (/<script/i.test(file.code)) this.error('player.js contains "<script", which is unsafe inside an HTML <script> element');
         }
       }
     },

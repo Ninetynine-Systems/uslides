@@ -190,7 +190,7 @@ https://uslides.ninetynine.systems/#md=%23%20Hello%0A
 ### If you can run code: a shorter `#z=` link
 
 A `#z=` link holds the deck compressed with raw deflate (no zlib header) and then
-base64url-encoded with no `=` padding. This function makes one. It runs in Node 18
+base64url-encoded with no `=` padding. This function makes one. It runs in Node 20.12
 or newer and in any modern browser:
 
 ```js

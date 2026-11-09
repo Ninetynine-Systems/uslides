@@ -82,7 +82,7 @@ export async function requestAccess(handle: unknown): Promise<boolean> {
 }
 
 type WatchOptions = {
-  /** Called when a read fails for good: the file is gone, or reads kept failing. The watch stops. */
+  /** Called when reads failed three times in a row (for example the file is gone). The watch stops. */
   onError?(err: unknown): void;
   /** Return false to skip this poll (for example, no permission yet). */
   canRead?(): Promise<boolean>;
@@ -110,9 +110,10 @@ export function watchFile(
         if (!stopped) await onChange(text, modified);
       }
     } catch (err) {
-      // A file that is rewritten while we read it can fail once; a missing file will not come back.
+      // Some editors save by deleting and recreating the file, so a read can fail for a moment.
+      // Give up only after three failed polls in a row (about 3 seconds). A good read resets the count.
       failures += 1;
-      if (!stopped && ((err as DOMException)?.name === 'NotFoundError' || failures >= 3)) {
+      if (!stopped && failures >= 3) {
         stopped = true;
         options.onError?.(err);
       }

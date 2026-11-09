@@ -53,7 +53,9 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'uslides-images',
-              expiration: { maxEntries: 200 },
+              // Some responses cannot be read (status 0) and count as several MB each against the storage quota,
+              // so keep few of them and drop the cache if the browser says storage is full.
+              expiration: { maxEntries: 60, purgeOnQuotaError: true },
               // 0 is a cross-origin image loaded without CORS, which the browser hides the status of.
               cacheableResponse: { statuses: [0, 200] },
             },
@@ -63,8 +65,9 @@ export default defineConfig({
     }),
   ],
   build: {
-    // The editor chunk (CodeMirror, about 305 kB) loads lazily and only on wide screens. The main chunk is about 650 kB, so the limit sits just above it.
-    chunkSizeWarningLimit: 700,
+    // The editor chunk (CodeMirror and the paste handler, about 527 kB) loads lazily and only on wide screens.
+    // The main chunk is about 429 kB. The limit sits above the editor chunk.
+    chunkSizeWarningLimit: 600,
   },
   test: {
     include: ['tests/unit/**/*.test.ts'],

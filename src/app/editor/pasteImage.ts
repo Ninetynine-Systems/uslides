@@ -38,12 +38,15 @@ async function insertImages(view: EditorView, files: File[], pos: number, end: n
 }
 
 /**
- * Pasting or dropping an image file inserts it as a `data:` URI. Images over 5 MB are refused with a
+ * Pasting an image (when there is no text on the clipboard) or dropping image files inserts them as `data:` URIs. Images over 5 MB are refused with a
  * notice. Anything else that is pasted or dropped is left to the editor.
  */
 export function pasteImage(options: { onNotice(text: string): void }): Extension {
   return EditorView.domEventHandlers({
     paste(event, view) {
+      // Word, Excel and Numbers put a picture of the selection next to the text. The text is what the
+      // user copied, so it wins. A screenshot has no text, and its image is embedded.
+      if ((event.clipboardData?.getData('text/plain') ?? '').trim() !== '') return false;
       const files = [...(event.clipboardData?.files ?? [])].filter(isImage);
       if (files.length === 0) return false;
       event.preventDefault();

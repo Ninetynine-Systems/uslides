@@ -7,7 +7,7 @@ export type DeckSettings = {
   title?: string;
   grid: Grid;
   aspect: '16:9' | '4:3';
-  theme: string;
+  theme: 'light' | 'dark';
 };
 
 const KNOWN_KEYS = ['title', 'grid', 'aspect', 'theme'];
@@ -120,8 +120,8 @@ export function parseSettings(src: string): {
         else warn(key, `Invalid aspect "${String(value)}". Use 16:9 or 4:3. Using 16:9.`);
         break;
       case 'theme':
-        if (typeof value === 'string' && value.trim() !== '') settings.theme = value.trim();
-        else warn(key, `Invalid theme "${String(value)}". Using light.`);
+        if (value === 'light' || value === 'dark') settings.theme = value;
+        else warn(key, `Unknown theme "${String(value)}". Use light or dark.`);
         break;
       default:
         warn(key, `Unknown setting "${key}" was ignored.`);

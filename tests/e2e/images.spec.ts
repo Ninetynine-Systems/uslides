@@ -156,3 +156,40 @@ test('pasting an image replaces the selected text', async ({ page }) => {
   await expect.poll(() => getSource(page)).toContain('![image](data:image/png;base64,');
   expect(await getSource(page)).not.toContain('replace-me');
 });
+
+test('text on the clipboard wins over an image that sits next to it (Word, Excel, Numbers)', async ({ page }) => {
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  await toEnd(page);
+  await page.keyboard.type('\n');
+  await page.evaluate((base64) => {
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    const dt = new DataTransfer();
+    dt.setData('text/plain', '- first point\n- second point');
+    dt.items.add(new File([bytes], 'selection.png', { type: 'image/png' }));
+    document
+      .querySelector('.cm-content')!
+      .dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, TINY_PNG);
+  await expect.poll(() => getSource(page)).toContain('- first point\n- second point');
+  expect(await getSource(page)).not.toContain('data:image');
+  await expect(page.locator('.cm-image-chip')).toHaveCount(0);
+});
+
+test('an image with only empty text on the clipboard is still embedded', async ({ page }) => {
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  await toEnd(page);
+  await page.evaluate((base64) => {
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    const data = new Uint8Array(bytes.length + 600);
+    data.set(bytes);
+    const dt = new DataTransfer();
+    dt.setData('text/plain', '  \n');
+    dt.items.add(new File([data], 'shot.png', { type: 'image/png' }));
+    document
+      .querySelector('.cm-content')!
+      .dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, TINY_PNG);
+  await expect(page.locator('.cm-image-chip')).toHaveCount(1);
+});

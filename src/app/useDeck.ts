@@ -45,6 +45,8 @@ export type UseDeck = {
   setSource(src: string): void;
   /** Writes any pending edit now. */
   flush(): Promise<void>;
+  /** Parses the latest text now instead of waiting for the typing delay, and returns the result. */
+  flushParse(): Deck | undefined;
   /** Drops any pending edit without saving it (used just before the deck is deleted). */
   discard(): void;
   /** Takes a record that was written elsewhere (for example by rename) as the current one. */
@@ -66,6 +68,8 @@ export function useDeck(id: string | undefined, options: Options): UseDeck {
 
   const session = useRef<Session | undefined>(undefined);
   const parseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** True while the text has changed and the parse for it is still waiting for its timer. */
+  const parsePending = useRef(false);
   const channel = useRef<BroadcastChannel | undefined>(undefined);
   const opts = useRef(options);
   opts.current = options;
@@ -73,6 +77,7 @@ export function useDeck(id: string | undefined, options: Options): UseDeck {
   /** Puts text into the editor and the preview at once (for loads, adopted records and conflicts). */
   const show = useCallback((rec: DeckRecord) => {
     clearTimeout(parseTimer.current);
+    parsePending.current = false;
     setRecord(rec);
     setSourceState(rec.source);
     setDeck(parseDeck(rec.source));
@@ -199,10 +204,24 @@ export function useDeck(id: string | undefined, options: Options): UseDeck {
       clearTimeout(s.timer);
       s.timer = setTimeout(() => void flushSession(s), SAVE_DELAY_MS);
       clearTimeout(parseTimer.current);
-      parseTimer.current = setTimeout(() => setDeck(parseDeck(src)), PARSE_DELAY_MS);
+      parsePending.current = true;
+      parseTimer.current = setTimeout(() => {
+        parsePending.current = false;
+        setDeck(parseDeck(src));
+      }, PARSE_DELAY_MS);
     },
     [flushSession],
   );
+
+  const flushParse = useCallback((): Deck | undefined => {
+    const s = session.current;
+    if (!s || s.revision === 0 || !parsePending.current) return undefined;
+    clearTimeout(parseTimer.current);
+    parsePending.current = false;
+    const parsed = parseDeck(s.latest);
+    setDeck(parsed);
+    return parsed;
+  }, []);
 
   const discard = useCallback(() => {
     const s = session.current;
@@ -238,6 +257,7 @@ export function useDeck(id: string | undefined, options: Options): UseDeck {
       s.latest = text;
       setSourceState(text);
       clearTimeout(parseTimer.current);
+      parsePending.current = false;
       setDeck(parseDeck(text));
       await flushSession(s);
     },
@@ -250,5 +270,5 @@ export function useDeck(id: string | undefined, options: Options): UseDeck {
 
   useEffect(() => () => clearTimeout(parseTimer.current), []);
 
-  return { record, source, deck, warnings: deck?.warnings ?? [], images, conflict, setSource, flush, discard, adopt, getSaved, applyExternal, patchRecord };
+  return { record, source, deck, warnings: deck?.warnings ?? [], images, conflict, setSource, flush, flushParse, discard, adopt, getSaved, applyExternal, patchRecord };
 }

@@ -73,11 +73,21 @@ export async function exportHtml(
   return { blob: new Blob([html], { type: 'text/html;charset=utf-8' }), failed: packed.failed, tooLarge: packed.tooLarge };
 }
 
+export class PlayerMissingError extends Error {
+  constructor() {
+    super('The offline player is missing. Reload the app and try again.');
+    this.name = 'PlayerMissingError';
+  }
+}
+
 /** The player script. The service worker keeps it cached, so this works offline. */
-async function fetchPlayerScript(): Promise<string> {
+export async function fetchPlayerScript(): Promise<string> {
   const res = await fetch(`${import.meta.env.BASE_URL}player/player.js`);
-  if (!res.ok) throw new Error('the player script could not be loaded');
-  return res.text();
+  // A host that answers an unknown path with its home page (status 200) must not end up inside the export.
+  if (!res.ok || !/javascript/i.test(res.headers.get('content-type') ?? '')) throw new PlayerMissingError();
+  const text = await res.text();
+  if (text.trimStart().startsWith('<')) throw new PlayerMissingError();
+  return text;
 }
 
 const IMAGE_WAIT_MS = 5000;
