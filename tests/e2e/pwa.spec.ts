@@ -64,13 +64,17 @@ test('a web image seen once online still shows offline', async ({ page, context 
     await page.reload(); // now the page is controlled by the service worker
     const url = 'http://127.0.0.1:4175/pic.png';
     const md = `# Pic\n\n![red](${url})\n`;
-    await page.goto(`/?test#md=${encodeURIComponent(md)}`);
+    // Keep this as an in-app deck. Share-link decks now block web images until the user allows them.
+    await editor(page).click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText(md);
     const img = page.locator('.slide-frame img').first();
     await expect(img).toHaveAttribute('src', url);
     await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(2);
     await expect
       .poll(() => page.evaluate(async () => (await (await caches.open('uslides-images')).keys()).length))
       .toBeGreaterThan(0);
+    await page.waitForTimeout(700); // let the edited in-app deck finish its normal autosave
   } finally {
     await close(images);
   }

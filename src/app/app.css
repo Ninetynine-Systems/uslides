@@ -55,6 +55,7 @@ button.danger { color: var(--danger); }
 .decklist-head { gap: 8px; }
 .decklist-head strong { flex: 1; }
 .decklist-menu { display: flex; flex-direction: column; gap: 8px; margin: 0 12px 12px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.decklist-menu .menu-item { width: 100%; }
 .decklist-menu .about { margin: 0; font-size: 0.8rem; overflow-wrap: anywhere; }
 .notice-action { background: transparent; color: inherit; border-color: currentColor; }
 .decklist ul { list-style: none; margin: 0; padding: 0 8px 12px; }
@@ -64,13 +65,18 @@ button.danger { color: var(--danger); }
 
 .workspace { grid-area: main; display: grid; grid-template-columns: 1fr 1fr; min-width: 0; min-height: 0; }
 .editor-pane { min-width: 0; min-height: 0; border-right: 1px solid var(--line); background: var(--panel); }
+.preview-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .editor { height: 100%; }
 .editor .cm-editor { height: 100%; }
 .editor .cm-editor.cm-focused { outline: none; }
 .editor .cm-scroller { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; line-height: 1.5; }
 .editor .cm-content { padding: 12px 0; }
 
-.preview { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--backdrop); }
+.preview { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: var(--backdrop); }
+.privacy-banner { padding: 12px; color: #451a03; background: #fffbeb; border-bottom: 1px solid #d97706; }
+.privacy-banner p { margin: 0; line-height: 1.45; }
+.privacy-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.privacy-banner ul { margin: 10px 0 0; padding-left: 1.4rem; overflow-wrap: anywhere; }
 .preview-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 12px; font-size: 0.9rem; background: var(--bg); border-bottom: 1px solid var(--line); }
 .preview-controls { display: flex; align-items: center; gap: 10px; }
 .preview-view-switch { display: inline-flex; }

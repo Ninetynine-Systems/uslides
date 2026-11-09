@@ -96,7 +96,11 @@ const IMAGE_WAIT_MS = 5000;
  * Lays every slide out in a hidden container, one per page, and opens the print dialog.
  * The page size is the stage size, so the PDF has the deck's aspect ratio and no margins.
  */
-export async function printDeck(deck: Deck, resolveImage: (src: string) => string | undefined = () => undefined): Promise<void> {
+export async function printDeck(
+  deck: Deck,
+  resolveImage: (src: string) => string | undefined = () => undefined,
+  opts: { blockExternal?: boolean } = {},
+): Promise<void> {
   const size = STAGE[deck.settings.aspect];
   const page = document.createElement('style');
   page.textContent = `@page { size: ${size.w}px ${size.h}px; margin: 0 }`;
@@ -105,7 +109,7 @@ export async function printDeck(deck: Deck, resolveImage: (src: string) => strin
   document.head.append(page);
   document.body.append(container);
   for (const slide of deck.slides) {
-    const stage = renderSlide(slide, deck.settings, { resolveImage });
+    const stage = renderSlide(slide, deck.settings, { resolveImage, blockExternal: opts.blockExternal });
     container.append(stage);
     fitSlide(stage);
   }

@@ -67,6 +67,25 @@ describe('renderMarkdown', () => {
   });
 
   describe('images', () => {
+    it('draws a blocked web image as a placeholder with its alt text', () => {
+      expect(renderMarkdown('![Sales chart](https://x.example/c.png)', { blockExternal: true }))
+        .toContain('<span class="us-blocked" role="img" aria-label="Sales chart">Sales chart</span>');
+    });
+    it('never blocks data images or stored images', () => {
+      expect(renderMarkdown('![data](data:image/png;base64,AA==)', { blockExternal: true })).toContain('<img');
+      expect(renderMarkdown('![stored](./chart.png)', {
+        blockExternal: true,
+        resolveImage: () => 'blob:stored',
+      })).toContain('<img src="blob:stored"');
+    });
+    it('uses Image for an empty blocked image description and escapes descriptions', () => {
+      expect(renderMarkdown('![](https://x.example/empty.png)', { blockExternal: true }))
+        .toContain('aria-label="Image">Image</span>');
+      const out = renderMarkdown('![a"><b>](https://x.example/evil.png)', { blockExternal: true });
+      expect(out).not.toContain('<b>');
+      expect(out).toContain('aria-label="a&quot;&gt;&lt;b&gt;"');
+      expect(out).not.toContain('https://x.example');
+    });
     it('drops data:text/html images', () => {
       expect(renderMarkdown('![x](data:text/html,<script>alert(1)</script>)')).not.toContain('<img');
     });

@@ -6,11 +6,14 @@ export interface RenderOptions {
   resolveImage?: (src: string) => string | undefined;
   /** Adds the source line to rendered top-level block openings. */
   sourceLines?: boolean;
+  /** Replaces web images with text placeholders without requesting them. */
+  blockExternal?: boolean;
 }
 
 interface RenderEnv {
   resolveImage?: (src: string) => string | undefined;
   sourceLines?: boolean;
+  blockExternal?: boolean;
 }
 
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
@@ -118,6 +121,11 @@ md.renderer.rules.image = (tokens, idx, options, env, self) => {
   const src = String(token.attrGet('src') ?? '');
   const alt = self.renderInlineAsText(token.children ?? [], options, env);
 
+  if ((env as RenderEnv).blockExternal && ['https:', 'http:'].includes(scheme(src))) {
+    const label = alt || 'Image';
+    return `<span class="us-blocked" role="img" aria-label="${esc(label)}">${esc(label)}</span>`;
+  }
+
   // A disallowed image renders as its plain alt text.
   if (!isAllowedImageSrc(src)) return esc(alt);
 
@@ -140,6 +148,10 @@ md.renderer.rules.image = (tokens, idx, options, env, self) => {
 };
 
 export function renderMarkdown(source: string, opts: RenderOptions = {}): string {
-  const env: RenderEnv = { resolveImage: opts.resolveImage, sourceLines: opts.sourceLines };
+  const env: RenderEnv = {
+    resolveImage: opts.resolveImage,
+    sourceLines: opts.sourceLines,
+    blockExternal: opts.blockExternal,
+  };
   return md.render(source, env as Record<string, unknown>);
 }

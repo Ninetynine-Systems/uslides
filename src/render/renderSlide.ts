@@ -13,6 +13,8 @@ export type RenderOptions = {
   /** Mark loose blocks with their source line (editor preview only). */
   markLines?: boolean;
   resolveImage?: (src: string) => string | undefined;
+  /** Replace web images with placeholders without requesting them. */
+  blockExternal?: boolean;
 };
 
 /** True when the HTML is one paragraph that holds a single image and no text. */
@@ -28,7 +30,11 @@ function isImageOnly(container: HTMLElement): boolean {
 }
 
 function fill(el: HTMLElement, markdown: string, opts: RenderOptions, sourceLines = false): void {
-  el.innerHTML = renderMarkdown(markdown, { resolveImage: opts.resolveImage, sourceLines });
+  el.innerHTML = renderMarkdown(markdown, {
+    resolveImage: opts.resolveImage,
+    sourceLines,
+    blockExternal: opts.blockExternal,
+  });
   if (isImageOnly(el)) el.classList.add('us-image-only');
 }
 
@@ -42,6 +48,7 @@ function fillLoose(el: HTMLElement, slide: Slide, opts: RenderOptions): void {
     template.innerHTML = renderMarkdown(piece.lines.join('\n'), {
       resolveImage: opts.resolveImage,
       sourceLines: opts.markLines,
+      blockExternal: opts.blockExternal,
     });
     if (opts.markLines) {
       for (const marked of template.content.querySelectorAll<HTMLElement>('[data-line]')) {

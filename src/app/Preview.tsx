@@ -22,6 +22,7 @@ export type PreviewView = 'all' | 'one';
 type Props = {
   deck: Deck | undefined;
   images?: Map<string, Blob>;
+  blockExternal: boolean;
   showGrid: boolean;
   onShowGridChange(show: boolean): void;
   view: PreviewView;
@@ -65,6 +66,7 @@ function SlideCard(props: {
   deck: Deck;
   urls: Map<string, string>;
   showGrid: boolean;
+  blockExternal: boolean;
   active: boolean;
   editable: boolean;
   onEdit(make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }): void;
@@ -79,7 +81,7 @@ function SlideCard(props: {
   onFit?(slide: Slide, results: FitResult[]): void;
 }) {
   const {
-    slide, deck, urls, showGrid, active, editable, onEdit, onMoveCursor, getDeck, getSource, onUndo, onRedo, onSelect,
+    slide, deck, urls, showGrid, blockExternal, active, editable, onEdit, onMoveCursor, getDeck, getSource, onUndo, onRedo, onSelect,
   } = props;
   const frame = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState<HTMLElement | null>(null);
@@ -95,6 +97,7 @@ function SlideCard(props: {
       showGrid,
       markEmpty: true,
       markLines: true,
+      blockExternal,
       resolveImage: (src) => urls.get(imageKey(src)),
     });
     const unmount = mountScaled(stage, container);
@@ -107,7 +110,7 @@ function SlideCard(props: {
       unmount();
       stage.remove();
     };
-  }, [slide, deck.settings, urls, showGrid]);
+  }, [slide, deck.settings, urls, showGrid, blockExternal]);
 
   return (
     <figure className="slide-card">
@@ -160,7 +163,7 @@ function SlideCard(props: {
 }
 
 export function Preview({
-  deck, images, showGrid, onShowGridChange, view, onViewChange, currentSlide, onEdit, onMoveCursor,
+  deck, images, blockExternal, showGrid, onShowGridChange, view, onViewChange, currentSlide, onEdit, onMoveCursor,
   getDeck, getSource, onUndo, onRedo, editable, onSelectSlide, onFit,
 }: Props) {
   const urls = useImageUrls(images);
@@ -220,6 +223,7 @@ export function Preview({
               deck={deck}
               urls={urls}
               showGrid={showGrid}
+              blockExternal={blockExternal}
               active={slide.index === shownIndex}
               editable={editable}
               onEdit={onEdit}
@@ -259,6 +263,7 @@ export function Preview({
                 deck={deck}
                 urls={urls}
                 showGrid={showGrid}
+                blockExternal={blockExternal}
                 active
                 editable={editable}
                 onEdit={onEdit}

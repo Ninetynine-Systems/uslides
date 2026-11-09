@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { setBoxAttrs, type EditResult } from '../core/edit';
+import { externalHosts } from '../core/external';
 import type { Deck } from '../core/parse';
 import { deckName } from '../core/settings';
 import type { Slide } from '../core/slide';
@@ -11,7 +12,7 @@ import { baseType, packImages } from '../export/packImages';
 import { importFiles, importFromFolder, NO_MARKDOWN, openFolder, readDrop } from '../files/importFiles';
 import { LONG_LINK_CHARS, makeShareLink, readShareHash, ShareLinkError } from '../share/link';
 import {
-  createDeck, deleteDeck, duplicateDeck, getImages, listDecks, renameDeck,
+  createDeck, deleteDeck, duplicateDeck, getImages, listDecks, renameDeck, setDeckPrivacy,
 } from '../storage/db';
 import { DeckList, type DeckSummary } from './DeckList';
 import type { EditorHandle } from './Editor';
@@ -23,6 +24,8 @@ import { isImageDrop } from './editor/dropMarker';
 import { Notices, useNotices } from './Notices';
 import { Present } from './Present';
 import { imageKey, Preview, type PreviewView, useImageUrls } from './Preview';
+import { PrivacyBanner } from './PrivacyBanner';
+import { isBlocked, readAskFirst, writeAskFirst } from './privacy';
 import { Toolbar } from './Toolbar';
 import { deckHash, parseRoute } from './route';
 import sample from './sample.md?raw';
@@ -139,6 +142,8 @@ export function App() {
   const [showGrid, setShowGrid] = useState(true);
   const [previewView, setPreviewView] = useState<PreviewView>(savedPreviewView);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [askFirst, setAskFirst] = useState(readAskFirst);
+  const [allowedOnce, setAllowedOnce] = useState<Set<string>>(() => new Set());
   const wide = useWide();
   const { notices, notify, dismiss } = useNotices();
   const editor = useRef<EditorHandle>(null);
@@ -152,6 +157,19 @@ export function App() {
   const current = useDeck(deckId, { onNotice: notify, onChanged: refreshList });
   const { flush, flushParse, discard, adopt } = current;
   const ready = current.record?.id === deckId;
+  const blockExternal = ready && isBlocked(
+    current.record?.privacy,
+    askFirst,
+    deckId !== undefined && allowedOnce.has(deckId),
+  );
+  const hosts = useMemo(
+    () => (ready && current.deck ? externalHosts(current.deck) : []),
+    [ready, current.deck],
+  );
+  const changeAskFirst = useCallback((on: boolean) => {
+    writeAskFirst(on);
+    setAskFirst(on);
+  }, []);
   // fitSlide's results for each slide in the preview, so text cut off on a slide becomes an editor warning.
   const [fits, setFits] = useState<ReadonlyMap<Slide, FitResult[]>>(() => new Map());
   const onFit = useCallback((slide: Slide, results: FitResult[]) => {
@@ -465,6 +483,19 @@ export function App() {
     [notify],
   );
 
+  const allowOnce = useCallback(() => {
+    if (!deckId) return;
+    setAllowedOnce((currentIds) => new Set(currentIds).add(deckId));
+  }, [deckId]);
+
+  const alwaysAllow = useCallback(() => {
+    if (!deckId || !ready) return;
+    void (async () => {
+      await flush();
+      adopt(await setDeckPrivacy(deckId, 'allowed'));
+    })().catch(reportError);
+  }, [adopt, deckId, flush, ready, reportError]);
+
   const openFile = () => {
     if (!supportsFileLink()) {
       fileInput.current?.click();
@@ -604,7 +635,11 @@ export function App() {
     if (!ready || !current.deck) return;
     const parsed = flushParse(); // the text as it is now, not as it was 150 ms ago
     await flush();
-    await printDeck(parsed ?? deckRef.current!, (src) => printUrls.get(imageKey(src)));
+    await printDeck(
+      parsed ?? deckRef.current!,
+      (src) => printUrls.get(imageKey(src)),
+      { blockExternal },
+    );
   };
   const selectDeck = (id: string) => {
     if (id !== deckId) location.hash = deckHash(id);
@@ -726,6 +761,8 @@ export function App() {
         <DeckList decks={decks} activeId={deckId} onSelect={selectDeck} onNew={guarded(newDeck)}
           onBackup={guarded(backupAll)}
           onRestore={() => restoreInput.current?.click()}
+          askFirst={askFirst}
+          onAskFirstChange={changeAskFirst}
         />
       </div>
       <main className="workspace">
@@ -743,28 +780,34 @@ export function App() {
             </Suspense>
           )}
         </div>
-        <Preview
-          deck={ready ? current.deck : undefined}
-          images={images}
-          showGrid={showGrid}
-          onShowGridChange={setShowGrid}
-          view={previewView}
-          onViewChange={changePreviewView}
-          currentSlide={currentSlide}
-          onEdit={editDeck}
-          onMoveCursor={(pos) => editor.current?.moveCursorTo(pos, { focus: false })}
-          getDeck={getFreshDeck}
-          getSource={getSource}
-          onUndo={() => editor.current?.undo()}
-          onRedo={() => editor.current?.redo()}
-          editable={wide}
-          onFit={onFit}
-          onSelectSlide={(i) => {
-            setCurrentSlide(i);
-            const slide = current.deck?.slides[i];
-            if (slide) editor.current?.moveCursorTo(slide.range.from);
-          }}
-        />
+        <div className="preview-pane">
+          {blockExternal && hosts.length > 0 && (
+            <PrivacyBanner hosts={hosts} onAllowOnce={allowOnce} onAlwaysAllow={alwaysAllow} />
+          )}
+          <Preview
+            deck={ready ? current.deck : undefined}
+            images={images}
+            blockExternal={blockExternal}
+            showGrid={showGrid}
+            onShowGridChange={setShowGrid}
+            view={previewView}
+            onViewChange={changePreviewView}
+            currentSlide={currentSlide}
+            onEdit={editDeck}
+            onMoveCursor={(pos) => editor.current?.moveCursorTo(pos, { focus: false })}
+            getDeck={getFreshDeck}
+            getSource={getSource}
+            onUndo={() => editor.current?.undo()}
+            onRedo={() => editor.current?.redo()}
+            editable={wide}
+            onFit={onFit}
+            onSelectSlide={(i) => {
+              setCurrentSlide(i);
+              const slide = current.deck?.slides[i];
+              if (slide) editor.current?.moveCursorTo(slide.range.from);
+            }}
+          />
+        </div>
       </main>
       <Notices notices={notices} onDismiss={dismiss} />
       <input
@@ -810,6 +853,7 @@ export function App() {
       <Present
         deck={current.deck!}
         images={images}
+        blockExternal={blockExternal}
         slide={presenting}
         onGo={goToSlide}
         onExit={stopPresenting}

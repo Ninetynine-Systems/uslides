@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Archive, ArchiveRestore, Ellipsis, Plus } from 'lucide-react';
+import { Archive, ArchiveRestore, Ellipsis, Plus, Square, SquareCheckBig } from 'lucide-react';
 import { IconButton, MenuItem } from './IconButton';
 
 export type DeckSummary = { id: string; name: string; updatedAt: number };
@@ -12,6 +12,8 @@ type Props = {
   onNew(): void;
   onBackup(): void;
   onRestore(): void;
+  askFirst: boolean;
+  onAskFirstChange(on: boolean): void;
 };
 
 /** "just now", "5 min ago", "3 h ago", "2 d ago", or a date for anything older than a month. */
@@ -27,7 +29,9 @@ export function relativeTime(then: number, now: number): string {
   return new Date(then).toLocaleDateString();
 }
 
-export function DeckList({ decks, activeId, now = Date.now(), onSelect, onNew, onBackup, onRestore }: Props) {
+export function DeckList({
+  decks, activeId, now = Date.now(), onSelect, onNew, onBackup, onRestore, askFirst, onAskFirstChange,
+}: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const choose = (action: () => void) => () => {
     setMenuOpen(false);
@@ -44,6 +48,13 @@ export function DeckList({ decks, activeId, now = Date.now(), onSelect, onNew, o
         <div className="decklist-menu" onKeyDown={(e) => e.key === 'Escape' && setMenuOpen(false)}>
           <MenuItem label="Back up all decks" icon={Archive} onClick={choose(onBackup)} />
           <MenuItem label="Restore from backup" icon={ArchiveRestore} onClick={choose(onRestore)} />
+          <MenuItem
+            label="Ask before loading anything from other websites"
+            icon={askFirst ? SquareCheckBig : Square}
+            role="menuitemcheckbox"
+            aria-checked={askFirst}
+            onClick={() => onAskFirstChange(!askFirst)}
+          />
           <p className="muted about">{`uslides, build ${__BUILD_ID__}`}</p>
         </div>
       )}

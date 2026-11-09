@@ -9,6 +9,7 @@ import { imageKey, useImageUrls } from './Preview';
 type Props = {
   deck: Deck;
   images: Map<string, Blob>;
+  blockExternal: boolean;
   /** 1-based slide number. May be out of range; the view then shows the nearest slide and reports the fix. */
   slide: number;
   /** Asks to show another slide (1-based). Not called for the slide already shown. */
@@ -16,7 +17,7 @@ type Props = {
   onExit(): void;
 };
 
-export function Present({ deck, images, slide, onGo, onExit }: Props) {
+export function Present({ deck, images, blockExternal, slide, onGo, onExit }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const urls = useImageUrls(images);
@@ -36,14 +37,17 @@ export function Present({ deck, images, slide, onGo, onExit }: Props) {
   const shown = deck.slides[current - 1]!;
   useEffect(() => {
     const container = frame.current!;
-    const stage = renderSlide(shown, deck.settings, { resolveImage: (src) => urls.get(imageKey(src)) });
+    const stage = renderSlide(shown, deck.settings, {
+      blockExternal,
+      resolveImage: (src) => urls.get(imageKey(src)),
+    });
     const unmount = mountScaled(stage, container);
     fitSlide(stage);
     return () => {
       unmount();
       container.replaceChildren();
     };
-  }, [shown, deck.settings, urls]);
+  }, [shown, deck.settings, urls, blockExternal]);
 
   // Fullscreen: ask on entry (the click or key that opened us counts as the user gesture).
   // If it is refused, this stays a full-window view.
