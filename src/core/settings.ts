@@ -1,5 +1,6 @@
 import { load } from 'js-yaml';
 import { parseGrid } from './attrs';
+import { fencedLines } from './fences';
 import type { Grid, SourceRange, Warning } from './types';
 
 export type DeckSettings = {
@@ -129,17 +130,10 @@ export function deckName(src: string): string {
   const { settings, bodyStart } = parseSettings(src);
   if (settings.title && settings.title.trim()) return settings.title.trim();
 
-  let fence: { char: string; len: number } | null = null;
-  for (const line of src.slice(bodyStart).split('\n')) {
-    const f = /^ {0,3}(`{3,}|~{3,})/.exec(line);
-    if (fence) {
-      if (f && f[1]!.charAt(0) === fence.char && f[1]!.length >= fence.len) fence = null;
-      continue;
-    }
-    if (f) {
-      fence = { char: f[1]!.charAt(0), len: f[1]!.length };
-      continue;
-    }
+  const lines = src.slice(bodyStart).split('\n');
+  const fenced = fencedLines(lines);
+  for (const [i, line] of lines.entries()) {
+    if (fenced[i]) continue;
     const h = /^ {0,3}#{1,6}\s+(.*)$/.exec(line);
     if (h) {
       const text = stripInlineMarkdown(h[1]!);

@@ -1,3 +1,4 @@
+import { fencedLines } from './fences';
 import type { SourceRange } from './types';
 
 export type RawSlide = { text: string; range: SourceRange };
@@ -9,26 +10,15 @@ export type RawSlide = { text: string; range: SourceRange };
  */
 export function splitSlides(src: string, bodyStart: number): RawSlide[] {
   const slides: RawSlide[] = [];
-  let pos = bodyStart;
+  const lines = src.slice(bodyStart).split('\n');
+  const fenced = fencedLines(lines);
   let slideStart = bodyStart;
-  let fence: { char: string; len: number } | null = null;
-  let first = true;
+  let pos = bodyStart;
 
-  while (pos <= src.length) {
-    const nl = src.indexOf('\n', pos);
-    const end = nl === -1 ? src.length : nl;
-    const line = src.slice(pos, end);
-    const next = nl === -1 ? src.length + 1 : nl + 1;
-
-    const f = /^ {0,3}(`{3,}|~{3,})/.exec(line);
-    if (fence) {
-      if (f && f[1]!.charAt(0) === fence.char && f[1]!.length >= fence.len && /^ {0,3}[`~]+\s*$/.test(line)) {
-        fence = null;
-      }
-    } else if (f) {
-      fence = { char: f[1]!.charAt(0), len: f[1]!.length };
-    } else if (line === '---') {
-      if (first && bodyStart === 0 && pos === 0) {
+  for (const [i, line] of lines.entries()) {
+    const next = pos + line.length + 1;
+    if (!fenced[i] && line === '---') {
+      if (i === 0 && bodyStart === 0) {
         // A leading `---` that is not a settings block is skipped.
         slideStart = next;
       } else {
@@ -37,7 +27,6 @@ export function splitSlides(src: string, bodyStart: number): RawSlide[] {
         slideStart = next;
       }
     }
-    first = false;
     pos = next;
   }
 
