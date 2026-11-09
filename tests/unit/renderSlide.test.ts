@@ -59,9 +59,15 @@ describe('renderSlide', () => {
   });
 
   it('shows grid lines only when asked', () => {
-    expect(render('# Hi').querySelector('.us-gridlines')).toBeNull();
-    expect(render('# Hi', { showGrid: false }).querySelector('.us-gridlines')).toBeNull();
-    expect(render('# Hi', { showGrid: true }).querySelector('.us-gridlines')).not.toBeNull();
+    expect(render('# Hi').querySelector('.us-grid')).toBeNull();
+    expect(render('# Hi', { showGrid: false }).querySelector('.us-grid')).toBeNull();
+    expect(render('# Hi', { showGrid: true }).querySelector('.us-grid')).not.toBeNull();
+  });
+
+  it('marks empty boxes only when asked', () => {
+    const source = '::: box col=1-3 row=1-2\n  \n:::\n';
+    expect(render(source, { markEmpty: true }).querySelector('.us-box')!.classList.contains('us-empty')).toBe(true);
+    expect(render(source).querySelector('.us-box')!.classList.contains('us-empty')).toBe(false);
   });
 
   it('renders markdown and resolves images', () => {

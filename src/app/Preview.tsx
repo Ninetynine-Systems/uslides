@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Rows3, Square } from 'lucide-react';
-import type { EditResult } from '../core/edit';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Rows3, Square, SquarePlus } from 'lucide-react';
+import { insertBox, type EditResult } from '../core/edit';
+import { centredSpan, findFreeArea } from '../core/layout';
 import type { Deck } from '../core/parse';
 import type { Slide } from '../core/slide';
 import { STAGE } from '../config';
 import { fitSlide, mountScaled, type FitResult } from '../render/fit';
 import { renderSlide } from '../render/renderSlide';
 import { BOX_CUT_OFF, SLIDE_CUT_OFF } from './cutOff';
-import { Overlay } from './edit/Overlay';
+import { Overlay, type SelectionRequest } from './edit/Overlay';
 import { IconButton } from './IconButton';
 
 export type PreviewView = 'all' | 'one';
@@ -59,6 +60,8 @@ function SlideCard(props: {
   onEdit(make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }): void;
   onMoveCursor(pos: number): void;
   onSelect(): void;
+  selectionRequest?: SelectionRequest;
+  onSelectionRequestHandled(id: number): void;
   onFit?(slide: Slide, results: FitResult[]): void;
 }) {
   const { slide, deck, urls, showGrid, active, editable, onEdit, onMoveCursor, onSelect } = props;
@@ -74,6 +77,7 @@ function SlideCard(props: {
     const container = frame.current!;
     const stage = renderSlide(slide, deck.settings, {
       showGrid,
+      markEmpty: true,
       resolveImage: (src) => urls.get(imageKey(src)),
     });
     const unmount = mountScaled(stage, container);
@@ -116,6 +120,8 @@ function SlideCard(props: {
             onMoveCursor={onMoveCursor}
             onSelectSlide={onSelect}
             active={active}
+            selectionRequest={props.selectionRequest}
+            onSelectionRequestHandled={props.onSelectionRequestHandled}
           />
         )}
       </div>
@@ -137,6 +143,25 @@ export function Preview({
   const slideCount = deck?.slides.length ?? 0;
   const shownIndex = Math.min(Math.max(0, currentSlide), Math.max(0, slideCount - 1));
   const shownSlide = deck?.slides[shownIndex];
+  const requestId = useRef(0);
+  const [selectionRequest, setSelectionRequest] = useState<
+    { slideIndex: number; request: SelectionRequest } | undefined
+  >();
+  const addBox = useCallback(() => {
+    onEdit((freshDeck) => {
+      const slide = freshDeck.slides[shownIndex];
+      if (!slide) return null;
+      const area = findFreeArea(slide, 4, 2) ?? centredSpan(slide.grid, 4, 2);
+      setSelectionRequest({
+        slideIndex: slide.index,
+        request: { id: ++requestId.current, box: slide.boxes.length },
+      });
+      return insertBox(freshDeck.source, slide, area.col, area.row);
+    });
+  }, [onEdit, shownIndex]);
+  const selectionRequestHandled = useCallback((id: number) => {
+    setSelectionRequest((current) => current?.request.id === id ? undefined : current);
+  }, []);
   return (
     <section className="preview" aria-label="Preview">
       <div className="preview-bar">
@@ -158,6 +183,7 @@ export function Preview({
               onClick={() => onViewChange('one')}
             />
           </div>
+          {editable && deck && <IconButton label="Add box" icon={SquarePlus} onClick={addBox} />}
         </div>
         <span className="muted">{deck ? `${deck.slides.length} slide${deck.slides.length === 1 ? '' : 's'}` : ''}</span>
       </div>
@@ -175,6 +201,8 @@ export function Preview({
               onEdit={onEdit}
               onMoveCursor={onMoveCursor}
               onSelect={() => onSelectSlide(slide.index)}
+              selectionRequest={selectionRequest?.slideIndex === slide.index ? selectionRequest.request : undefined}
+              onSelectionRequestHandled={selectionRequestHandled}
               onFit={onFit}
             />
           ))}
@@ -208,6 +236,8 @@ export function Preview({
                 onEdit={onEdit}
                 onMoveCursor={onMoveCursor}
                 onSelect={() => onSelectSlide(shownIndex)}
+                selectionRequest={selectionRequest?.slideIndex === shownIndex ? selectionRequest.request : undefined}
+                onSelectionRequestHandled={selectionRequestHandled}
                 onFit={onFit}
               />
             </>

@@ -85,9 +85,11 @@ button.danger { color: var(--danger); }
 .slide-counter { min-width: 4.5rem; text-align: center; font-variant-numeric: tabular-nums; }
 .slide-card { margin: 0; }
 .slide-frame { width: 100%; max-width: 960px; margin: 0 auto; background: #fff; border-radius: 4px; box-shadow: 0 1px 4px rgb(0 0 0 / 0.25); cursor: pointer; }
+.slide-frame:has(.us-edit-overlay) { touch-action: none; }
 .us-edit-overlay { position: absolute; inset: 0; z-index: 2000; pointer-events: none; }
 .us-selection {
   position: absolute;
+  z-index: 2;
   border: 2px solid var(--accent);
   box-shadow: 0 0 0 1px rgb(255 255 255 / 0.85);
   pointer-events: none;
@@ -100,6 +102,7 @@ button.danger { color: var(--danger); }
   border-radius: 2px;
   background: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
+  pointer-events: auto;
 }
 .us-handle-nw { left: 0; top: 0; transform: translate(-50%, -50%); }
 .us-handle-n { left: 50%; top: 0; transform: translate(-50%, -50%); }
@@ -109,8 +112,18 @@ button.danger { color: var(--danger); }
 .us-handle-s { left: 50%; bottom: 0; transform: translate(-50%, 50%); }
 .us-handle-sw { left: 0; bottom: 0; transform: translate(-50%, 50%); }
 .us-handle-w { left: 0; top: 50%; transform: translate(-50%, -50%); }
+.us-ghost {
+  position: absolute;
+  z-index: 1;
+  border: 2px dashed var(--accent);
+  background: rgb(37 99 235 / 0.12);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.8);
+  pointer-events: none;
+}
+.slide-frame.us-dragging { cursor: grabbing; }
 .us-floating-bar {
   position: absolute;
+  z-index: 3;
   display: flex;
   align-items: center;
   flex-wrap: wrap;

@@ -168,3 +168,65 @@ test('the floating bar stays usable at the minimum editing width', async ({ page
   expect(first!.x).toBeGreaterThanOrEqual(frame!.x);
   expect(last!.x + last!.width).toBeLessThanOrEqual(frame!.x + frame!.width);
 });
+
+test('editor and custom colour input keys do not edit the selected box', async ({ page }) => {
+  const source = '# A\n\n::: box col=1-6 row=1-3\nLeft\n:::\n';
+  await openDeck(page, source);
+  await clickBox(page);
+
+  await editor(page).focus();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.press('Delete');
+  await page.keyboard.press('ArrowRight');
+  expect(await getSource(page)).toBe(source);
+
+  await page.getByRole('button', { name: 'Fill colour' }).click();
+  await page.getByLabel('Custom fill colour').focus();
+  await page.keyboard.press('Delete');
+  await page.keyboard.press('ArrowRight');
+  expect(await getSource(page)).toBe(source);
+});
+
+test('a detached stage keeps the last selection geometry', async ({ page }) => {
+  await openDeck(page, '# A\n\n::: box col=1-6 row=1-3\nLeft\n:::\n');
+  await clickBox(page);
+  const before = await page.locator('.us-selection').boundingBox();
+  expect(before).not.toBeNull();
+
+  await page.locator('.us-stage').evaluate((stage) => stage.remove());
+  await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+
+  await expect.poll(async () => page.locator('.us-selection').boundingBox()).toEqual(before);
+});
+
+test('an edit clears a selection whose fresh box no longer exists', async ({ page }) => {
+  const first = '::: box col=1-3 row=1-2\nFirst\n:::\n';
+  const second = '\n::: box col=4-6 row=1-2\nSecond\n:::\n';
+  await openDeck(page, first + second);
+  await clickBox(page, 1);
+
+  await editor(page).focus();
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.insertText(first);
+  await page.evaluate(() => {
+    const button = document.querySelector<HTMLButtonElement>('.us-floating-bar button[aria-label="Centre"]');
+    button?.click();
+  });
+  await expect.poll(() => getSource(page)).toBe(first);
+
+  await editor(page).focus();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.insertText(second);
+  await expect(page.locator('.us-box')).toHaveCount(2);
+  await expect(page.locator('.us-selection')).toHaveCount(0);
+});
+
+test('a non-primary pointer button does not select a box', async ({ page }) => {
+  await openDeck(page, '# A\n\n::: box col=1-6 row=1-3\nLeft\n:::\n');
+  const rect = await page.locator('.us-box[data-box="0"]').boundingBox();
+  if (!rect) throw new Error('Box 0 is not visible');
+
+  await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2, { button: 'right' });
+
+  await expect(page.locator('.us-selection')).toHaveCount(0);
+});

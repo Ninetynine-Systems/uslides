@@ -92,13 +92,18 @@
   margin: 0;
 }
 
-.us-gridlines {
+.us-empty {
+  outline: 3px dashed rgba(37, 99, 235, 0.8);
+  outline-offset: -3px;
+}
+
+.us-grid {
   position: absolute;
-  inset: 0;
-  z-index: 1000;
+  z-index: 0;
   pointer-events: none;
   background-image:
     linear-gradient(to right, rgba(37, 99, 235, 0.35) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(37, 99, 235, 0.35) 1px, transparent 1px);
   background-size: calc(100% / var(--us-cols)) calc(100% / var(--us-rows));
 }
+.us-stage > .us-grid { inset: 0; z-index: 1000; }

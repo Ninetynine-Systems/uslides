@@ -8,6 +8,8 @@ import './slide.css';
 export type RenderOptions = {
   /** Draw the grid lines over the slide (editor preview only). */
   showGrid?: boolean;
+  /** Mark blank boxes so they stay visible in the editor preview. */
+  markEmpty?: boolean;
   resolveImage?: (src: string) => string | undefined;
 };
 
@@ -31,6 +33,7 @@ function fill(el: HTMLElement, markdown: string, opts: RenderOptions): void {
 function renderBox(box: Box, index: number, opts: RenderOptions): HTMLElement {
   const el = document.createElement('div');
   el.className = `us-box us-align-${box.align} us-valign-${box.valign} us-fit-${box.fit}`;
+  if (opts.markEmpty && box.markdown.trim() === '') el.classList.add('us-empty');
   el.dataset.box = String(index);
   el.style.setProperty('grid-column', `${box.col[0]} / ${box.col[1] + 1}`);
   el.style.setProperty('grid-row', `${box.row[0]} / ${box.row[1] + 1}`);
@@ -68,7 +71,7 @@ export function renderSlide(slide: Slide, settings: DeckSettings, opts: RenderOp
 
   if (opts.showGrid) {
     const lines = document.createElement('div');
-    lines.className = 'us-gridlines';
+    lines.className = 'us-grid';
     lines.style.setProperty('--us-cols', String(cols));
     lines.style.setProperty('--us-rows', String(rows));
     stage.append(lines);
