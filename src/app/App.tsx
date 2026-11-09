@@ -1,4 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { setBoxAttrs, type EditResult } from '../core/edit';
+import type { Deck } from '../core/parse';
 import { deckName } from '../core/settings';
 import type { Slide } from '../core/slide';
 import type { FitResult } from '../render/fit';
@@ -29,10 +31,25 @@ import { useFileSync } from './useFileSync';
 import { useFolderImages } from './useFolderImages';
 import './app.css';
 
+declare global {
+  interface Window {
+    __uslidesEdit?: (attr: string, value: string | null) => void;
+  }
+}
+
 // The editor (CodeMirror) is a separate chunk, so phones, which hide it, never download it.
 const Editor = lazy(() => import('./Editor').then((m) => ({ default: m.Editor })));
 
 const NEW_DECK = '# Untitled\n';
+
+// Read once at app start. Decks cannot turn this test-only edit channel on themselves.
+const E2E_EDIT = (() => {
+  try {
+    return localStorage.getItem('uslides.e2e') === '1';
+  } catch {
+    return false;
+  }
+})();
 
 /** Media types by file extension, for stored images that came without one. */
 const EXT_TYPES: Record<string, string> = {
@@ -129,6 +146,38 @@ export function App() {
   );
   const deckRef = useRef(current.deck);
   deckRef.current = current.deck;
+
+  /** Applies an edit made outside CodeMirror to the latest text, through CodeMirror's normal change path. */
+  const editDeck = useCallback(
+    (make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }) => {
+      const target = editor.current;
+      if (!target) return;
+      const deck = flushParse() ?? deckRef.current;
+      if (!deck) return;
+      const result = make(deck);
+      if (result) target.applyEdit(result, opts);
+    },
+    [flushParse],
+  );
+
+  useEffect(() => {
+    if (!E2E_EDIT) return;
+    window.__uslidesEdit = (attr, value) => {
+      editDeck((deck) => {
+        const at = editor.current?.getCursor();
+        if (at === undefined) return null;
+        let slide = deck.slides[0];
+        for (const candidate of deck.slides) {
+          if (candidate.range.from <= at) slide = candidate;
+        }
+        const box = slide?.boxes.at(-1);
+        return box ? setBoxAttrs(deck.source, box, { [attr]: value }) : null;
+      });
+    };
+    return () => {
+      delete window.__uslidesEdit;
+    };
+  }, [editDeck]);
   const sync = useFileSync(current, notify);
   const folderImages = useFolderImages(sync.folder, current.source, ready && !sync.needsAccess, sync.version);
   // Folder first, then images stored in the browser; a path in neither shows the "not found" placeholder.

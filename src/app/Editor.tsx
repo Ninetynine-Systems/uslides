@@ -1,9 +1,12 @@
 import { useEffect, useImperativeHandle, useRef, type Ref } from 'react';
 import { Annotation, EditorState } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap, isolateHistory } from '@codemirror/commands';
+import {
+  defaultKeymap, history, historyKeymap, isolateHistory, redo as redoCommand, undo as undoCommand,
+} from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { setDiagnostics, type Diagnostic } from '@codemirror/lint';
+import type { EditResult } from '../core/edit';
 import type { Warning } from '../core/types';
 import { dataUriFold } from './editor/dataUriFold';
 import { pasteImage } from './editor/pasteImage';
@@ -12,8 +15,12 @@ import { pasteImage } from './editor/pasteImage';
 const externalChange = Annotation.define<boolean>();
 
 export type EditorHandle = {
-  /** Moves the cursor to a character offset, scrolls it into view and focuses the editor. */
-  moveCursorTo(pos: number): void;
+  /** Applies source changes together so they share one history step. */
+  applyEdit(result: EditResult, opts?: { userEvent?: string }): void;
+  undo(): void;
+  redo(): void;
+  /** Moves the cursor to a character offset and scrolls it into view. */
+  moveCursorTo(pos: number, opts?: { focus?: boolean }): void;
   /** The cursor's character offset. */
   getCursor(): number;
   /** Replaces the text with `text`, changing only the part that differs, as one undoable edit. */
@@ -23,6 +30,7 @@ export type EditorHandle = {
 type Props = {
   value: string;
   onChange(value: string): void;
+  onCursorChange?(pos: number): void;
   warnings?: Warning[];
   /** Shows a message to the user (for example that a pasted image is too large). */
   onNotice(text: string): void;
@@ -37,11 +45,13 @@ function toDiagnostics(warnings: Warning[], length: number): Diagnostic[] {
   });
 }
 
-export function Editor({ value, onChange, warnings = [], onNotice, ref }: Props) {
+export function Editor({ value, onChange, onCursorChange, warnings = [], onNotice, ref }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | undefined>(undefined);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onCursorChangeRef = useRef(onCursorChange);
+  onCursorChangeRef.current = onCursorChange;
   const onNoticeRef = useRef(onNotice);
   onNoticeRef.current = onNotice;
   const initial = useRef(value);
@@ -61,6 +71,9 @@ export function Editor({ value, onChange, warnings = [], onNotice, ref }: Props)
           EditorView.updateListener.of((u) => {
             if (u.docChanged && !u.transactions.some((t) => t.annotation(externalChange))) {
               onChangeRef.current(u.state.doc.toString());
+            }
+            if (u.selectionSet && u.startState.selection.main.head !== u.state.selection.main.head) {
+              onCursorChangeRef.current?.(u.state.selection.main.head);
             }
           }),
           pasteImage({ onNotice: (text) => onNoticeRef.current(text) }),
@@ -92,12 +105,32 @@ export function Editor({ value, onChange, warnings = [], onNotice, ref }: Props)
   }, [warnings]);
 
   useImperativeHandle(ref, () => ({
-    moveCursorTo(pos) {
+    applyEdit(result, opts) {
+      const v = view.current;
+      if (!v || (result.changes.length === 0 && result.select === undefined)) return;
+      const changes = v.state.changes(result.changes);
+      const select = result.select === undefined ? undefined : Math.min(Math.max(0, result.select), changes.newLength);
+      v.dispatch({
+        changes,
+        ...(select === undefined ? {} : { selection: { anchor: select }, scrollIntoView: true }),
+        ...(opts?.userEvent === undefined ? {} : { userEvent: opts.userEvent }),
+        annotations: opts?.userEvent?.startsWith('input.type') ? [] : isolateHistory.of('full'),
+      });
+    },
+    undo() {
+      const v = view.current;
+      if (v) undoCommand(v);
+    },
+    redo() {
+      const v = view.current;
+      if (v) redoCommand(v);
+    },
+    moveCursorTo(pos, opts) {
       const v = view.current;
       if (!v) return;
       const anchor = Math.min(Math.max(0, pos), v.state.doc.length);
       v.dispatch({ selection: { anchor }, scrollIntoView: true });
-      v.focus();
+      if (opts?.focus ?? true) v.focus();
     },
     getCursor: () => view.current?.state.selection.main.head ?? 0,
     replaceSource(text) {
