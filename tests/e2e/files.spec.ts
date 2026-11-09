@@ -272,7 +272,7 @@ async function bothChanged(page: Page) {
 }
 
 test('dropping a .md and an image together makes a deck that keeps its image', async ({ page }) => {
-  const png = readFileSync('tests/fixtures/chart.png').toString('base64');
+  const png = readFileSync('skill/uslides/examples/chart.png').toString('base64');
   await page.goto('/?test');
   await expect(page.locator('.us-stage')).toHaveCount(4);
   await page.evaluate(async (b64) => {

@@ -21,7 +21,7 @@ describe('share links', () => {
   });
 
   it('makes #z= shorter than #md= for the boxes fixture', async () => {
-    const boxes = readFileSync('tests/fixtures/boxes.md', 'utf8');
+    const boxes = readFileSync('skill/uslides/examples/boxes.md', 'utf8');
     const z = await makeShareLink(boxes, 'z');
     const md = await makeShareLink(boxes, 'md');
     expect(z.length).toBeLessThan(md.length);

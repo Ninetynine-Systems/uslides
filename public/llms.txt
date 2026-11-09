@@ -1,0 +1,5 @@
+# uslides
+
+> A slides app that runs in the browser. A deck is one Markdown file. Works offline, no account.
+
+- [SKILL.md](https://uslides.ninetynine.systems/SKILL.md): how to write a deck for uslides and hand it to the user as a file or a link.

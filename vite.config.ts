@@ -1,6 +1,19 @@
+import { readFileSync } from 'node:fs';
 import react from '@vitejs/plugin-react';
+import type { Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vitest/config';
+
+/** Publishes the agent skill file at /SKILL.md, so agents can fetch it from the site. */
+function skillFile(): Plugin {
+  return {
+    name: 'uslides-skill-file',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'SKILL.md', source: readFileSync('skill/uslides/SKILL.md', 'utf8') });
+    },
+  };
+}
 
 export default defineConfig({
   base: '/',
@@ -8,6 +21,7 @@ export default defineConfig({
   define: { __BUILD_ID__: JSON.stringify(process.env.BUILD_ID ?? Date.now().toString()) },
   plugins: [
     react(),
+    skillFile(),
     VitePWA({
       // The app asks before switching to a new version, so an edit in progress is never interrupted.
       registerType: 'prompt',
@@ -27,7 +41,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // player/player.js (used by .html export) and, later, SKILL.md and llms.txt are cached so they work offline.
+        // player/player.js (used by .html export), SKILL.md and llms.txt are cached so they work offline.
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,md,txt}'],
         // Only page navigations fall back to index.html. Scripts and text files are never rewritten.
         navigateFallback: 'index.html',

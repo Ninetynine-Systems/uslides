@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parseDeck } from '../../src/core/parse';
 
-const fixture = (name: string) => readFileSync(`tests/fixtures/${name}.md`, 'utf8');
+const fixture = (name: string) => readFileSync(`skill/uslides/examples/${name}.md`, 'utf8');
 
 describe('parseDeck on the example decks', () => {
   it('parses plain.md', () => {

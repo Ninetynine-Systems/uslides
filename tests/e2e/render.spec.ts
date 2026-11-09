@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { MIN_FONT_PX } from "../../src/config";
 
 const fixture = (name: string) =>
-  readFileSync(`tests/fixtures/${name}`, "utf8");
+  readFileSync(`skill/uslides/examples/${name}`, "utf8");
 const fontSize = (page: import("@playwright/test").Page) =>
   page.evaluate(() =>
     parseFloat(getComputedStyle(document.querySelector("#us-test .us-box")!).fontSize),
@@ -79,9 +79,9 @@ test.describe("with the test hook", () => {
   });
 
   test("boxes.md boxes sit where the grid puts them", async ({ page }) => {
-    await page.route("**/images.unsplash.com/**", (route) =>
+    await page.route("**/chart.png", (route) =>
       route.fulfill({
-        path: "tests/fixtures/chart.png",
+        path: "skill/uslides/examples/chart.png",
         contentType: "image/png",
       }),
     );
@@ -134,9 +134,9 @@ test.describe("with the test hook", () => {
       !!process.env.CI,
       "pixel baseline is macOS-only; fonts differ on CI",
     );
-    await page.route("**/images.unsplash.com/**", (route) =>
+    await page.route("**/chart.png", (route) =>
       route.fulfill({
-        path: "tests/fixtures/chart.png",
+        path: "skill/uslides/examples/chart.png",
         contentType: "image/png",
       }),
     );
