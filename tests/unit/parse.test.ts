@@ -21,7 +21,8 @@ describe('parseDeck on the example decks', () => {
     expect(deck.slides).toHaveLength(2);
     expect(deck.slides[0]!.boxes).toHaveLength(0);
     expect(deck.slides[1]!.boxes).toHaveLength(4);
-    expect(deck.slides[1]!.boxes[3]!.col).toBeDefined();
+    expect(deck.slides[1]!.boxes[3]!.col).toEqual([9, 12]);
+    expect(deck.slides[1]!.boxes[3]!.row).toEqual([6, 6]);
   });
 
   it('parses pixels.md', () => {
@@ -31,8 +32,7 @@ describe('parseDeck on the example decks', () => {
     expect(deck.slides[0]!.grid).toEqual({ cols: 16, rows: 9 });
     expect(deck.slides[0]!.bg).toBe('#0f172a');
     const n = deck.slides[0]!.boxes.length;
-    expect(n).toBeGreaterThanOrEqual(15);
-    expect(n).toBeLessThanOrEqual(30);
+    expect(n).toBe(24);
     for (const b of deck.slides[0]!.boxes) {
       expect(b.col[0]).toBe(b.col[1]);
       expect(b.row[0]).toBe(b.row[1]);

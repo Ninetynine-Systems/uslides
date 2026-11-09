@@ -57,6 +57,37 @@ describe('notes', () => {
   });
 });
 
+describe('unclosed note', () => {
+  it('warns at the line where the note opened and keeps earlier text', () => {
+    const src = '# A\n<!-- note: forgot\n::: box\n# Big\n:::\nmore';
+    const { slide, warnings } = slideOf(src);
+    expect(slide.loose).toBe('# A');
+    expect(slide.notes).toHaveLength(1);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]!.message).toContain('not closed');
+    expect(warnings[0]!.slideIndex).toBe(0);
+    expect(src.slice(warnings[0]!.range.from, warnings[0]!.range.to)).toBe('<!-- note: forgot');
+  });
+});
+
+describe('malformed slide comment', () => {
+  it('warns and keeps the line when text follows the comment', () => {
+    const src = '<!-- slide grid=16x9 --> # Title\nbody';
+    const { slide, warnings } = slideOf(src);
+    expect(slide.grid).toEqual({ cols: 12, rows: 6 });
+    expect(slide.loose).toBe(src);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]!.message).toContain('one line');
+    expect(src.slice(warnings[0]!.range.from, warnings[0]!.range.to)).toBe('<!-- slide grid=16x9 --> # Title');
+  });
+
+  it('warns and keeps the line when the comment spans lines', () => {
+    const { slide, warnings } = slideOf('<!-- slide grid=16x9\n-->\nbody');
+    expect(slide.loose).toContain('<!-- slide grid=16x9');
+    expect(warnings).toHaveLength(1);
+  });
+});
+
 describe('boxes', () => {
   it('parses attributes, markdown and content range', () => {
     const src = '::: box col=1-7 row=2-6 bg=#1e3a8a color=white\n## T\n:::\n';

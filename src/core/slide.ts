@@ -49,8 +49,9 @@ function oneOf<T extends string>(allowed: readonly T[], value: string | undefine
 }
 
 /** Removes `<!-- note: ... -->` comments from every line outside code fences. */
-function extractNotes(lines: Line[], notes: string[]): void {
+function extractNotes(lines: Line[], notes: string[], warn: (message: string, range: SourceRange) => void): void {
   let open: string[] | null = null;
+  let openedAt: Line | null = null;
   for (const line of lines) {
     if (line.fenced || line.text === null) continue;
     let rest = line.text;
@@ -78,11 +79,15 @@ function extractNotes(lines: Line[], notes: string[]): void {
       out += rest.slice(0, m.index);
       rest = rest.slice(m.index + m[0].length);
       open = [];
+      openedAt = line;
     }
     out += rest;
     line.text = touched && out.trim() === '' ? null : out;
   }
-  if (open) notes.push(open.join('\n').trim());
+  if (open && openedAt) {
+    warn('This note is not closed. Add `-->`. It runs to the end of the slide.', openedAt.range);
+    notes.push((open as string[]).join('\n').trim());
+  }
 }
 
 function trimBlankEnds<T extends { text: string | null }>(items: T[]): T[] {
@@ -192,11 +197,15 @@ export function parseSlide(
 
   const first = lines.find((l) => l.text!.trim() !== '');
   if (first && !first.fenced && /^\s*<!--\s*slide(?:\s|-->)/.test(first.text!)) {
-    parseSlideComment(first, settings.grid, slide, warn);
-    first.text = null;
+    if (/^\s*<!--\s*slide(?:\s+(.*?))?\s*-->\s*$/.test(first.text!)) {
+      parseSlideComment(first, settings.grid, slide, warn);
+      first.text = null;
+    } else {
+      warn('Slide settings must be on one line, ending with `-->`, with nothing after it. They were ignored.', first.range);
+    }
   }
 
-  extractNotes(lines, slide.notes);
+  extractNotes(lines, slide.notes, warn);
 
   const loose: Line[] = [];
   let open: { line: Line; attrs: Omit<Box, 'markdown' | 'range' | 'contentRange'>; content: Line[] } | null = null;
