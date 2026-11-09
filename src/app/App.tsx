@@ -22,7 +22,7 @@ import { ConflictDialog, FilePicker } from './FileDialogs';
 import { isImageDrop } from './editor/dropMarker';
 import { Notices, useNotices } from './Notices';
 import { Present } from './Present';
-import { imageKey, Preview, useImageUrls } from './Preview';
+import { imageKey, Preview, type PreviewView, useImageUrls } from './Preview';
 import { Toolbar } from './Toolbar';
 import { deckHash, parseRoute } from './route';
 import sample from './sample.md?raw';
@@ -41,6 +41,15 @@ declare global {
 const Editor = lazy(() => import('./Editor').then((m) => ({ default: m.Editor })));
 
 const NEW_DECK = '# Untitled\n';
+const PREVIEW_VIEW_KEY = 'uslides.previewView';
+
+function savedPreviewView(): PreviewView {
+  try {
+    return localStorage.getItem(PREVIEW_VIEW_KEY) === 'one' ? 'one' : 'all';
+  } catch {
+    return 'all';
+  }
+}
 
 // Read once at app start. Decks cannot turn this test-only edit channel on themselves.
 const E2E_EDIT = (() => {
@@ -118,6 +127,8 @@ export function App() {
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [listOpen, setListOpen] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   const [showGrid, setShowGrid] = useState(true);
+  const [previewView, setPreviewView] = useState<PreviewView>(savedPreviewView);
+  const [currentSlide, setCurrentSlide] = useState(0);
   const wide = useWide();
   const { notices, notify, dismiss } = useNotices();
   const editor = useRef<EditorHandle>(null);
@@ -379,9 +390,9 @@ export function App() {
   }, [deckId]);
 
   /** The slide the editor cursor is in: the one whose range holds it, else the last one starting before it. */
-  const slideAtCursor = useCallback((): number => {
+  const slideAtCursor = useCallback((pos?: number): number => {
     const slides = (flushParse() ?? current.deck)?.slides;
-    const at = editor.current?.getCursor();
+    const at = pos ?? editor.current?.getCursor();
     if (!slides || at === undefined) return 1;
     let found = 0;
     slides.forEach((slide, i) => {
@@ -389,6 +400,19 @@ export function App() {
     });
     return found + 1;
   }, [current.deck, flushParse]);
+
+  useEffect(() => {
+    setCurrentSlide(slideAtCursor() - 1);
+  }, [current.deck, slideAtCursor]);
+
+  const changePreviewView = useCallback((view: PreviewView) => {
+    setPreviewView(view);
+    try {
+      localStorage.setItem(PREVIEW_VIEW_KEY, view);
+    } catch {
+      // The view still changes when browser storage is unavailable.
+    }
+  }, []);
 
   // Ctrl/Cmd+Enter starts presenting. Runs before the editor sees the key, which would insert a line.
   useEffect(() => {
@@ -693,6 +717,7 @@ export function App() {
               ref={editor}
               value={current.source}
               onChange={current.setSource}
+              onCursorChange={(pos) => setCurrentSlide(slideAtCursor(pos) - 1)}
               warnings={warnings}
               onNotice={notify}
             />
@@ -704,8 +729,14 @@ export function App() {
           images={images}
           showGrid={showGrid}
           onShowGridChange={setShowGrid}
+          view={previewView}
+          onViewChange={changePreviewView}
+          currentSlide={currentSlide}
+          onEdit={editDeck}
+          editable={wide}
           onFit={onFit}
           onSelectSlide={(i) => {
+            setCurrentSlide(i);
             const slide = current.deck?.slides[i];
             if (slide) editor.current?.moveCursorTo(slide.range.from);
           }}

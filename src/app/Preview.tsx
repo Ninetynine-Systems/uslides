@@ -1,16 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Rows3, Square } from 'lucide-react';
+import type { EditResult } from '../core/edit';
 import type { Deck } from '../core/parse';
 import type { Slide } from '../core/slide';
 import { STAGE } from '../config';
 import { fitSlide, mountScaled, type FitResult } from '../render/fit';
 import { renderSlide } from '../render/renderSlide';
 import { BOX_CUT_OFF, SLIDE_CUT_OFF } from './cutOff';
+import { IconButton } from './IconButton';
+
+export type PreviewView = 'all' | 'one';
 
 type Props = {
   deck: Deck | undefined;
   images?: Map<string, Blob>;
   showGrid: boolean;
   onShowGridChange(show: boolean): void;
+  view: PreviewView;
+  onViewChange(view: PreviewView): void;
+  currentSlide: number;
+  onEdit(make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }): void;
+  editable: boolean;
   /** Called with the slide index when a slide is clicked. */
   onSelectSlide(index: number): void;
   /** Called with fitSlide's results each time a slide is laid out. */
@@ -97,29 +107,82 @@ function SlideCard(props: {
   );
 }
 
-export function Preview({ deck, images, showGrid, onShowGridChange, onSelectSlide, onFit }: Props) {
+export function Preview({
+  deck, images, showGrid, onShowGridChange, view, onViewChange, currentSlide, onSelectSlide, onFit,
+}: Props) {
   const urls = useImageUrls(images);
+  const slideCount = deck?.slides.length ?? 0;
+  const shownIndex = Math.min(Math.max(0, currentSlide), Math.max(0, slideCount - 1));
+  const shownSlide = deck?.slides[shownIndex];
   return (
     <section className="preview" aria-label="Preview">
       <div className="preview-bar">
-        <label>
-          <input type="checkbox" checked={showGrid} onChange={(e) => onShowGridChange(e.target.checked)} /> Grid lines
-        </label>
+        <div className="preview-controls">
+          <label>
+            <input type="checkbox" checked={showGrid} onChange={(e) => onShowGridChange(e.target.checked)} /> Grid lines
+          </label>
+          <div className="preview-view-switch" role="group" aria-label="Preview view">
+            <IconButton
+              label="All slides"
+              icon={Rows3}
+              aria-pressed={view === 'all'}
+              onClick={() => onViewChange('all')}
+            />
+            <IconButton
+              label="One slide"
+              icon={Square}
+              aria-pressed={view === 'one'}
+              onClick={() => onViewChange('one')}
+            />
+          </div>
+        </div>
         <span className="muted">{deck ? `${deck.slides.length} slide${deck.slides.length === 1 ? '' : 's'}` : ''}</span>
       </div>
-      <div className="preview-scroll">
-        {deck?.slides.map((slide) => (
-          <SlideCard
-            key={slide.index}
-            slide={slide}
-            deck={deck}
-            urls={urls}
-            showGrid={showGrid}
-            onSelect={() => onSelectSlide(slide.index)}
-            onFit={onFit}
-          />
-        ))}
-      </div>
+      {view === 'all' ? (
+        <div className="preview-scroll">
+          {deck?.slides.map((slide) => (
+            <SlideCard
+              key={slide.index}
+              slide={slide}
+              deck={deck}
+              urls={urls}
+              showGrid={showGrid}
+              onSelect={() => onSelectSlide(slide.index)}
+              onFit={onFit}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="one-slide">
+          {deck && shownSlide && (
+            <>
+              <div className="one-slide-nav" aria-label="Slide navigation">
+                <IconButton
+                  label="Previous slide"
+                  icon={ChevronLeft}
+                  disabled={shownIndex === 0}
+                  onClick={() => onSelectSlide(shownIndex - 1)}
+                />
+                <span className="slide-counter" aria-live="polite">{shownIndex + 1} / {slideCount}</span>
+                <IconButton
+                  label="Next slide"
+                  icon={ChevronRight}
+                  disabled={shownIndex === slideCount - 1}
+                  onClick={() => onSelectSlide(shownIndex + 1)}
+                />
+              </div>
+              <SlideCard
+                slide={shownSlide}
+                deck={deck}
+                urls={urls}
+                showGrid={showGrid}
+                onSelect={() => onSelectSlide(shownIndex)}
+                onFit={onFit}
+              />
+            </>
+          )}
+        </div>
+      )}
     </section>
   );
 }
