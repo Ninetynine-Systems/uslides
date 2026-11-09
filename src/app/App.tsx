@@ -43,6 +43,16 @@ const Editor = lazy(() => import('./Editor').then((m) => ({ default: m.Editor })
 const NEW_DECK = '# Untitled\n';
 const PREVIEW_VIEW_KEY = 'uslides.previewView';
 
+/** The 1-based slide whose range starts last before the cursor. */
+function slideAtPosition(deck: Deck | undefined, pos: number | undefined): number {
+  if (!deck || pos === undefined) return 1;
+  let found = 0;
+  deck.slides.forEach((slide, i) => {
+    if (slide.range.from <= pos) found = i;
+  });
+  return found + 1;
+}
+
 function savedPreviewView(): PreviewView {
   try {
     return localStorage.getItem(PREVIEW_VIEW_KEY) === 'one' ? 'one' : 'all';
@@ -393,14 +403,8 @@ export function App() {
   const slideAtCursor = useCallback((pos?: number): number => {
     const parsed = flushParse();
     if (parsed) deckRef.current = parsed;
-    const slides = (parsed ?? deckRef.current)?.slides;
     const at = pos ?? editor.current?.getCursor();
-    if (!slides || at === undefined) return 1;
-    let found = 0;
-    slides.forEach((slide, i) => {
-      if (slide.range.from <= at) found = i;
-    });
-    return found + 1;
+    return slideAtPosition(parsed ?? deckRef.current, at);
   }, [flushParse]);
 
   useEffect(() => {
@@ -719,7 +723,7 @@ export function App() {
               ref={editor}
               value={current.source}
               onChange={current.setSource}
-              onCursorChange={(pos) => setCurrentSlide(slideAtCursor(pos) - 1)}
+              onCursorChange={(pos) => setCurrentSlide(slideAtPosition(deckRef.current, pos) - 1)}
               warnings={warnings}
               onNotice={notify}
             />
