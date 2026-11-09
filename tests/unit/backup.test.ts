@@ -19,7 +19,7 @@ describe('backup', () => {
     const blob = await exportBackup()
     const parsed = JSON.parse(await blob.text())
     expect(parsed.app).toBe('uslides')
-    expect(parsed.version).toBe(1)
+    expect(parsed.version).toBe(2)
     expect(parsed.decks).toHaveLength(2)
 
     await _resetForTests()
@@ -55,10 +55,50 @@ describe('backup', () => {
     expect(copy.updatedAt).toBe(a.updatedAt)
   })
 
+  it('a version 1 backup restores its decks as blocked', async () => {
+    const blob = new Blob([JSON.stringify({
+      app: 'uslides',
+      version: 1,
+      decks: [{ source: '# Old backup', createdAt: 1, updatedAt: 2, images: [] }],
+    })])
+    expect(await importBackup(blob)).toBe(1)
+    const restored = await getDeck((await listDecks())[0]!.id)
+    expect(restored?.privacy).toBe('blocked')
+  })
+
+  it('a version 2 backup round-trips allowed, blocked and not chosen', async () => {
+    await createDeck('# Allowed', { privacy: 'allowed' })
+    await createDeck('# Blocked', { privacy: 'blocked' })
+    await createDeck('# Not chosen')
+    const blob = await exportBackup()
+    const file = JSON.parse(await blob.text())
+    expect(file.decks.find((d: { source: string }) => d.source === '# Not chosen')).not.toHaveProperty('privacy')
+
+    await _resetForTests()
+    globalThis.indexedDB = new IDBFactory()
+    expect(await importBackup(blob)).toBe(3)
+    const restored = await Promise.all((await listDecks()).map((d) => getDeck(d.id)))
+    const bySource = new Map(restored.map((d) => [d!.source, d]))
+    expect(bySource.get('# Allowed')?.privacy).toBe('allowed')
+    expect(bySource.get('# Blocked')?.privacy).toBe('blocked')
+    expect('privacy' in bySource.get('# Not chosen')!).toBe(false)
+  })
+
+  it('an unknown version 2 privacy value restores as blocked', async () => {
+    const blob = new Blob([JSON.stringify({
+      app: 'uslides',
+      version: 2,
+      decks: [{ source: '# Unknown', createdAt: 1, updatedAt: 2, privacy: 'surprise', images: [] }],
+    })])
+    await importBackup(blob)
+    const restored = await getDeck((await listDecks())[0]!.id)
+    expect(restored?.privacy).toBe('blocked')
+  })
+
   it.each([
     ['not json', 'nope'],
     ['wrong app', JSON.stringify({ app: 'other', version: 1, decks: [] })],
-    ['wrong version', JSON.stringify({ app: 'uslides', version: 2, decks: [] })],
+    ['wrong version', JSON.stringify({ app: 'uslides', version: 3, decks: [] })],
     ['no decks array', JSON.stringify({ app: 'uslides', version: 1 })],
     ['null', 'null'],
   ])('rejects a bad file: %s', async (_name, text) => {

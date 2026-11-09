@@ -7,6 +7,7 @@ export type DeckRecord = {
   createdAt: number;
   updatedAt: number;
   revision: number;
+  privacy?: 'allowed' | 'blocked';
   file?: FileSystemFileHandle;
   folder?: FileSystemDirectoryHandle;
   lastSyncedSource?: string;
@@ -26,11 +27,14 @@ let dbPromise: Promise<IDBPDatabase<UslidesDB>> | undefined;
 
 function db(): Promise<IDBPDatabase<UslidesDB>> {
   if (!dbPromise) {
-    const opening = openDB<UslidesDB>('uslides', 1, {
-      upgrade(d) {
-        d.createObjectStore('decks', { keyPath: 'id' });
-        const images = d.createObjectStore('images', { keyPath: ['deckId', 'path'] });
-        images.createIndex('deckId', 'deckId');
+    const opening = openDB<UslidesDB>('uslides', 2, {
+      upgrade(d, oldVersion) {
+        if (oldVersion < 1) {
+          d.createObjectStore('decks', { keyPath: 'id' });
+          const images = d.createObjectStore('images', { keyPath: ['deckId', 'path'] });
+          images.createIndex('deckId', 'deckId');
+        }
+        // Version 2 adds an optional field, so existing deck rows need no changes.
       },
       // Another tab wants to upgrade or delete the database: let go so it can.
       blocking() {
@@ -131,6 +135,25 @@ export async function updateDeckMeta(
   await tx.done;
 }
 
+/** Changes the deck's privacy choice without treating it as a content edit. */
+export async function setDeckPrivacy(
+  id: string,
+  privacy: DeckRecord['privacy'],
+): Promise<DeckRecord> {
+  const tx = (await db()).transaction('decks', 'readwrite');
+  const current = await tx.store.get(id);
+  if (!current) {
+    await tx.done;
+    throw new Error(`Deck not found: ${id}`);
+  }
+  const next = { ...current };
+  if (privacy === undefined) delete next.privacy;
+  else next.privacy = privacy;
+  await tx.store.put(next);
+  await tx.done;
+  return next;
+}
+
 export async function renameDeck(id: string, title: string): Promise<DeckRecord> {
   const tx = (await db()).transaction('decks', 'readwrite');
   const current = await tx.store.get(id);
@@ -164,6 +187,7 @@ export async function duplicateDeck(id: string): Promise<DeckRecord> {
     createdAt: now,
     updatedAt: now,
     revision: 1,
+    ...(original.privacy === undefined ? {} : { privacy: original.privacy }),
   };
   await tx.objectStore('decks').put(copy);
   const images = await tx.objectStore('images').index('deckId').getAll(id);
@@ -200,13 +224,21 @@ export type NewDeck = {
   source: string;
   createdAt: number;
   updatedAt: number;
+  privacy?: DeckRecord['privacy'];
   images: Array<{ path: string; type: string; bytes: ArrayBuffer }>;
 };
 
 /** Adds every deck (new ids, given dates) with its images in one transaction: all are added or none. Used by restore. */
 export async function addDecksWithImages(decks: NewDeck[]): Promise<void> {
   const rows = decks.map((d) => {
-    const deck: DeckRecord = { id: crypto.randomUUID(), source: d.source, createdAt: d.createdAt, updatedAt: d.updatedAt, revision: 1 };
+    const deck: DeckRecord = {
+      id: crypto.randomUUID(),
+      source: d.source,
+      createdAt: d.createdAt,
+      updatedAt: d.updatedAt,
+      revision: 1,
+      ...(d.privacy === undefined ? {} : { privacy: d.privacy }),
+    };
     return { deck, images: d.images.map((i) => ({ deckId: deck.id, path: normalizePath(i.path), type: i.type, bytes: i.bytes })) };
   });
   const tx = (await db()).transaction(['decks', 'images'], 'readwrite');

@@ -3,7 +3,7 @@ import { IDBFactory } from 'fake-indexeddb'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   _resetForTests, createDeck, deleteDeck, duplicateDeck, getDeck, getImages,
-  listDecks, putImage, renameDeck, saveDeck, updateDeckMeta,
+  listDecks, putImage, renameDeck, saveDeck, setDeckPrivacy, updateDeckMeta,
 } from '../../src/storage/db'
 
 beforeEach(async () => {
@@ -77,6 +77,54 @@ describe('decks', () => {
     expect(imgs.get('a.png')!.type).toBe('image/png')
   })
 
+  it('a duplicate keeps the privacy choice', async () => {
+    const d = await createDeck('# Private', { privacy: 'blocked' })
+    const copy = await duplicateDeck(d.id)
+    expect(copy.privacy).toBe('blocked')
+    expect((await getDeck(copy.id))?.privacy).toBe('blocked')
+  })
+
+  it('sets and clears the privacy choice without changing content metadata', async () => {
+    const d = await createDeck('# A')
+    const blocked = await setDeckPrivacy(d.id, 'blocked')
+    expect(blocked).toMatchObject({ privacy: 'blocked', revision: d.revision, updatedAt: d.updatedAt })
+    expect((await getDeck(d.id))?.privacy).toBe('blocked')
+
+    const cleared = await setDeckPrivacy(d.id, undefined)
+    expect('privacy' in cleared).toBe(false)
+    expect('privacy' in (await getDeck(d.id))!).toBe(false)
+  })
+
+  it('opening a version 1 database keeps its decks with no privacy value', async () => {
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open('uslides', 1)
+      req.onupgradeneeded = () => {
+        const decks = req.result.createObjectStore('decks', { keyPath: 'id' })
+        const images = req.result.createObjectStore('images', { keyPath: ['deckId', 'path'] })
+        images.createIndex('deckId', 'deckId')
+        decks.put({ id: 'old', source: '# Old', createdAt: 1, updatedAt: 2, revision: 1 })
+      }
+      req.onsuccess = () => {
+        req.result.close()
+        resolve()
+      }
+      req.onerror = () => reject(req.error)
+    })
+
+    const old = await getDeck('old')
+    expect(old?.source).toBe('# Old')
+    expect('privacy' in old!).toBe(false)
+    const version = await new Promise<number>((resolve, reject) => {
+      const req = indexedDB.open('uslides')
+      req.onsuccess = () => {
+        resolve(req.result.version)
+        req.result.close()
+      }
+      req.onerror = () => reject(req.error)
+    })
+    expect(version).toBe(2)
+  })
+
   it('deleteDeck removes the deck and its images only', async () => {
     const d = await createDeck('# A')
     const o = await createDeck('# O')
@@ -111,7 +159,7 @@ describe('connection recovery', () => {
   it('retries opening the database after a failed open', async () => {
     // A newer database version makes the first open fail with a VersionError.
     await new Promise<void>((resolve, reject) => {
-      const req = indexedDB.open('uslides', 2);
+      const req = indexedDB.open('uslides', 3);
       req.onsuccess = () => { req.result.close(); resolve(); };
       req.onerror = () => reject(req.error);
     });

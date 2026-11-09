@@ -15,10 +15,10 @@ async function createLinked(
 ): Promise<string> {
   const sync = { lastSyncedSource: source, lastSyncedModified: modified };
   try {
-    return (await createDeck(source, { ...link, ...sync })).id;
+    return (await createDeck(source, { ...link, ...sync, privacy: 'blocked' })).id;
   } catch (err) {
     console.warn('Could not store the file link; it will last until this tab closes.', err);
-    const deck = await createDeck(source, sync);
+    const deck = await createDeck(source, { ...sync, privacy: 'blocked' });
     rememberLink(deck.id, link);
     return deck.id;
   }
@@ -43,7 +43,7 @@ export async function importFiles(files: File[] | FileSystemHandle[]): Promise<s
   const all = files as File[];
   const md = all.find((f) => isMarkdown(f.name));
   if (!md) throw new Error('Choose a Markdown (.md) file');
-  const deck = await createDeck(await md.text());
+  const deck = await createDeck(await md.text(), { privacy: 'blocked' });
   for (const img of all.filter(isImage)) await putImage(deck.id, img.name, img);
   return deck.id;
 }

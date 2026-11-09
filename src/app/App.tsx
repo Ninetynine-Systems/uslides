@@ -109,7 +109,7 @@ function pickInitialDeck(): Promise<Boot> {
     let damaged: string | undefined;
     try {
       const shared = await readShareHash(location.hash);
-      if (shared !== null) return { id: (await createDeck(shared)).id, damaged };
+      if (shared !== null) return { id: (await createDeck(shared, { privacy: 'blocked' })).id, damaged };
     } catch (err) {
       if (!(err instanceof ShareLinkError)) throw err;
       damaged = err.message;
@@ -338,7 +338,7 @@ export function App() {
       try {
         const shared = await readShareHash(hash);
         if (shared === null) return false;
-        const id = (await createDeck(shared)).id;
+        const id = (await createDeck(shared, { privacy: 'blocked' })).id;
         history.replaceState(null, '', deckHash(id));
         setPresenting(undefined);
         setDeckId(id);

@@ -7,6 +7,7 @@ type BackupDeck = {
   source: string;
   createdAt: number;
   updatedAt: number;
+  privacy?: 'allowed' | 'blocked';
   images: Array<{ path: string; type: string; base64: string }>;
 };
 
@@ -25,9 +26,15 @@ export async function exportBackup(): Promise<Blob> {
     for (const [path, blob] of await getImages(deck.id)) {
       images.push({ path, type: blob.type, base64: bytesToBase64(new Uint8Array(await blob.arrayBuffer())) });
     }
-    decks.push({ source: deck.source, createdAt: deck.createdAt, updatedAt: deck.updatedAt, images });
+    decks.push({
+      source: deck.source,
+      createdAt: deck.createdAt,
+      updatedAt: deck.updatedAt,
+      ...(deck.privacy === undefined ? {} : { privacy: deck.privacy }),
+      images,
+    });
   }
-  return new Blob([JSON.stringify({ app: 'uslides', version: 1, decks })], { type: 'application/json' });
+  return new Blob([JSON.stringify({ app: 'uslides', version: 2, decks })], { type: 'application/json' });
 }
 
 const MAX_BACKUP_BYTES = 200 * 1024 * 1024;
@@ -35,7 +42,7 @@ const MAX_BACKUP_BYTES = 200 * 1024 * 1024;
 const damaged = (reason: string) => new Error(`This backup file is damaged: ${reason}`);
 
 /** Checks one deck and decodes its images. Throws "damaged" with a short reason. Writes nothing. */
-function decodeDeck(d: unknown, n: number): NewDeck {
+function decodeDeck(d: unknown, n: number, version: 1 | 2): NewDeck {
   const x = d as Record<string, unknown> | null;
   if (!x || typeof x.source !== 'string' || typeof x.createdAt !== 'number' || typeof x.updatedAt !== 'number' || !Array.isArray(x.images)) {
     throw damaged(`deck ${n} is not in the expected form`);
@@ -58,7 +65,20 @@ function decodeDeck(d: unknown, n: number): NewDeck {
     }
     return { path: y.path, type: y.type, bytes: bytes.buffer };
   });
-  return { source: x.source, createdAt: x.createdAt, updatedAt: x.updatedAt, images };
+  const privacy = version === 1
+    ? 'blocked'
+    : x.privacy === undefined
+      ? undefined
+      : x.privacy === 'allowed'
+        ? 'allowed'
+        : 'blocked';
+  return {
+    source: x.source,
+    createdAt: x.createdAt,
+    updatedAt: x.updatedAt,
+    ...(privacy === undefined ? {} : { privacy }),
+    images,
+  };
 }
 
 /** Adds every deck in the backup as a new deck and returns how many. Existing decks are never touched. A bad file adds nothing. */
@@ -71,8 +91,11 @@ export async function importBackup(blob: Blob): Promise<number> {
     throw new Error(NOT_A_BACKUP);
   }
   const file = data as { app?: unknown; version?: unknown; decks?: unknown } | null;
-  if (!file || file.app !== 'uslides' || file.version !== 1 || !Array.isArray(file.decks)) throw new Error(NOT_A_BACKUP);
-  const decks = file.decks.map((d, i) => decodeDeck(d, i + 1));
+  if (!file || file.app !== 'uslides' || (file.version !== 1 && file.version !== 2) || !Array.isArray(file.decks)) {
+    throw new Error(NOT_A_BACKUP);
+  }
+  const version = file.version;
+  const decks = file.decks.map((d, i) => decodeDeck(d, i + 1, version));
   await addDecksWithImages(decks);
   return decks.length;
 }
