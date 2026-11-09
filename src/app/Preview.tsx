@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType,
+} from 'react';
 import { ChevronLeft, ChevronRight, Rows3, Square, SquarePlus } from 'lucide-react';
 import { insertBox, type EditResult } from '../core/edit';
 import { centredSpan, findFreeArea } from '../core/layout';
@@ -9,7 +11,11 @@ import { fitSlide, mountScaled, type FitResult } from '../render/fit';
 import { renderSlide } from '../render/renderSlide';
 import { BOX_CUT_OFF, SLIDE_CUT_OFF } from './cutOff';
 import { Overlay, type SelectionRequest } from './edit/Overlay';
+import type { TypingAreaProps } from './edit/TypingArea';
 import { IconButton } from './IconButton';
+
+// Keep CodeMirror in the editor chunk. Narrow screens never request this component.
+const TypingArea = lazy(() => import('./edit/TypingArea').then((m) => ({ default: m.TypingArea })));
 
 export type PreviewView = 'all' | 'one';
 
@@ -23,6 +29,9 @@ type Props = {
   currentSlide: number;
   onEdit(make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }): void;
   onMoveCursor(pos: number): void;
+  getSource(): string;
+  onUndo(): void;
+  onRedo(): void;
   editable: boolean;
   /** Called with the slide index when a slide is clicked. */
   onSelectSlide(index: number): void;
@@ -59,12 +68,17 @@ function SlideCard(props: {
   editable: boolean;
   onEdit(make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }): void;
   onMoveCursor(pos: number): void;
+  getSource(): string;
+  onUndo(): void;
+  onRedo(): void;
   onSelect(): void;
   selectionRequest?: SelectionRequest;
   onSelectionRequestHandled(id: number): void;
   onFit?(slide: Slide, results: FitResult[]): void;
 }) {
-  const { slide, deck, urls, showGrid, active, editable, onEdit, onMoveCursor, onSelect } = props;
+  const {
+    slide, deck, urls, showGrid, active, editable, onEdit, onMoveCursor, getSource, onUndo, onRedo, onSelect,
+  } = props;
   const frame = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState<HTMLElement | null>(null);
   const onFit = useRef(props.onFit);
@@ -111,18 +125,24 @@ function SlideCard(props: {
         }}
       >
         {editable && stage && (
-          <Overlay
-            stage={stage}
-            slide={slide}
-            grid={slide.grid}
-            theme={deck.settings.theme}
-            onEdit={onEdit}
-            onMoveCursor={onMoveCursor}
-            onSelectSlide={onSelect}
-            active={active}
-            selectionRequest={props.selectionRequest}
-            onSelectionRequestHandled={props.onSelectionRequestHandled}
-          />
+          <Suspense fallback={null}>
+            <Overlay
+              stage={stage}
+              slide={slide}
+              grid={slide.grid}
+              theme={deck.settings.theme}
+              onEdit={onEdit}
+              onMoveCursor={onMoveCursor}
+              getSource={getSource}
+              onUndo={onUndo}
+              onRedo={onRedo}
+              TypingArea={TypingArea as ComponentType<TypingAreaProps>}
+              onSelectSlide={onSelect}
+              active={active}
+              selectionRequest={props.selectionRequest}
+              onSelectionRequestHandled={props.onSelectionRequestHandled}
+            />
+          </Suspense>
         )}
       </div>
       <figcaption>{slide.index + 1}</figcaption>
@@ -137,7 +157,7 @@ function SlideCard(props: {
 
 export function Preview({
   deck, images, showGrid, onShowGridChange, view, onViewChange, currentSlide, onEdit, onMoveCursor,
-  editable, onSelectSlide, onFit,
+  getSource, onUndo, onRedo, editable, onSelectSlide, onFit,
 }: Props) {
   const urls = useImageUrls(images);
   const slideCount = deck?.slides.length ?? 0;
@@ -154,7 +174,7 @@ export function Preview({
       const area = findFreeArea(slide, 4, 2) ?? centredSpan(slide.grid, 4, 2);
       setSelectionRequest({
         slideIndex: slide.index,
-        request: { id: ++requestId.current, box: slide.boxes.length },
+        request: { id: ++requestId.current, box: slide.boxes.length, typing: true },
       });
       return insertBox(freshDeck.source, slide, area.col, area.row);
     });
@@ -200,6 +220,9 @@ export function Preview({
               editable={editable}
               onEdit={onEdit}
               onMoveCursor={onMoveCursor}
+              getSource={getSource}
+              onUndo={onUndo}
+              onRedo={onRedo}
               onSelect={() => onSelectSlide(slide.index)}
               selectionRequest={selectionRequest?.slideIndex === slide.index ? selectionRequest.request : undefined}
               onSelectionRequestHandled={selectionRequestHandled}
@@ -235,6 +258,9 @@ export function Preview({
                 editable={editable}
                 onEdit={onEdit}
                 onMoveCursor={onMoveCursor}
+                getSource={getSource}
+                onUndo={onUndo}
+                onRedo={onRedo}
                 onSelect={() => onSelectSlide(shownIndex)}
                 selectionRequest={selectionRequest?.slideIndex === shownIndex ? selectionRequest.request : undefined}
                 onSelectionRequestHandled={selectionRequestHandled}

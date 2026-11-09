@@ -87,6 +87,27 @@ button.danger { color: var(--danger); }
 .slide-frame { width: 100%; max-width: 960px; margin: 0 auto; background: #fff; border-radius: 4px; box-shadow: 0 1px 4px rgb(0 0 0 / 0.25); cursor: pointer; }
 .slide-frame:has(.us-edit-overlay) { touch-action: none; }
 .us-edit-overlay { position: absolute; inset: 0; z-index: 2000; pointer-events: none; }
+.us-typing-area {
+  position: absolute;
+  z-index: 4;
+  overflow: hidden;
+  color: #111827;
+  background: #fff;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.85);
+  pointer-events: auto;
+}
+.us-typing-area:focus-within { box-shadow: 0 0 0 2px rgb(37 99 235 / 0.3); }
+.us-typing-area .cm-editor, .us-typing-area .cm-scroller { height: 100%; }
+.us-typing-area .cm-editor.cm-focused { outline: none; }
+.us-typing-area .cm-scroller {
+  overflow: auto;
+  font-family: var(--us-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.us-typing-area .cm-content { min-height: 100%; padding: 6px; caret-color: #111827; }
+.us-typing-area .cm-line { padding: 0; }
 .us-selection {
   position: absolute;
   z-index: 2;

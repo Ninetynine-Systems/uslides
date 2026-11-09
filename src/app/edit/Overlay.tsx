@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import {
+  useCallback, useEffect, useRef, useState, type ComponentType, type CSSProperties,
+} from 'react';
 import {
   bringToFront,
   deleteBox,
@@ -7,18 +9,23 @@ import {
   sendToBack,
   setBoxAttrs,
   setBoxSpan,
+  type Edit,
   type EditResult,
 } from '../../core/edit';
 import { clampNewBox, moveSpan, resizeSpan, type Edge, type GridArea } from '../../core/layout';
-import type { Deck } from '../../core/parse';
+import { renderMarkdown } from '../../core/markdown';
+import { parseDeck, type Deck } from '../../core/parse';
 import type { Box, Slide } from '../../core/slide';
-import type { Grid } from '../../core/types';
+import type { Grid, SourceRange } from '../../core/types';
 import { FloatingBar } from './FloatingBar';
 import { boxesAt, cellAt } from './stageGeometry';
+import type { TypingAreaProps } from './TypingArea';
 
 type OnEdit = (make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }) => void;
 type Geometry = { anchor: DOMRect; bounds: DOMRect };
 type Point = { x: number; y: number };
+type TypingTarget = { kind: 'box'; index: number } | { kind: 'loose'; index: number };
+type Typing = TypingTarget & { from: number; text: string };
 type Drag = {
   pointerId: number;
   start: Point;
@@ -33,7 +40,7 @@ type Drag = {
   | { kind: 'resize'; boxIndex: number; edge: Edge; original: GridArea }
 );
 
-export type SelectionRequest = { id: number; box: number };
+export type SelectionRequest = { id: number; box: number; typing?: boolean };
 
 export type OverlayProps = {
   stage: HTMLElement;
@@ -42,6 +49,10 @@ export type OverlayProps = {
   theme: 'light' | 'dark';
   onEdit: OnEdit;
   onMoveCursor(pos: number): void;
+  getSource(): string;
+  onUndo(): void;
+  onRedo(): void;
+  TypingArea: ComponentType<TypingAreaProps>;
   onSelectSlide?(): void;
   /** Only the current slide may keep the one selection shared by the preview. */
   active?: boolean;
@@ -87,6 +98,95 @@ function gridStyle(stage: HTMLElement, frame: HTMLElement, grid: Grid): CSSPrope
   } as CSSProperties;
 }
 
+function trimLooseRange(source: string, range: SourceRange): SourceRange {
+  const text = source.slice(range.from, range.to);
+  const leading = /^(?:[\t ]*\n)+/.exec(text)?.[0].length ?? 0;
+  const trailing = /(?:\n[\t ]*)+$/.exec(text)?.[0].length ?? 0;
+  return { from: range.from + leading, to: Math.max(range.from + leading, range.to - trailing) };
+}
+
+/** The parser's empty range ends on the opening line; typing starts after that line break. */
+function targetRange(source: string, slide: Slide, target: TypingTarget): SourceRange | undefined {
+  if (target.kind === 'loose') {
+    const range = slide.looseRanges[target.index];
+    return range ? trimLooseRange(source, range) : undefined;
+  }
+  const box = slide.boxes[target.index];
+  if (!box) return undefined;
+  const range = box.contentRange;
+  if (range.from === range.to && source.charAt(range.from) === '\n') {
+    return { from: range.from + 1, to: range.to + 1 };
+  }
+  return range;
+}
+
+function blockCount(markdown: string): number {
+  const template = document.createElement('template');
+  template.innerHTML = renderMarkdown(markdown);
+  return template.content.children.length;
+}
+
+function looseBlockSpan(source: string, slide: Slide, pieceIndex: number): { from: number; count: number } | undefined {
+  let from = 0;
+  for (let index = 0; index < slide.looseRanges.length; index++) {
+    const range = targetRange(source, slide, { kind: 'loose', index });
+    if (!range) continue;
+    const count = blockCount(source.slice(range.from, range.to));
+    if (index === pieceIndex) return count > 0 ? { from, count } : undefined;
+    from += count;
+  }
+  return undefined;
+}
+
+/** Maps a rendered top-level block back to the loose source piece that produced it. */
+function loosePieceAt(
+  stage: HTMLElement,
+  slide: Slide,
+  source: string,
+  clientX: number,
+  clientY: number,
+): number | undefined {
+  const direct = document.elementFromPoint(clientX, clientY);
+  if (!(direct instanceof Element)) return undefined;
+  let target = direct.closest('.us-loose') ? direct : undefined;
+  // A transparent box covers the slide. Its blank area may still have rendered loose text under it.
+  if (!target && direct.classList.contains('us-box')) {
+    target = document.elementsFromPoint(clientX, clientY)
+      .find((element) => element.closest('.us-loose'));
+  }
+  if (!target) return undefined;
+  const loose = target.closest<HTMLElement>('.us-loose');
+  if (!loose || loose.parentElement !== stage) return undefined;
+  let block: Element = target;
+  while (block.parentElement && block.parentElement !== loose) block = block.parentElement;
+  if (block.parentElement !== loose) return undefined;
+  const blockIndex = [...loose.children].indexOf(block);
+  if (blockIndex < 0) return undefined;
+  for (let index = 0; index < slide.looseRanges.length; index++) {
+    const span = looseBlockSpan(source, slide, index);
+    if (span && blockIndex >= span.from && blockIndex < span.from + span.count) return index;
+  }
+  return undefined;
+}
+
+function boundsOf(elements: Element[]): DOMRect | undefined {
+  if (elements.length === 0) return undefined;
+  const rects = elements.map((element) => element.getBoundingClientRect());
+  const left = Math.min(...rects.map((rect) => rect.left));
+  const top = Math.min(...rects.map((rect) => rect.top));
+  const right = Math.max(...rects.map((rect) => rect.right));
+  const bottom = Math.max(...rects.map((rect) => rect.bottom));
+  return new DOMRect(left, top, right - left, bottom - top);
+}
+
+function localRect(anchor: DOMRect, bounds: DOMRect): DOMRect {
+  return new DOMRect(anchor.left - bounds.left, anchor.top - bounds.top, anchor.width, anchor.height);
+}
+
+function replaceText(text: string, from: number, to: number, insert: string): string {
+  return text.slice(0, from) + insert + text.slice(to);
+}
+
 /** A double-click on rendered loose content belongs to that content, not to box drawing. */
 function isEmptyPoint(stage: HTMLElement, clientX: number, clientY: number): boolean {
   if (boxesAt(stage, clientX, clientY).length > 0) return false;
@@ -101,6 +201,10 @@ export function Overlay({
   theme,
   onEdit,
   onMoveCursor,
+  getSource,
+  onUndo,
+  onRedo,
+  TypingArea,
   onSelectSlide,
   active = true,
   selectionRequest,
@@ -108,6 +212,11 @@ export function Overlay({
 }: OverlayProps) {
   const [selected, setSelected] = useState<number | null>(null);
   const [geometry, setGeometry] = useState<Geometry | null>(null);
+  const [typingRect, setTypingRect] = useState<DOMRect | null>(null);
+  const [typing, setTyping] = useState<Typing | null>(null);
+  const typingRef = useRef<Typing | null>(null);
+  typingRef.current = typing;
+  const [pendingTyping, setPendingTyping] = useState<number | null>(null);
   const [ghost, setGhost] = useState<GridArea | null>(null);
   const lastPoint = useRef<{ x: number; y: number } | null>(null);
   const drag = useRef<Drag | null>(null);
@@ -116,18 +225,37 @@ export function Overlay({
   const previousSlide = useRef(slide);
   const frame = stage.parentElement as HTMLElement;
 
+  const storeTyping = useCallback((next: Typing | null) => {
+    typingRef.current = next;
+    setTyping(next);
+  }, []);
+
+  const beginTyping = useCallback((target: TypingTarget): boolean => {
+    const source = getSource();
+    const freshSlide = parseDeck(source).slides[slide.index];
+    const range = freshSlide && targetRange(source, freshSlide, target);
+    if (!range) return false;
+    storeTyping({ ...target, from: range.from, text: source.slice(range.from, range.to) });
+    setSelected(target.kind === 'box' ? target.index : null);
+    lastPoint.current = null;
+    onMoveCursor(range.from);
+    return true;
+  }, [getSource, onMoveCursor, slide.index, storeTyping]);
+
   useEffect(() => {
     if (active) return;
     setSelected(null);
+    storeTyping(null);
     lastPoint.current = null;
-  }, [active]);
+  }, [active, storeTyping]);
 
   useEffect(() => {
     if (lastSlide.current === slide.index) return;
     lastSlide.current = slide.index;
     setSelected(null);
+    storeTyping(null);
     lastPoint.current = null;
-  }, [slide.index]);
+  }, [slide.index, storeTyping]);
 
   useEffect(() => {
     if (previousSlide.current === slide) return;
@@ -136,14 +264,37 @@ export function Overlay({
       setSelected(null);
       lastPoint.current = null;
     }
-  }, [selected, slide]);
+    if (
+      typing &&
+      ((typing.kind === 'box' && !slide.boxes[typing.index]) ||
+        (typing.kind === 'loose' && !slide.looseRanges[typing.index]))
+    ) storeTyping(null);
+  }, [selected, slide, storeTyping, typing]);
 
   useEffect(() => {
     if (!active || !selectionRequest || !slide.boxes[selectionRequest.box]) return;
-    setSelected(selectionRequest.box);
+    if (selectionRequest.typing) beginTyping({ kind: 'box', index: selectionRequest.box });
+    else setSelected(selectionRequest.box);
     lastPoint.current = null;
     onSelectionRequestHandled?.(selectionRequest.id);
-  }, [active, onSelectionRequestHandled, selectionRequest, slide.boxes]);
+  }, [active, beginTyping, onSelectionRequestHandled, selectionRequest, slide.boxes]);
+
+  useEffect(() => {
+    if (pendingTyping === null || !slide.boxes[pendingTyping]) return;
+    beginTyping({ kind: 'box', index: pendingTyping });
+    setPendingTyping(null);
+  }, [beginTyping, pendingTyping, slide.boxes]);
+
+  useEffect(() => {
+    if (!typing) return;
+    const onOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('.us-typing-area')) return;
+      storeTyping(null);
+    };
+    document.addEventListener('pointerdown', onOutsidePointerDown, true);
+    return () => document.removeEventListener('pointerdown', onOutsidePointerDown, true);
+  }, [storeTyping, typing]);
 
   useEffect(
     () => () => {
@@ -154,11 +305,28 @@ export function Overlay({
   );
 
   const updateGeometry = useCallback(() => {
-    if (selected === null) return void setGeometry(null);
     if (!stage.isConnected) return;
-    const box = stage.querySelector<HTMLElement>(`:scope > .us-box[data-box="${selected}"]`);
-    setGeometry(box ? { anchor: box.getBoundingClientRect(), bounds: frame.getBoundingClientRect() } : null);
-  }, [frame, selected, stage]);
+    const bounds = frame.getBoundingClientRect();
+    const selectedBox = selected === null
+      ? null
+      : stage.querySelector<HTMLElement>(`:scope > .us-box[data-box="${selected}"]`);
+    setGeometry(selectedBox ? { anchor: selectedBox.getBoundingClientRect(), bounds } : null);
+
+    if (!typing) return void setTypingRect(null);
+    let anchor: DOMRect | undefined;
+    if (typing.kind === 'box') {
+      anchor = stage.querySelector<HTMLElement>(`:scope > .us-box[data-box="${typing.index}"]`)?.getBoundingClientRect();
+    } else {
+      const source = getSource();
+      const freshSlide = parseDeck(source).slides[slide.index];
+      const span = freshSlide && looseBlockSpan(source, freshSlide, typing.index);
+      const loose = stage.querySelector<HTMLElement>(':scope > .us-loose');
+      if (span && loose) {
+        anchor = boundsOf([...loose.children].slice(span.from, span.from + span.count));
+      }
+    }
+    setTypingRect(anchor ? localRect(anchor, bounds) : null);
+  }, [frame, getSource, selected, slide.index, stage, typing]);
 
   useEffect(() => {
     updateGeometry();
@@ -222,6 +390,7 @@ export function Overlay({
       });
       if (next !== null) {
         setSelected(next);
+        setPendingTyping(next);
         lastPoint.current = null;
       }
     },
@@ -243,11 +412,65 @@ export function Overlay({
     [onEdit, slide.index],
   );
 
+  const changeTyping = useCallback((edit: Edit) => {
+    const current = typingRef.current;
+    if (!current) return;
+    const localFrom = edit.from - current.from;
+    const localTo = edit.to - current.from;
+    if (localFrom < 0 || localTo < localFrom || localTo > current.text.length) return;
+    let found = false;
+    onEdit((deck) => {
+      const freshSlide = deck.slides[slide.index];
+      const range = freshSlide && targetRange(deck.source, freshSlide, current);
+      if (!range || localTo > range.to - range.from) return null;
+      found = true;
+      let insert = edit.insert;
+      if (current.kind === 'box' && current.text === '' && localFrom === 0 && localTo === 0 && insert !== '') {
+        const box = freshSlide.boxes[current.index]!;
+        const openingBreak = deck.source.indexOf('\n', box.range.from);
+        if (openingBreak === -1 || openingBreak >= box.range.to) insert = `\n${insert}`;
+        else if (deck.source.startsWith(':::', range.from) && !insert.endsWith('\n')) insert += '\n';
+      }
+      return {
+        changes: [{
+          from: range.from + localFrom,
+          to: range.from + localTo,
+          insert,
+        }],
+      };
+    }, { userEvent: 'input.type' });
+    if (!found) return void storeTyping(null);
+    storeTyping({
+      ...current,
+      text: replaceText(current.text, localFrom, localTo, edit.insert),
+    });
+  }, [onEdit, slide.index, storeTyping]);
+
+  const reloadTyping = useCallback(() => {
+    const current = typingRef.current;
+    if (!current) return;
+    const source = getSource();
+    const freshSlide = parseDeck(source).slides[slide.index];
+    const range = freshSlide && targetRange(source, freshSlide, current);
+    if (!range) return void storeTyping(null);
+    storeTyping({ ...current, from: range.from, text: source.slice(range.from, range.to) });
+  }, [getSource, slide.index, storeTyping]);
+
+  const undoTyping = useCallback(() => {
+    onUndo();
+    reloadTyping();
+  }, [onUndo, reloadTyping]);
+
+  const redoTyping = useCallback(() => {
+    onRedo();
+    reloadTyping();
+  }, [onRedo, reloadTyping]);
+
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return;
       const target = event.target;
-      if (target instanceof Element && target.closest('.us-floating-bar')) return;
+      if (target instanceof Element && target.closest('.us-floating-bar, .us-typing-area')) return;
       const point = { x: event.clientX, y: event.clientY };
       const hits = boxesAt(stage, event.clientX, event.clientY);
       const handle = target instanceof Element ? target.closest<HTMLElement>('.us-handle[data-edge]') : null;
@@ -393,7 +616,31 @@ export function Overlay({
     };
 
     const onDoubleClick = (event: MouseEvent) => {
-      if (event.button !== 0 || !isEmptyPoint(stage, event.clientX, event.clientY)) return;
+      if (event.button !== 0) return;
+      const source = getSource();
+      const freshSlide = parseDeck(source).slides[slide.index];
+      const looseIndex = freshSlide && loosePieceAt(
+        stage,
+        freshSlide,
+        source,
+        event.clientX,
+        event.clientY,
+      );
+      if (looseIndex !== undefined) {
+        event.preventDefault();
+        onSelectSlide?.();
+        beginTyping({ kind: 'loose', index: looseIndex });
+        return;
+      }
+      const hits = boxesAt(stage, event.clientX, event.clientY);
+      if (hits.length > 0) {
+        const boxIndex = selected !== null && hits.includes(selected) ? selected : hits[0]!;
+        event.preventDefault();
+        onSelectSlide?.();
+        beginTyping({ kind: 'box', index: boxIndex });
+        return;
+      }
+      if (!isEmptyPoint(stage, event.clientX, event.clientY)) return;
       const cell = cellAt(stage, grid, event.clientX, event.clientY);
       insert(clampNewBox(cell.col, cell.row, 3, 2, grid));
       frame.focus({ preventScroll: true });
@@ -446,9 +693,9 @@ export function Overlay({
         setSelected(null);
         lastPoint.current = null;
       } else if (event.key === 'Enter') {
-        // Typing on the slide is added in a later task. Keep Enter from moving focus meanwhile.
         event.preventDefault();
         event.stopPropagation();
+        beginTyping({ kind: 'box', index: selected });
       }
     };
 
@@ -471,8 +718,8 @@ export function Overlay({
       frame.removeEventListener('keydown', onKeyDown);
     };
   }, [
-    duplicate, frame, grid, insert, onMoveCursor, onSelectSlide, remove, selected, setSpan,
-    slide.boxes, stage, withSelected,
+    beginTyping, duplicate, frame, getSource, grid, insert, onMoveCursor, onSelectSlide, remove,
+    selected, setSpan, slide.boxes, slide.index, stage, withSelected,
   ]);
 
   const box = selected === null ? undefined : slide.boxes[selected];
@@ -493,7 +740,18 @@ export function Overlay({
           <div className="us-ghost" style={areaStyle(stage, frame, grid, ghost)} aria-hidden="true" />
         </>
       )}
-      {box && geometry && (
+      {typing && typingRect && (
+        <TypingArea
+          rect={typingRect}
+          text={typing.text}
+          from={typing.from}
+          onChange={changeTyping}
+          onUndo={undoTyping}
+          onRedo={redoTyping}
+          onDone={() => storeTyping(null)}
+        />
+      )}
+      {!typing && box && geometry && (
         <>
           <div className="us-selection" data-box={selected} style={selectionStyle} aria-hidden="true">
             {HANDLES.map((edge) => <span key={edge} className={`us-handle us-handle-${edge}`} data-edge={edge} />)}

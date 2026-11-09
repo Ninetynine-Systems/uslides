@@ -740,6 +740,9 @@ export function App() {
           currentSlide={currentSlide}
           onEdit={editDeck}
           onMoveCursor={(pos) => editor.current?.moveCursorTo(pos, { focus: false })}
+          getSource={() => flushParse()?.source ?? current.source}
+          onUndo={() => editor.current?.undo()}
+          onRedo={() => editor.current?.redo()}
           editable={wide}
           onFit={onFit}
           onSelectSlide={(i) => {

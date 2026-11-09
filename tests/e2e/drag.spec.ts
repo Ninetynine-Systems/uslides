@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const editor = (page: Page) => page.getByRole('textbox', { name: 'Deck source' });
+const typingArea = (page: Page) => page.getByRole('textbox', { name: 'Markdown on slide' });
 const getSource = (page: Page) => page.evaluate(() => window.__uslides!.getSource());
 
 async function openDeck(page: Page, source: string) {
@@ -147,7 +148,7 @@ test('dragging on empty space draws a new box', async ({ page }) => {
   await drag(page, from, to);
 
   await expect.poll(() => getSource(page)).toBe('# A\n\n::: box col=7-9 row=4-5\n\n:::\n');
-  await expect(page.locator('.us-selection[data-box="0"]')).toBeVisible();
+  await expect(typingArea(page)).toBeFocused();
 });
 
 test('double-clicking empty space makes a 3x2 box, smaller at the edge', async ({ page }) => {
@@ -159,12 +160,12 @@ test('double-clicking empty space makes a 3x2 box, smaller at the edge', async (
   const middle = await gridPoint(page, 5, 3);
   await page.mouse.dblclick(middle.x, middle.y);
   await expect.poll(() => getSource(page)).toContain('::: box col=5-7 row=3-4\n\n:::');
-  await expect(page.locator('.us-selection[data-box="0"]')).toBeVisible();
+  await expect(typingArea(page)).toBeFocused();
 
   const edge = await gridPoint(page, 12, 6);
   await page.mouse.dblclick(edge.x, edge.y);
   await expect.poll(() => getSource(page)).toContain('::: box col=12 row=6\n\n:::');
-  await expect(page.locator('.us-selection[data-box="1"]')).toBeVisible();
+  await expect(typingArea(page)).toBeFocused();
 });
 
 test('a single click on empty space never makes a box', async ({ page }) => {
@@ -182,10 +183,10 @@ test('Add box puts a 4x2 box in the first free area, or the middle when full', a
   await openDeck(page, '::: box col=1-12 row=1\nTop\n:::\n');
   await page.getByRole('button', { name: 'Add box' }).click();
   await expect.poll(() => getSource(page)).toContain('::: box col=1-4 row=2-3\n\n:::');
-  await expect(page.locator('.us-selection[data-box="1"]')).toBeVisible();
+  await expect(typingArea(page)).toBeFocused();
 
   await openDeck(page, '::: box col=1-12 row=1-6\nFull\n:::\n');
   await page.getByRole('button', { name: 'Add box' }).click();
   await expect.poll(() => getSource(page)).toContain('::: box col=5-8 row=3-4\n\n:::');
-  await expect(page.locator('.us-selection[data-box="1"]')).toBeVisible();
+  await expect(typingArea(page)).toBeFocused();
 });
