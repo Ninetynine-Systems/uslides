@@ -1,10 +1,39 @@
 import { parseAttrs, scanAttrs } from './attrs';
+import { isValidFontName } from './fontName';
 import { duplicateSpan } from './layout';
+import { parseSettings, settingRange } from './settings';
 import type { Box, Slide } from './slide';
 import type { Grid, Span } from './types';
 
 export type Edit = { from: number; to: number; insert: string };
 export type EditResult = { changes: Edit[]; select?: number };
+
+/** Sets `font:` in the settings block, creating or removing the line as needed. */
+export function setDeckFont(source: string, name: string | null): EditResult {
+  const range = settingRange(source, 'font');
+  if (name === null) {
+    if (!range) return { changes: [] };
+    const to = source.charAt(range.to) === '\n' ? range.to + 1 : range.to;
+    const { bodyStart } = parseSettings(source);
+    const closingLine = bodyStart > 0 ? source.lastIndexOf('\n---', bodyStart - 1) + 1 : 0;
+    const remaining = closingLine > 0
+      ? source.slice(4, range.from) + source.slice(to, closingLine)
+      : '';
+    if (closingLine > 0 && remaining.trim() === '') {
+      const blockTo = source.charAt(bodyStart) === '\n' ? bodyStart + 1 : bodyStart;
+      return { changes: [{ from: 0, to: blockTo, insert: '' }] };
+    }
+    return { changes: [{ from: range.from, to, insert: '' }] };
+  }
+  if (!isValidFontName(name)) return { changes: [] };
+
+  const line = `font: ${name}`;
+  if (range) return { changes: [{ from: range.from, to: range.to, insert: line }] };
+  if (parseSettings(source).bodyStart > 0) {
+    return { changes: [{ from: 4, to: 4, insert: `${line}\n` }] };
+  }
+  return { changes: [{ from: 0, to: 0, insert: `---\n${line}\n---\n\n` }] };
+}
 
 function openingLine(source: string, box: Box): { text: string; from: number } {
   const newline = source.indexOf('\n', box.range.from);

@@ -1,6 +1,7 @@
 import {
   useCallback, useEffect, useRef, useState, type ComponentType, type CSSProperties,
 } from 'react';
+import { Type } from 'lucide-react';
 import {
   bringToFront,
   deleteBox,
@@ -19,6 +20,8 @@ import type { Grid, SourceRange } from '../../core/types';
 import { FloatingBar } from './FloatingBar';
 import { boxesAt, cellAt } from './stageGeometry';
 import type { TypingAreaProps } from './TypingArea';
+import { FontPicker } from '../FontPicker';
+import { IconButton } from '../IconButton';
 
 type OnEdit = (make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }) => void;
 type Geometry = { anchor: DOMRect; bounds: DOMRect };
@@ -46,6 +49,7 @@ export type OverlayProps = {
   slide: Slide;
   grid: Grid;
   theme: 'light' | 'dark';
+  blocked: boolean;
   onEdit: OnEdit;
   onMoveCursor(pos: number): void;
   getDeck(): Deck | undefined;
@@ -194,6 +198,7 @@ export function Overlay({
   slide,
   grid,
   theme,
+  blocked,
   onEdit,
   onMoveCursor,
   getDeck,
@@ -207,6 +212,7 @@ export function Overlay({
   onSelectionRequestHandled,
 }: OverlayProps) {
   const [selected, setSelected] = useState<number | null>(null);
+  const [fontOpen, setFontOpen] = useState(false);
   const [geometry, setGeometry] = useState<Geometry | null>(null);
   const [typingRect, setTypingRect] = useState<DOMRect | null>(null);
   const [typing, setTyping] = useState<Typing | null>(null);
@@ -241,6 +247,7 @@ export function Overlay({
   useEffect(() => {
     if (active) return;
     setSelected(null);
+    setFontOpen(false);
     storeTyping(null);
     lastPoint.current = null;
   }, [active, storeTyping]);
@@ -249,6 +256,7 @@ export function Overlay({
     if (lastSlide.current === slide.index) return;
     lastSlide.current = slide.index;
     setSelected(null);
+    setFontOpen(false);
     storeTyping(null);
     lastPoint.current = null;
   }, [slide.index, storeTyping]);
@@ -659,6 +667,7 @@ export function Overlay({
     const onLostPointerCapture = (event: PointerEvent) => finishDrag(event, false);
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.target instanceof Element && event.target.closest('.us-font-picker')) return;
       if (selected === null) return;
       if (event.target !== frame) {
         if (event.key === 'Escape') {
@@ -771,6 +780,28 @@ export function Overlay({
             anchor={geometry.anchor}
             bounds={geometry.bounds}
             onSet={setAttrs}
+            fontSlot={(
+              <div className="us-font-control">
+                <IconButton
+                  label="Font"
+                  icon={Type}
+                  aria-haspopup="dialog"
+                  aria-expanded={fontOpen}
+                  onClick={() => setFontOpen((open) => !open)}
+                />
+                {fontOpen && (
+                  <FontPicker
+                    value={box.font}
+                    blocked={blocked}
+                    onPick={(name) => {
+                      setAttrs({ font: name });
+                      setFontOpen(false);
+                    }}
+                    onClose={() => setFontOpen(false)}
+                  />
+                )}
+              </div>
+            )}
             onFront={() => withSelected(
               (source, freshSlide, selectedBox) => bringToFront(source, freshSlide, selectedBox),
               (freshSlide) => freshSlide.boxes.length - 1,

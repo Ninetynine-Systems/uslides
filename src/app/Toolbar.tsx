@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Copy, Download, FileCode, FileText, FileUp, FolderOpen, ImageDown, Link, Link2, PanelLeftClose, PanelLeftOpen,
-  Pencil, Play, Printer, Share2, Trash2, TriangleAlert,
+  Pencil, Play, Printer, Share2, Trash2, TriangleAlert, Type,
 } from 'lucide-react';
 import { IconButton, MenuItem } from './IconButton';
 
@@ -9,6 +9,8 @@ type Props = {
   listOpen: boolean;
   onToggleList(): void;
   name: string;
+  deckFontOpen: boolean;
+  onDeckFont(): void;
   onRename(): void;
   onDuplicate(): void;
   onDelete(): void;
@@ -114,7 +116,7 @@ function DownloadMenu({ onMarkdown, onHtml, onPrint }: { onMarkdown(): void; onH
 }
 
 export function Toolbar({
-  listOpen, onToggleList, name, onRename, onDuplicate, onDelete, onPresent, onCopyLink,
+  listOpen, onToggleList, name, deckFontOpen, onDeckFont, onRename, onDuplicate, onDelete, onPresent, onCopyLink,
   onPackImages, onDownloadMarkdown, onDownloadHtml, onPrint, onOpen, onOpenFolder, link, needsAccess, readOnly, onGrant, onUnlink,
 }: Props) {
   return (
@@ -147,6 +149,13 @@ export function Toolbar({
         <IconButton label="Pack images" icon={ImageDown} onClick={onPackImages} />
         <ShareMenu onCopyLink={onCopyLink} />
         <DownloadMenu onMarkdown={onDownloadMarkdown} onHtml={onDownloadHtml} onPrint={onPrint} />
+        <IconButton
+          label="Deck font"
+          icon={Type}
+          aria-haspopup="dialog"
+          aria-expanded={deckFontOpen}
+          onClick={onDeckFont}
+        />
         <IconButton label="Rename" icon={Pencil} onClick={onRename} />
         <IconButton label="Duplicate" icon={Copy} onClick={onDuplicate} />
         <IconButton label="Delete" icon={Trash2} className="danger" onClick={onDelete} />

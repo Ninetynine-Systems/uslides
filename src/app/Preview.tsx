@@ -139,6 +139,7 @@ function SlideCard(props: {
               slide={slide}
               grid={slide.grid}
               theme={deck.settings.theme}
+              blocked={blockExternal}
               onEdit={onEdit}
               onMoveCursor={onMoveCursor}
               getDeck={getDeck}

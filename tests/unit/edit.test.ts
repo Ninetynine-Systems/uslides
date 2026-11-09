@@ -7,6 +7,7 @@ import {
   sendToBack,
   setBoxAttrs,
   setBoxSpan,
+  setDeckFont,
   type Edit,
   type EditResult,
 } from '../../src/core/edit';
@@ -161,5 +162,49 @@ describe('box source edits', () => {
     expect(run(':::box col=1\nHi\n:::\n', (d) => setBoxAttrs(d.source, box(d), { bg: 'red' }))).toBe(
       ':::box col=1 bg=red\nHi\n:::\n',
     );
+  });
+});
+
+describe('deck font source edits', () => {
+  it('adds a font line to an existing settings block', () => {
+    const source = '---\ntitle: A deck\n---\n\n# A\n';
+
+    expect(apply(source, setDeckFont(source, 'Lora').changes)).toBe(
+      '---\nfont: Lora\ntitle: A deck\n---\n\n# A\n',
+    );
+  });
+
+  it('replaces an existing font line', () => {
+    const source = '---\ntitle: A deck\nfont: Inter\ntheme: dark\n---\n\n# A\n';
+
+    expect(apply(source, setDeckFont(source, 'Playfair Display').changes)).toBe(
+      '---\ntitle: A deck\nfont: Playfair Display\ntheme: dark\n---\n\n# A\n',
+    );
+  });
+
+  it('removes an existing font line', () => {
+    const source = '---\ntitle: A deck\nfont: Inter\ntheme: dark\n---\n\n# A\n';
+
+    expect(apply(source, setDeckFont(source, null).changes)).toBe(
+      '---\ntitle: A deck\ntheme: dark\n---\n\n# A\n',
+    );
+  });
+
+  it('removes a settings block that only contains the font', () => {
+    const source = '---\nfont: Inter\n---\n\n# A\n';
+
+    expect(apply(source, setDeckFont(source, null).changes)).toBe('# A\n');
+  });
+
+  it('creates a settings block when the deck has none', () => {
+    const source = '# A\n';
+
+    expect(apply(source, setDeckFont(source, 'Inter').changes)).toBe(
+      '---\nfont: Inter\n---\n\n# A\n',
+    );
+  });
+
+  it('does nothing when removing a missing deck font', () => {
+    expect(setDeckFont('# A\n', null)).toEqual({ changes: [] });
   });
 });

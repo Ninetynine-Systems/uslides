@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { setBoxAttrs, type EditResult } from '../core/edit';
+import { setBoxAttrs, setDeckFont, type EditResult } from '../core/edit';
 import { externalHosts } from '../core/external';
 import type { Deck } from '../core/parse';
 import { deckName } from '../core/settings';
@@ -27,6 +27,7 @@ import { imageKey, Preview, type PreviewView, useImageUrls } from './Preview';
 import { PrivacyBanner } from './PrivacyBanner';
 import { isBlocked, readAskFirst, writeAskFirst } from './privacy';
 import { Toolbar } from './Toolbar';
+import { FontPicker } from './FontPicker';
 import { deckHash, parseRoute } from './route';
 import sample from './sample.md?raw';
 import { useDeck } from './useDeck';
@@ -153,6 +154,7 @@ export function App() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [askFirst, setAskFirst] = useState(readAskFirst);
   const [allowedOnce, setAllowedOnce] = useState<Set<string>>(() => new Set());
+  const [deckFontOpen, setDeckFontOpen] = useState(false);
   const wide = useWide();
   const { notices, notify, dismiss } = useNotices();
   const [catalogLoaded, setCatalogLoaded] = useState(false);
@@ -768,6 +770,8 @@ export function App() {
         listOpen={listOpen}
         onToggleList={() => setListOpen((o) => !o)}
         name={name}
+        deckFontOpen={deckFontOpen}
+        onDeckFont={() => setDeckFontOpen((open) => !open)}
         onRename={guarded(rename)}
         onDuplicate={guarded(duplicate)}
         onDelete={guarded(remove)}
@@ -785,6 +789,17 @@ export function App() {
         onGrant={guarded(sync.grant)}
         onUnlink={guarded(sync.unlink)}
       />
+      {deckFontOpen && ready && (
+        <FontPicker
+          value={current.deck?.settings.font}
+          blocked={blockExternal}
+          onPick={(font) => {
+            editDeck((deck) => setDeckFont(deck.source, font));
+            setDeckFontOpen(false);
+          }}
+          onClose={() => setDeckFontOpen(false)}
+        />
+      )}
       <div className="decks" id="decks" hidden={!listOpen}>
         <DeckList decks={decks} activeId={deckId} onSelect={selectDeck} onNew={guarded(newDeck)}
           onBackup={guarded(backupAll)}
