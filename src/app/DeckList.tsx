@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Archive, ArchiveRestore, Ellipsis, Plus } from 'lucide-react';
+import { IconButton, MenuItem } from './IconButton';
 
 export type DeckSummary = { id: string; name: string; updatedAt: number };
 
@@ -35,21 +37,13 @@ export function DeckList({ decks, activeId, now = Date.now(), onSelect, onNew, o
     <nav className="decklist" aria-label="Decks">
       <div className="decklist-head">
         <strong>Decks</strong>
-        <button type="button" onClick={onNew}>
-          New deck
-        </button>
-        <button type="button" aria-haspopup="true" aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}>
-          Menu
-        </button>
+        <IconButton label="New deck" icon={Plus} onClick={onNew} />
+        <IconButton label="Menu" icon={Ellipsis} aria-haspopup="true" aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)} />
       </div>
       {menuOpen && (
         <div className="decklist-menu" onKeyDown={(e) => e.key === 'Escape' && setMenuOpen(false)}>
-          <button type="button" onClick={choose(onBackup)}>
-            Back up all decks
-          </button>
-          <button type="button" onClick={choose(onRestore)}>
-            Restore from backup
-          </button>
+          <MenuItem label="Back up all decks" icon={Archive} onClick={choose(onBackup)} />
+          <MenuItem label="Restore from backup" icon={ArchiveRestore} onClick={choose(onRestore)} />
           <p className="muted about">{`uslides, build ${__BUILD_ID__}`}</p>
         </div>
       )}

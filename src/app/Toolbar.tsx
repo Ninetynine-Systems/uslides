@@ -1,4 +1,9 @@
 import { useState } from 'react';
+import {
+  Copy, Download, FileCode, FileText, FileUp, FolderOpen, ImageDown, Link, Link2, PanelLeftClose, PanelLeftOpen,
+  Pencil, Play, Printer, Share2, Trash2, TriangleAlert,
+} from 'lucide-react';
+import { IconButton, MenuItem } from './IconButton';
 
 type Props = {
   listOpen: boolean;
@@ -29,20 +34,28 @@ function LinkedBadge({ name, onUnlink }: { name: string; onUnlink(): void }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="linked" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
-      <button type="button" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        Linked: {name}
+      <button
+        type="button"
+        className="linked-btn"
+        aria-label={`Linked: ${name}`}
+        title={`Linked: ${name}`}
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <Link2 size={18} aria-hidden />
+        <span>{name}</span>
       </button>
       {open && (
         <div className="linked-menu">
-          <button
-            type="button"
+          <MenuItem
+            label="Unlink file"
+            icon={Link2}
             onClick={() => {
               setOpen(false);
               onUnlink();
             }}
-          >
-            Unlink file
-          </button>
+          />
         </div>
       )}
     </div>
@@ -64,14 +77,10 @@ function ShareMenu({ onCopyLink }: { onCopyLink: Props['onCopyLink'] }) {
   };
   return (
     <div className="share" onKeyDown={(e) => e.key === 'Escape' && close()}>
-      <button type="button" aria-haspopup="true" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
-        Share
-      </button>
+      <IconButton label="Share" icon={Share2} aria-haspopup="true" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))} />
       {open && (
         <div className="share-menu">
-          <button type="button" onClick={copy}>
-            Copy link
-          </button>
+          <MenuItem label="Copy link" icon={Link} onClick={copy} />
           {manual !== undefined && (
             <label className="share-manual">
               Copy this link by hand
@@ -92,20 +101,12 @@ function DownloadMenu({ onMarkdown, onHtml, onPrint }: { onMarkdown(): void; onH
   };
   return (
     <div className="share" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
-      <button type="button" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        Download
-      </button>
+      <IconButton label="Download" icon={Download} aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)} />
       {open && (
         <div className="share-menu">
-          <button type="button" onClick={choose(onMarkdown)}>
-            Download .md
-          </button>
-          <button type="button" onClick={choose(onHtml)}>
-            Download .html
-          </button>
-          <button type="button" onClick={choose(onPrint)}>
-            Print / PDF
-          </button>
+          <MenuItem label="Download .md" icon={FileText} onClick={choose(onMarkdown)} />
+          <MenuItem label="Download .html" icon={FileCode} onClick={choose(onHtml)} />
+          <MenuItem label="Print / PDF" icon={Printer} onClick={choose(onPrint)} />
         </div>
       )}
     </div>
@@ -118,13 +119,18 @@ export function Toolbar({
 }: Props) {
   return (
     <header className="toolbar">
-      <button type="button" onClick={onToggleList} aria-expanded={listOpen} aria-controls="decks">
-        {listOpen ? 'Hide decks' : 'Show decks'}
-      </button>
+      <IconButton
+        label={listOpen ? 'Hide decks' : 'Show decks'}
+        icon={listOpen ? PanelLeftClose : PanelLeftOpen}
+        onClick={onToggleList}
+        aria-expanded={listOpen}
+        aria-controls="decks"
+      />
       <h1 className="toolbar-name">{name}</h1>
       <div className="toolbar-actions">
         {link && (needsAccess || readOnly) && (
-          <button type="button" onClick={onGrant}>
+          <button type="button" className="grant-btn" onClick={onGrant}>
+            <TriangleAlert size={16} aria-hidden />
             {needsAccess
               ? link.folder
                 ? 'Allow access to the folder again'
@@ -135,31 +141,15 @@ export function Toolbar({
           </button>
         )}
         {link && <LinkedBadge name={link.name} onUnlink={onUnlink} />}
-        <button type="button" onClick={onOpen}>
-          Open
-        </button>
-        {onOpenFolder && (
-          <button type="button" onClick={onOpenFolder}>
-            Open folder
-          </button>
-        )}
-        <button type="button" onClick={onPresent}>
-          Present
-        </button>
-        <button type="button" onClick={onPackImages}>
-          Pack images
-        </button>
+        <IconButton label="Open" icon={FileUp} onClick={onOpen} />
+        {onOpenFolder && <IconButton label="Open folder" icon={FolderOpen} onClick={onOpenFolder} />}
+        <IconButton label="Present" icon={Play} onClick={onPresent} />
+        <IconButton label="Pack images" icon={ImageDown} onClick={onPackImages} />
         <ShareMenu onCopyLink={onCopyLink} />
         <DownloadMenu onMarkdown={onDownloadMarkdown} onHtml={onDownloadHtml} onPrint={onPrint} />
-        <button type="button" onClick={onRename}>
-          Rename
-        </button>
-        <button type="button" onClick={onDuplicate}>
-          Duplicate
-        </button>
-        <button type="button" className="danger" onClick={onDelete}>
-          Delete
-        </button>
+        <IconButton label="Rename" icon={Pencil} onClick={onRename} />
+        <IconButton label="Duplicate" icon={Copy} onClick={onDuplicate} />
+        <IconButton label="Delete" icon={Trash2} className="danger" onClick={onDelete} />
       </div>
     </header>
   );

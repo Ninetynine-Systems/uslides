@@ -29,7 +29,7 @@ test('Present right after typing shows the new text at once', async ({ page }) =
     const settle = () => new Promise<void>((r) => setTimeout(r, 0)); // one turn of the event loop, far under 150 ms
     document.execCommand('insertText', false, '\n\n---\n\n# Typed a moment ago');
     await settle();
-    [...document.querySelectorAll('button')].find((b) => b.textContent === 'Present')!.click();
+    [...document.querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === 'Present')!.click();
   });
   await expect(page.locator('.present')).toBeVisible();
   // End goes to the last slide, which only exists in the latest text.
@@ -47,7 +47,9 @@ test('Print right after typing lays out the new text', async ({ page }) => {
     };
     document.execCommand('insertText', false, '\n\n---\n\n# Printed a moment ago');
     await settle();
-    const byText = (t: string) => [...document.querySelectorAll('button')].find((b) => b.textContent === t)!;
+    // Toolbar buttons are icons named by aria-label; menu items show their text.
+    const byText = (t: string) =>
+      [...document.querySelectorAll('button')].find((b) => (b.getAttribute('aria-label') ?? b.textContent) === t)!;
     byText('Download').click();
     await settle(); // React draws the menu
     byText('Print / PDF').click();

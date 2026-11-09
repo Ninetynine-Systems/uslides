@@ -1,4 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
+import { X } from 'lucide-react';
+import { IconButton } from './IconButton';
 
 export type NoticeAction = { label: string; run(): void };
 export type NoticeOptions = {
@@ -51,9 +53,7 @@ export function Notices({ notices, onDismiss }: { notices: Notice[]; onDismiss(i
               {n.action.label}
             </button>
           )}
-          <button type="button" aria-label="Dismiss" onClick={() => onDismiss(n.id)}>
-            ×
-          </button>
+          <IconButton label="Dismiss" icon={X} onClick={() => onDismiss(n.id)} />
         </div>
       ))}
     </div>

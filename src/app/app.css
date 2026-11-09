@@ -114,3 +114,12 @@ button.danger { color: var(--danger); }
 .linked { position: relative; }
 .linked-menu { position: absolute; right: 0; top: 100%; margin-top: 4px; padding: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; z-index: 5; }
 .linked > button { max-width: 100%; overflow-wrap: anywhere; }
+
+/* Icon-only buttons. The label lives in aria-label and the tooltip. */
+.icon-btn { display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; }
+.icon-btn svg { display: block; }
+.notice .icon-btn { width: 26px; height: 26px; }
+/* Menu items keep their text next to the icon, so the options can be told apart. */
+.menu-item { display: flex; align-items: center; gap: 8px; text-align: left; }
+.linked-btn, .grant-btn { display: inline-flex; align-items: center; gap: 6px; }
+.linked-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 14rem; }
