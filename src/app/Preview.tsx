@@ -7,6 +7,7 @@ import { STAGE } from '../config';
 import { fitSlide, mountScaled, type FitResult } from '../render/fit';
 import { renderSlide } from '../render/renderSlide';
 import { BOX_CUT_OFF, SLIDE_CUT_OFF } from './cutOff';
+import { Overlay } from './edit/Overlay';
 import { IconButton } from './IconButton';
 
 export type PreviewView = 'all' | 'one';
@@ -20,6 +21,7 @@ type Props = {
   onViewChange(view: PreviewView): void;
   currentSlide: number;
   onEdit(make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }): void;
+  onMoveCursor(pos: number): void;
   editable: boolean;
   /** Called with the slide index when a slide is clicked. */
   onSelectSlide(index: number): void;
@@ -52,11 +54,16 @@ function SlideCard(props: {
   deck: Deck;
   urls: Map<string, string>;
   showGrid: boolean;
+  active: boolean;
+  editable: boolean;
+  onEdit(make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }): void;
+  onMoveCursor(pos: number): void;
   onSelect(): void;
   onFit?(slide: Slide, results: FitResult[]): void;
 }) {
-  const { slide, deck, urls, showGrid, onSelect } = props;
+  const { slide, deck, urls, showGrid, active, editable, onEdit, onMoveCursor, onSelect } = props;
   const frame = useRef<HTMLDivElement>(null);
+  const [stage, setStage] = useState<HTMLElement | null>(null);
   const onFit = useRef(props.onFit);
   onFit.current = props.onFit;
   /** Warnings for text that is cut off even at the smallest size. Shown under the slide on every screen size. */
@@ -70,13 +77,14 @@ function SlideCard(props: {
       resolveImage: (src) => urls.get(imageKey(src)),
     });
     const unmount = mountScaled(stage, container);
+    setStage(stage);
     const results = fitSlide(stage);
     const messages = new Set(results.filter((r) => r.overflow).map((r) => (r.boxIndex === null ? SLIDE_CUT_OFF : BOX_CUT_OFF)));
     setCutOff([...messages]);
     onFit.current?.(slide, results);
     return () => {
       unmount();
-      container.replaceChildren();
+      stage.remove();
     };
   }, [slide, deck.settings, urls, showGrid]);
 
@@ -89,14 +97,28 @@ function SlideCard(props: {
         role="button"
         tabIndex={0}
         aria-label={`Slide ${slide.index + 1}`}
-        onClick={onSelect}
+        onClick={editable ? undefined : onSelect}
         onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             onSelect();
           }
         }}
-      />
+      >
+        {editable && stage && (
+          <Overlay
+            stage={stage}
+            slide={slide}
+            grid={slide.grid}
+            theme={deck.settings.theme}
+            onEdit={onEdit}
+            onMoveCursor={onMoveCursor}
+            onSelectSlide={onSelect}
+            active={active}
+          />
+        )}
+      </div>
       <figcaption>{slide.index + 1}</figcaption>
       {cutOff.map((m) => (
         <p key={m} className="slide-warning" role="status">
@@ -108,7 +130,8 @@ function SlideCard(props: {
 }
 
 export function Preview({
-  deck, images, showGrid, onShowGridChange, view, onViewChange, currentSlide, onSelectSlide, onFit,
+  deck, images, showGrid, onShowGridChange, view, onViewChange, currentSlide, onEdit, onMoveCursor,
+  editable, onSelectSlide, onFit,
 }: Props) {
   const urls = useImageUrls(images);
   const slideCount = deck?.slides.length ?? 0;
@@ -147,6 +170,10 @@ export function Preview({
               deck={deck}
               urls={urls}
               showGrid={showGrid}
+              active={slide.index === shownIndex}
+              editable={editable}
+              onEdit={onEdit}
+              onMoveCursor={onMoveCursor}
               onSelect={() => onSelectSlide(slide.index)}
               onFit={onFit}
             />
@@ -176,6 +203,10 @@ export function Preview({
                 deck={deck}
                 urls={urls}
                 showGrid={showGrid}
+                active
+                editable={editable}
+                onEdit={onEdit}
+                onMoveCursor={onMoveCursor}
                 onSelect={() => onSelectSlide(shownIndex)}
                 onFit={onFit}
               />

@@ -391,7 +391,9 @@ export function App() {
 
   /** The slide the editor cursor is in: the one whose range holds it, else the last one starting before it. */
   const slideAtCursor = useCallback((pos?: number): number => {
-    const slides = (flushParse() ?? current.deck)?.slides;
+    const parsed = flushParse();
+    if (parsed) deckRef.current = parsed;
+    const slides = (parsed ?? deckRef.current)?.slides;
     const at = pos ?? editor.current?.getCursor();
     if (!slides || at === undefined) return 1;
     let found = 0;
@@ -399,7 +401,7 @@ export function App() {
       if (slide.range.from <= at) found = i;
     });
     return found + 1;
-  }, [current.deck, flushParse]);
+  }, [flushParse]);
 
   useEffect(() => {
     setCurrentSlide(slideAtCursor() - 1);
@@ -733,6 +735,7 @@ export function App() {
           onViewChange={changePreviewView}
           currentSlide={currentSlide}
           onEdit={editDeck}
+          onMoveCursor={(pos) => editor.current?.moveCursorTo(pos, { focus: false })}
           editable={wide}
           onFit={onFit}
           onSelectSlide={(i) => {

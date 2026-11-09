@@ -141,7 +141,8 @@ test('clicking a slide moves the cursor to it', async ({ page }) => {
   await page.goto('/?test');
   await expect(page.locator('.us-stage')).toHaveCount(4);
   await expect(editor(page)).toBeVisible(); // the editor loads lazily
-  await page.getByRole('button', { name: 'Slide 3' }).click();
+  // Slide 3's centre is a box now, so use its empty top row to test selecting the slide itself.
+  await page.getByRole('button', { name: 'Slide 3' }).click({ position: { x: 10, y: 10 } });
   await page.keyboard.type('@@');
   const src = await getSource(page);
   expect(src.indexOf('@@')).toBeGreaterThan(src.indexOf('# The basics'));
