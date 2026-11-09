@@ -32,6 +32,8 @@ import sample from './sample.md?raw';
 import { useDeck } from './useDeck';
 import { useFileSync } from './useFileSync';
 import { useFolderImages } from './useFolderImages';
+import { findFamily, loadCatalog } from '../fonts/catalog';
+import { fontWarnings } from './fontWarnings';
 import './app.css';
 
 declare global {
@@ -94,6 +96,13 @@ type Boot = { id: string; damaged?: string };
 
 let boot: Promise<Boot> | undefined;
 let pwaStarted = false;
+let catalogLoad: Promise<void> | undefined;
+
+/** Starts the catalog import once, including under React's development checks. */
+function loadCatalogOnce(): Promise<void> {
+  catalogLoad ??= loadCatalog();
+  return catalogLoad;
+}
 
 /** Returns `wanted` if that deck exists, else the newest deck, else a new copy of the sample. */
 async function resolveDeck(wanted: string | undefined): Promise<string> {
@@ -146,6 +155,7 @@ export function App() {
   const [allowedOnce, setAllowedOnce] = useState<Set<string>>(() => new Set());
   const wide = useWide();
   const { notices, notify, dismiss } = useNotices();
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
   const editor = useRef<EditorHandle>(null);
   /** 1-based slide shown in present mode, or undefined when not presenting. */
   const [presenting, setPresenting] = useState<number | undefined>(() => parseRoute(location.hash).present);
@@ -179,9 +189,27 @@ export function App() {
     // Forget slides from older parses. The preview has already re-measured the current ones.
     setFits((prev) => new Map([...prev].filter(([s]) => current.deck?.slides.includes(s))));
   }, [current.deck]);
+  useEffect(() => {
+    let active = true;
+    void loadCatalogOnce().then(
+      () => {
+        if (active) setCatalogLoaded(true);
+      },
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, []);
   const warnings = useMemo(
-    () => (current.deck ? [...current.warnings, ...cutOffWarnings(current.deck, fits)] : current.warnings),
-    [current.deck, current.warnings, fits],
+    () => (current.deck
+      ? [
+          ...current.warnings,
+          ...cutOffWarnings(current.deck, fits),
+          ...(catalogLoaded ? fontWarnings(current.deck, findFamily) : []),
+        ]
+      : current.warnings),
+    [catalogLoaded, current.deck, current.warnings, fits],
   );
   const deckRef = useRef(current.deck);
   deckRef.current = current.deck;

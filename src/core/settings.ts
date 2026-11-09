@@ -1,6 +1,7 @@
 import { load } from 'js-yaml';
 import { parseGrid } from './attrs';
 import { fencedLines } from './fences';
+import { isValidFontName } from './fontName';
 import type { Grid, SourceRange, Warning } from './types';
 
 export type DeckSettings = {
@@ -86,6 +87,13 @@ function keyRange(src: string, block: Block, key: string): SourceRange {
   return { from: block.contentStart, to: block.contentEnd };
 }
 
+/** Range of a setting's line, or undefined when there is no valid settings block with that key. */
+export function settingRange(src: string, key: string): SourceRange | undefined {
+  const found = findBlock(src);
+  if (!found || 'invalid' in found || !(key in found.data)) return undefined;
+  return keyRange(src, found, key);
+}
+
 export function parseSettings(src: string): {
   settings: DeckSettings;
   bodyStart: number;
@@ -113,7 +121,7 @@ export function parseSettings(src: string): {
       case 'font': {
         if (value === null || value === undefined || value === 'default') break;
         const name = String(value);
-        if (name.length <= 60 && /^[A-Za-z0-9][A-Za-z0-9 ]*$/.test(name)) settings.font = name;
+        if (isValidFontName(name)) settings.font = name;
         else warn(key, `Invalid font name "${name}". Font names use only letters, numbers and spaces.`);
         break;
       }

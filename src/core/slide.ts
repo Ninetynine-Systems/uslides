@@ -1,6 +1,7 @@
 import { parseAttrs, parseGrid, parseSpan } from './attrs';
 import { sanitizeColor } from './colors';
 import { fencedLines } from './fences';
+import { isValidFontName } from './fontName';
 import type { DeckSettings } from './settings';
 import type { RawSlide } from './split';
 import type { Grid, SourceRange, Span, Warning } from './types';
@@ -160,7 +161,7 @@ function parseBox(
   const fontName = () => {
     const value = attrs.font;
     if (value === undefined || value === 'default') return undefined;
-    if (value.length <= 60 && /^[A-Za-z0-9][A-Za-z0-9 ]*$/.test(value)) return value;
+    if (isValidFontName(value)) return value;
     warn(`Invalid font name "${value}". Font names use only letters, numbers and spaces.`);
     return undefined;
   };
