@@ -10,7 +10,39 @@ type Props = {
   onPresent(): void;
   /** Copies the share link. Resolves to the link when the clipboard could not be written, else undefined. */
   onCopyLink(): Promise<string | undefined>;
+  onOpen(): void;
+  /** Undefined when the browser cannot open folders. */
+  onOpenFolder?(): void;
+  /** The linked file, if any. */
+  link?: { name: string; folder: boolean };
+  needsAccess: boolean;
+  onGrant(): void;
+  onUnlink(): void;
 };
+
+function LinkedBadge({ name, onUnlink }: { name: string; onUnlink(): void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="linked" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
+      <button type="button" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        Linked: {name}
+      </button>
+      {open && (
+        <div className="linked-menu">
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onUnlink();
+            }}
+          >
+            Unlink file
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ShareMenu({ onCopyLink }: { onCopyLink: Props['onCopyLink'] }) {
   const [open, setOpen] = useState(false);
@@ -47,7 +79,10 @@ function ShareMenu({ onCopyLink }: { onCopyLink: Props['onCopyLink'] }) {
   );
 }
 
-export function Toolbar({ listOpen, onToggleList, name, onRename, onDuplicate, onDelete, onPresent, onCopyLink }: Props) {
+export function Toolbar({
+  listOpen, onToggleList, name, onRename, onDuplicate, onDelete, onPresent, onCopyLink,
+  onOpen, onOpenFolder, link, needsAccess, onGrant, onUnlink,
+}: Props) {
   return (
     <header className="toolbar">
       <button type="button" onClick={onToggleList} aria-expanded={listOpen} aria-controls="decks">
@@ -55,6 +90,20 @@ export function Toolbar({ listOpen, onToggleList, name, onRename, onDuplicate, o
       </button>
       <h1 className="toolbar-name">{name}</h1>
       <div className="toolbar-actions">
+        {link && needsAccess && (
+          <button type="button" onClick={onGrant}>
+            {link.folder ? 'Allow access to the folder again' : 'Allow access to the file again'}
+          </button>
+        )}
+        {link && <LinkedBadge name={link.name} onUnlink={onUnlink} />}
+        <button type="button" onClick={onOpen}>
+          Open
+        </button>
+        {onOpenFolder && (
+          <button type="button" onClick={onOpenFolder}>
+            Open folder
+          </button>
+        )}
         <button type="button" onClick={onPresent}>
           Present
         </button>

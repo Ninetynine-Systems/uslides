@@ -49,6 +49,12 @@ export type UseDeck = {
   discard(): void;
   /** Takes a record that was written elsewhere (for example by rename) as the current one. */
   adopt(record: DeckRecord): void;
+  /** The text as last stored, for the open deck. Undefined until the deck has loaded. */
+  getSaved(): { id: string; source: string } | undefined;
+  /** Replaces the editor text with text that came from outside (a file on disk) and stores it. */
+  applyExternal(text: string): Promise<void>;
+  /** Updates fields of the current record that are not content (file links and sync fields). */
+  patchRecord(id: string, patch: Partial<DeckRecord>): void;
 };
 
 export function useDeck(id: string | undefined, options: Options): UseDeck {
@@ -220,7 +226,29 @@ export function useDeck(id: string | undefined, options: Options): UseDeck {
     [show],
   );
 
+  const getSaved = useCallback(() => {
+    const s = session.current;
+    return s && s.revision > 0 ? { id: s.id, source: s.saved } : undefined;
+  }, []);
+
+  const applyExternal = useCallback(
+    async (text: string) => {
+      const s = session.current;
+      if (!s || s.revision === 0) return;
+      s.latest = text;
+      setSourceState(text);
+      clearTimeout(parseTimer.current);
+      setDeck(parseDeck(text));
+      await flushSession(s);
+    },
+    [flushSession],
+  );
+
+  const patchRecord = useCallback((rid: string, patch: Partial<DeckRecord>) => {
+    setRecord((r) => (r && r.id === rid ? { ...r, ...patch } : r));
+  }, []);
+
   useEffect(() => () => clearTimeout(parseTimer.current), []);
 
-  return { record, source, deck, warnings: deck?.warnings ?? [], images, conflict, setSource, flush, discard, adopt };
+  return { record, source, deck, warnings: deck?.warnings ?? [], images, conflict, setSource, flush, discard, adopt, getSaved, applyExternal, patchRecord };
 }

@@ -1,11 +1,14 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { deckName } from '../core/settings';
+import { pickFolder, pickMarkdownFile, supportsFileLink, supportsFolderLink } from '../files/fileLink';
+import { importFiles, importFromFolder, NO_MARKDOWN, openFolder, readDrop } from '../files/importFiles';
 import { LONG_LINK_CHARS, makeShareLink, readShareHash, ShareLinkError } from '../share/link';
 import {
   createDeck, deleteDeck, duplicateDeck, getImages, listDecks, renameDeck,
 } from '../storage/db';
 import { DeckList, type DeckSummary } from './DeckList';
 import type { EditorHandle } from './Editor';
+import { ConflictDialog, FilePicker } from './FileDialogs';
 import { Notices, useNotices } from './Notices';
 import { Present } from './Present';
 import { Preview } from './Preview';
@@ -13,6 +16,8 @@ import { Toolbar } from './Toolbar';
 import { deckHash, parseRoute } from './route';
 import sample from './sample.md?raw';
 import { useDeck } from './useDeck';
+import { useFileSync } from './useFileSync';
+import { useFolderImages } from './useFolderImages';
 import './app.css';
 
 // The editor (CodeMirror) is a separate chunk, so phones, which hide it, never download it.
@@ -87,6 +92,16 @@ export function App() {
   const current = useDeck(deckId, { onNotice: notify, onChanged: refreshList });
   const { flush, discard, adopt } = current;
   const ready = current.record?.id === deckId;
+  const sync = useFileSync(current, notify);
+  const folderImages = useFolderImages(sync.folder, current.source, ready && !sync.needsAccess, sync.version);
+  // Folder first, then images stored in the browser; a path in neither shows the "not found" placeholder.
+  const images = useMemo(
+    () => (folderImages.size === 0 ? current.images : new Map([...current.images, ...folderImages])),
+    [current.images, folderImages],
+  );
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [folderChoice, setFolderChoice] = useState<{ dir: FileSystemDirectoryHandle; files: FileSystemFileHandle[] }>();
+  const [dragging, setDragging] = useState(false);
 
   /** Shows a deck and updates the URL without adding a history entry. */
   const openDeck = useCallback((id: string) => {
@@ -220,6 +235,82 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey, true);
   }, [presenting, startPresenting, slideAtCursor]);
 
+  /** Makes a deck from whatever `make` reads, then shows it. */
+  const openImported = useCallback(
+    async (make: () => Promise<string | undefined>) => {
+      await flush();
+      const id = await make();
+      if (!id) return;
+      openDeck(id);
+      refreshList();
+    },
+    [flush, openDeck, refreshList],
+  );
+
+  const reportError = useCallback(
+    (err: unknown) => notify(err instanceof Error ? err.message : `Something went wrong: ${String(err)}`),
+    [notify],
+  );
+
+  const openFile = () => {
+    if (!supportsFileLink()) {
+      fileInput.current?.click();
+      return;
+    }
+    openImported(async () => {
+      const handle = await pickMarkdownFile();
+      return handle ? importFiles([handle]) : undefined;
+    }).catch(reportError);
+  };
+
+  const openFolderClick = () => {
+    openImported(async () => {
+      const dir = await pickFolder();
+      if (!dir) return undefined;
+      const found = await openFolder(dir);
+      if (found.kind === 'none') notify(NO_MARKDOWN);
+      if (found.kind === 'choose') setFolderChoice({ dir, files: found.files });
+      return found.kind === 'one' ? found.id : undefined;
+    }).catch(reportError);
+  };
+
+  // Dropping files anywhere on the window opens them.
+  useEffect(() => {
+    let depth = 0;
+    const hasFiles = (e: DragEvent) => e.dataTransfer?.types.includes('Files') ?? false;
+    const onEnter = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      depth += 1;
+      setDragging(true);
+    };
+    const onLeave = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) setDragging(false);
+    };
+    const onOver = (e: DragEvent) => {
+      if (hasFiles(e)) e.preventDefault();
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth = 0;
+      setDragging(false);
+      const dropped = readDrop(e.dataTransfer!); // must start inside the event
+      openImported(async () => importFiles(await dropped)).catch(reportError);
+    };
+    window.addEventListener('dragenter', onEnter);
+    window.addEventListener('dragleave', onLeave);
+    window.addEventListener('dragover', onOver);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragenter', onEnter);
+      window.removeEventListener('dragleave', onLeave);
+      window.removeEventListener('dragover', onOver);
+      window.removeEventListener('drop', onDrop);
+    };
+  }, [openImported, reportError]);
+
   const name = ready ? deckName(current.source) : '';
   const selectDeck = (id: string) => {
     if (id !== deckId) location.hash = deckHash(id);
@@ -305,6 +396,12 @@ export function App() {
         onDelete={guarded(remove)}
         onPresent={() => startPresenting(1)}
         onCopyLink={copyLink}
+        onOpen={openFile}
+        onOpenFolder={supportsFolderLink() ? openFolderClick : undefined}
+        link={ready ? sync.link : undefined}
+        needsAccess={sync.needsAccess}
+        onGrant={guarded(sync.grant)}
+        onUnlink={guarded(sync.unlink)}
       />
       <div className="decks" id="decks" hidden={!listOpen}>
         <DeckList decks={decks} activeId={deckId} onSelect={selectDeck} onNew={guarded(newDeck)} />
@@ -324,7 +421,7 @@ export function App() {
         </div>
         <Preview
           deck={ready ? current.deck : undefined}
-          images={current.images}
+          images={images}
           showGrid={showGrid}
           onShowGridChange={setShowGrid}
           onSelectSlide={(i) => {
@@ -334,11 +431,37 @@ export function App() {
         />
       </main>
       <Notices notices={notices} onDismiss={dismiss} />
+      <input
+        ref={fileInput}
+        type="file"
+        hidden
+        multiple
+        accept=".md,.markdown,text/markdown,image/*"
+        aria-label="Open files"
+        onChange={(e) => {
+          const picked = [...(e.currentTarget.files ?? [])];
+          e.currentTarget.value = '';
+          if (picked.length > 0) openImported(() => importFiles(picked)).catch(reportError);
+        }}
+      />
+      {dragging && <div className="drop-overlay">Drop Markdown and image files to open them</div>}
+      {sync.conflict && <ConflictDialog onChoose={(c) => guarded(() => sync.resolve(c))()} />}
+      {folderChoice && (
+        <FilePicker
+          names={folderChoice.files.map((f) => f.name)}
+          onCancel={() => setFolderChoice(undefined)}
+          onPick={(i) => {
+            const { dir, files } = folderChoice;
+            setFolderChoice(undefined);
+            openImported(() => importFromFolder(dir, files[i]!)).catch(reportError);
+          }}
+        />
+      )}
     </div>
     {showPresent && (
       <Present
         deck={current.deck!}
-        images={current.images}
+        images={images}
         slide={presenting}
         onGo={goToSlide}
         onExit={stopPresenting}
