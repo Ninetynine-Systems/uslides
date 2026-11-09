@@ -1,0 +1,71 @@
+// @vitest-environment jsdom
+import { describe, expect, it } from 'vitest';
+import { parseDeck } from '../../src/core/parse';
+import { renderSlide } from '../../src/render/renderSlide';
+
+function render(src: string, opts?: Parameters<typeof renderSlide>[2]) {
+  const deck = parseDeck(src);
+  return renderSlide(deck.slides[0]!, deck.settings, opts);
+}
+
+describe('renderSlide', () => {
+  it('builds a themed stage with a grid', () => {
+    const stage = render('# Hi');
+    expect(stage.className).toContain('us-stage');
+    expect(stage.classList.contains('us-theme-light')).toBe(true);
+    expect(stage.style.width).toBe('1920px');
+    expect(stage.style.height).toBe('1080px');
+    expect(stage.style.display).toBe('grid');
+    expect(stage.style.gridTemplateColumns).toBe('repeat(12, 1fr)');
+    expect(stage.style.gridTemplateRows).toBe('repeat(6, 1fr)');
+  });
+
+  it('uses the deck theme and the 4:3 stage size', () => {
+    const stage = render('---\naspect: 4:3\ntheme: dark\n---\n# Hi');
+    expect(stage.style.width).toBe('1440px');
+    expect(stage.style.height).toBe('1080px');
+    expect(stage.classList.contains('us-theme-dark')).toBe(true);
+  });
+
+  it('places boxes on the grid with increasing z-index', () => {
+    const stage = render('::: box col=1-7 row=2-6\nA\n:::\n\n::: box\nB\n:::\n\nloose');
+    const boxes = stage.querySelectorAll<HTMLElement>('.us-box');
+    expect(boxes).toHaveLength(2);
+    expect(boxes[0]!.dataset.box).toBe('0');
+    expect(boxes[0]!.style.gridColumn).toBe('1 / 8');
+    expect(boxes[0]!.style.gridRow).toBe('2 / 7');
+    expect(boxes[0]!.style.zIndex).toBe('1');
+    expect(boxes[1]!.style.zIndex).toBe('2');
+    const loose = stage.querySelector<HTMLElement>('.us-loose')!;
+    expect(loose.style.zIndex).toBe('0');
+    expect(loose.textContent).toContain('loose');
+  });
+
+  it('sets box and slide colours inline', () => {
+    const stage = render('<!-- slide bg=#112233 color=white -->\n\n::: box bg=#ff0000 color=black\nA\n:::');
+    expect(stage.style.backgroundColor).toBe('rgb(17, 34, 51)');
+    expect(stage.style.color).toBe('white');
+    const box = stage.querySelector<HTMLElement>('.us-box')!;
+    expect(box.style.backgroundColor).toBe('rgb(255, 0, 0)');
+    expect(box.style.color).toBe('black');
+  });
+
+  it('adds alignment and fit classes', () => {
+    const stage = render('::: box align=center valign=bottom fit=cover\nA\n:::');
+    const box = stage.querySelector('.us-box')!;
+    expect(box.classList.contains('us-align-center')).toBe(true);
+    expect(box.classList.contains('us-valign-bottom')).toBe(true);
+    expect(box.classList.contains('us-fit-cover')).toBe(true);
+  });
+
+  it('shows grid lines only when asked', () => {
+    expect(render('# Hi').querySelector('.us-gridlines')).toBeNull();
+    expect(render('# Hi', { showGrid: false }).querySelector('.us-gridlines')).toBeNull();
+    expect(render('# Hi', { showGrid: true }).querySelector('.us-gridlines')).not.toBeNull();
+  });
+
+  it('renders markdown and resolves images', () => {
+    const stage = render('![a](./x.png)', { resolveImage: () => 'https://example.com/x.png' });
+    expect(stage.querySelector('img')!.getAttribute('src')).toBe('https://example.com/x.png');
+  });
+});

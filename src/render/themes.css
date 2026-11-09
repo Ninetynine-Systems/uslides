@@ -1,0 +1,24 @@
+.us-theme-light {
+  --us-bg: #ffffff;
+  --us-fg: #111827;
+  --us-muted: #4b5563;
+  --us-accent: #1d4ed8;
+  --us-code-bg: #f3f4f6;
+  --us-rule: #d1d5db;
+}
+
+.us-theme-dark {
+  --us-bg: #0f172a;
+  --us-fg: #f1f5f9;
+  --us-muted: #94a3b8;
+  --us-accent: #60a5fa;
+  --us-code-bg: #1e293b;
+  --us-rule: #334155;
+}
+
+.us-stage {
+  --us-font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --us-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  --us-size: 32px;
+  --us-pad: 32px;
+}

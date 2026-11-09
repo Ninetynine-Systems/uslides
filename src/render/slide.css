@@ -1,0 +1,101 @@
+.us-stage {
+  position: relative;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--us-bg);
+  color: var(--us-fg);
+  font-family: var(--us-font);
+  line-height: 1.35;
+}
+
+.us-loose,
+.us-box {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: var(--us-pad);
+  font-size: calc(var(--us-size) * var(--us-scale, 1));
+}
+
+/* Vertical alignment uses auto margins so that overflowing content grows downward and stays measurable. */
+.us-valign-top > :first-child { margin-top: 0; }
+.us-valign-top > :last-child { margin-bottom: 0; }
+.us-valign-middle > :first-child { margin-top: auto; }
+.us-valign-middle > :last-child { margin-bottom: auto; }
+.us-valign-bottom > :first-child { margin-top: auto; }
+.us-valign-bottom > :last-child { margin-bottom: 0; }
+
+.us-align-left { text-align: left; }
+.us-align-center { text-align: center; }
+.us-align-right { text-align: right; }
+
+.us-stage h1, .us-stage h2, .us-stage h3, .us-stage h4, .us-stage h5, .us-stage h6 {
+  margin: 0.4em 0 0.3em;
+  line-height: 1.15;
+}
+.us-stage h1 { font-size: 2.2em; }
+.us-stage h2 { font-size: 1.6em; }
+.us-stage h3 { font-size: 1.25em; }
+.us-stage h4, .us-stage h5, .us-stage h6 { font-size: 1em; }
+.us-stage p { margin: 0.4em 0; }
+.us-stage ul, .us-stage ol { margin: 0.4em 0; padding-left: 1.3em; }
+.us-stage li { margin: 0.15em 0; }
+.us-align-center ul, .us-align-center ol,
+.us-align-right ul, .us-align-right ol { list-style-position: inside; padding-left: 0; }
+.us-stage a { color: var(--us-accent); }
+.us-stage blockquote {
+  margin: 0.5em 0;
+  padding-left: 0.8em;
+  border-left: 0.15em solid var(--us-rule);
+  color: var(--us-muted);
+}
+.us-stage code, .us-stage pre { font-family: var(--us-mono); font-size: 0.85em; }
+.us-stage code { background: var(--us-code-bg); padding: 0.1em 0.3em; border-radius: 0.2em; }
+.us-stage pre { background: var(--us-code-bg); padding: 0.6em 0.8em; border-radius: 0.3em; overflow: hidden; }
+.us-stage pre code { background: none; padding: 0; }
+.us-stage table { border-collapse: collapse; }
+.us-stage th, .us-stage td { border: 1px solid var(--us-rule); padding: 0.2em 0.6em; }
+.us-stage hr { border: 0; border-top: 1px solid var(--us-rule); width: 100%; }
+
+/* Images: fit inside the box; the box's fit setting picks contain or cover. */
+.us-stage img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.us-fit-cover img { object-fit: cover; }
+.us-align-center img { margin-inline: auto; }
+.us-align-right img { margin-left: auto; }
+
+/* A box holding only an image: the image fills the whole box. */
+.us-image-only { padding: 0; }
+.us-image-only > p {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0 !important;
+}
+.us-image-only > p > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+}
+
+.us-gridlines {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(37, 99, 235, 0.35) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(37, 99, 235, 0.35) 1px, transparent 1px);
+  background-size: calc(100% / var(--us-cols)) calc(100% / var(--us-rows));
+}
