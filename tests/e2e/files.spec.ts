@@ -115,6 +115,34 @@ test.describe('with the File System Access API', () => {
     await expect(allow).toBeHidden();
   });
 
+  test('Keep mine with writing declined keeps the app text and does not reopen the dialog', async ({ page }) => {
+    await page.goto('/?test');
+    await expect(page.locator('.us-stage')).toHaveCount(4);
+    await page.evaluate(() => {
+      window.__fakeFs.grantWriteOnRequest(false);
+      window.__fakeFs.createFile('f1', 'talk.md', '# Hello from disk\n');
+      window.__fakeFs.pickFile('f1');
+    });
+    await page.getByRole('button', { name: 'Open', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Allow writing to the file' })).toBeVisible();
+    await editor(page).click();
+    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.type('mine');
+    await page.waitForTimeout(700);
+    await page.evaluate(() => window.__fakeFs.setText('f1', '# From the agent\n'));
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible({ timeout: 3000 });
+    await dialog.getByRole('button', { name: 'Keep mine' }).click();
+    await expect(dialog).toBeHidden();
+    await page.waitForTimeout(2500);
+    await expect(dialog).toBeHidden();
+    expect(await getSource(page)).toContain('mine');
+    expect(await page.evaluate(() => window.__fakeFs.getText('f1'))).toBe('# From the agent\n');
+    expect(await page.evaluate(() => window.__fakeFs.writes('f1').length)).toBe(0);
+    await expect(page.getByText(/Something went wrong/)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Allow writing to the file' })).toBeVisible();
+  });
+
   test('a file changed between the poll and the write-back is not overwritten', async ({ page }) => {
     await openLinkedFile(page);
     await page.evaluate(() => window.__fakeFs.setPermission('f1', 'prompt'));
