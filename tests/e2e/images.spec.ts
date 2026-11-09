@@ -194,3 +194,22 @@ test('an image with only empty text on the clipboard is still embedded', async (
   }, TINY_PNG);
   await expect(page.locator('.cm-image-chip')).toHaveCount(1);
 });
+
+test('an image copied in Finder is embedded, even though its file name is on the clipboard as text', async ({ page }) => {
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  await toEnd(page);
+  await page.evaluate((base64) => {
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    const data = new Uint8Array(bytes.length + 600);
+    data.set(bytes);
+    const dt = new DataTransfer();
+    dt.setData('text/plain', 'photo.png');
+    dt.items.add(new File([data], 'photo.png', { type: 'image/png' }));
+    document
+      .querySelector('.cm-content')!
+      .dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, TINY_PNG);
+  await expect(page.locator('.cm-image-chip')).toHaveCount(1);
+  expect(await getSource(page)).not.toContain('photo.png');
+});

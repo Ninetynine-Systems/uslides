@@ -45,10 +45,14 @@ export function pasteImage(options: { onNotice(text: string): void }): Extension
   return EditorView.domEventHandlers({
     paste(event, view) {
       // Word, Excel and Numbers put a picture of the selection next to the text. The text is what the
-      // user copied, so it wins. A screenshot has no text, and its image is embedded.
-      if ((event.clipboardData?.getData('text/plain') ?? '').trim() !== '') return false;
+      // user copied, so it wins. A screenshot has no text, and its image is embedded. A file copied in
+      // Finder carries its own file name as text; that text is not what the user meant, so it is ignored.
       const files = [...(event.clipboardData?.files ?? [])].filter(isImage);
       if (files.length === 0) return false;
+      const text = (event.clipboardData?.getData('text/plain') ?? '').trim();
+      const names = new Set(files.map((f) => f.name));
+      const onlyNames = text.split(/\r?\n/).every((line) => names.has(line.trim()));
+      if (text !== '' && !onlyNames) return false;
       event.preventDefault();
       void insertImages(view, files, view.state.selection.main.from, view.state.selection.main.to, options.onNotice);
       return true;
