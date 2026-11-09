@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Deck } from '../core/parse';
 import type { Slide } from '../core/slide';
 import { STAGE } from '../config';
-import { fitSlide, mountScaled } from '../render/fit';
+import { fitSlide, mountScaled, type FitResult } from '../render/fit';
 import { renderSlide } from '../render/renderSlide';
+import { BOX_CUT_OFF, SLIDE_CUT_OFF } from './cutOff';
 
 type Props = {
   deck: Deck | undefined;
@@ -12,6 +13,8 @@ type Props = {
   onShowGridChange(show: boolean): void;
   /** Called with the slide index when a slide is clicked. */
   onSelectSlide(index: number): void;
+  /** Called with fitSlide's results each time a slide is laid out. */
+  onFit?(slide: Slide, results: FitResult[]): void;
 };
 
 export function imageKey(path: string): string {
@@ -40,9 +43,14 @@ function SlideCard(props: {
   urls: Map<string, string>;
   showGrid: boolean;
   onSelect(): void;
+  onFit?(slide: Slide, results: FitResult[]): void;
 }) {
   const { slide, deck, urls, showGrid, onSelect } = props;
   const frame = useRef<HTMLDivElement>(null);
+  const onFit = useRef(props.onFit);
+  onFit.current = props.onFit;
+  /** Warnings for text that is cut off even at the smallest size. Shown under the slide on every screen size. */
+  const [cutOff, setCutOff] = useState<string[]>([]);
   const { w, h } = STAGE[deck.settings.aspect];
 
   useEffect(() => {
@@ -52,7 +60,10 @@ function SlideCard(props: {
       resolveImage: (src) => urls.get(imageKey(src)),
     });
     const unmount = mountScaled(stage, container);
-    fitSlide(stage);
+    const results = fitSlide(stage);
+    const messages = new Set(results.filter((r) => r.overflow).map((r) => (r.boxIndex === null ? SLIDE_CUT_OFF : BOX_CUT_OFF)));
+    setCutOff([...messages]);
+    onFit.current?.(slide, results);
     return () => {
       unmount();
       container.replaceChildren();
@@ -77,11 +88,16 @@ function SlideCard(props: {
         }}
       />
       <figcaption>{slide.index + 1}</figcaption>
+      {cutOff.map((m) => (
+        <p key={m} className="slide-warning" role="status">
+          {m}
+        </p>
+      ))}
     </figure>
   );
 }
 
-export function Preview({ deck, images, showGrid, onShowGridChange, onSelectSlide }: Props) {
+export function Preview({ deck, images, showGrid, onShowGridChange, onSelectSlide, onFit }: Props) {
   const urls = useImageUrls(images);
   return (
     <section className="preview" aria-label="Preview">
@@ -100,6 +116,7 @@ export function Preview({ deck, images, showGrid, onShowGridChange, onSelectSlid
             urls={urls}
             showGrid={showGrid}
             onSelect={() => onSelectSlide(slide.index)}
+            onFit={onFit}
           />
         ))}
       </div>

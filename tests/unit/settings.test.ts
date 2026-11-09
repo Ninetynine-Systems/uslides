@@ -46,6 +46,34 @@ describe('parseSettings', () => {
     expect(parseSettings('---\naspect: 4:3\n---\n').settings.aspect).toBe('4:3');
   });
 
+  it('warns when a block with a known key is not valid YAML, and reads it as slides', () => {
+    const src = '---\ntitle: Q3 review: what changed\ngrid: 12x6\n---\n# X';
+    const r = parseSettings(src);
+    expect(r.settings).toEqual(defaults);
+    expect(r.bodyStart).toBe(0);
+    expect(r.warnings).toHaveLength(1);
+    expect(r.warnings[0]!.message).toMatch(/^The settings block at the top is not valid YAML: .+/);
+    expect(r.warnings[0]!.range).toEqual({ from: 0, to: src.indexOf('\n---\n#') });
+  });
+
+  it('gives no YAML warning for a leading --- block without any known key', () => {
+    expect(parseSettings('---\nSome: text: here\n---\n# X').warnings).toEqual([]);
+  });
+
+  it('reads a quoted title that contains a colon', () => {
+    const r = parseSettings('---\ntitle: "Q3 review: what changed"\n---\n# X');
+    expect(r.settings.title).toBe('Q3 review: what changed');
+    expect(r.warnings).toEqual([]);
+  });
+
+  it('warns about an empty title, such as one that starts with #', () => {
+    const r = parseSettings('---\ntitle: #1 priority\n---\n# X');
+    expect(r.settings.title).toBeUndefined();
+    expect(r.warnings.map((w) => w.message)).toEqual([
+      'The title is empty. If it starts with # or contains ": ", wrap it in double quotes.',
+    ]);
+  });
+
   it('parses normalized CRLF + BOM input', () => {
     const r = parseSettings(normalizeSource('﻿---\r\ngrid: 8x4\r\n---\r\n# A'));
     expect(r.settings.grid).toEqual({ cols: 8, rows: 4 });

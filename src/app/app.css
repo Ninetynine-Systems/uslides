@@ -75,6 +75,7 @@ button.danger { color: var(--danger); }
 .slide-card { margin: 0; }
 .slide-frame { width: 100%; max-width: 960px; margin: 0 auto; background: #fff; border-radius: 4px; box-shadow: 0 1px 4px rgb(0 0 0 / 0.25); cursor: pointer; }
 .slide-card figcaption { max-width: 960px; margin: 4px auto 0; font-size: 0.8rem; color: #44403c; }
+.slide-warning { max-width: 960px; margin: 4px auto 0; padding: 4px 8px; font-size: 0.85rem; color: #78350f; background: #fef3c7; border-left: 3px solid #d97706; border-radius: 2px; }
 
 .notices { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
 .notice { display: flex; gap: 12px; align-items: center; padding: 10px 14px; background: #1c1917; color: #fafaf9; border-radius: 8px; box-shadow: 0 2px 8px rgb(0 0 0 / 0.3); }

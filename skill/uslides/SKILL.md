@@ -35,6 +35,17 @@ theme: light
 Use only these four keys. Any other key gets a warning. The block counts as
 settings only if `---` is the very first line and it holds at least one of these keys.
 
+The block is YAML. Wrap a value in double quotes if it contains `: ` or starts with
+`#`, `"`, `'`, `[`, `{`, `&`, `*`, `!`, `|`, `>`, `%` or `@`:
+
+```yaml
+title: "Q3 review: what changed"
+```
+
+Without the quotes, a `: ` makes the block invalid YAML, and a leading `#` makes the
+value empty. The app warns in both cases. An invalid block is not used as settings:
+it shows up as text on the first slides.
+
 ### Slides
 
 A line that is exactly `---` starts a new slide. Nothing else may be on that line,
@@ -66,7 +77,8 @@ A box puts some Markdown in a rectangle on the slide's grid:
   and `row` up to 6.
 - If `col` is missing, the box spans every column. The same goes for `row`.
 - A position past the edge of the grid is cut back to the edge, with a warning.
-- Do not put a box inside another box. The inner one is shown as plain text.
+- Do not put a box inside another box. The inner `:::` line closes the outer box
+  early, so the rest of the layout breaks. The app warns when this happens.
 
 | attribute | values | default |
 |-----------|--------|---------|
@@ -117,7 +129,8 @@ they show up as literal text, so do not write HTML.
 
 Write `![what the image shows](src)`, on a slide or in a box. `src` can be:
 
-1. A web address starting with `https:`. It needs a network connection the first time.
+1. A web address starting with `https:` (or `http:`). It needs a network connection
+   the first time.
 2. A path relative to the deck file, such as `./chart.png`. It works when the user
    opens the folder in the app, or drops the image in together with the `.md`
    file. Otherwise the slide shows an "Image not found" note in its place.
@@ -134,20 +147,13 @@ as `javascript:`, is dropped and only the link text is kept.
 
 Text in a box, or on a slide with no boxes, shrinks to fit. The normal size is
 32 pixels on a 1920×1080 slide. It never goes below 20 pixels. Text that still
-does not fit is cut off, and the app shows a warning. On the default 12x6 grid,
-one row is 180 pixels tall, and a box has 32 pixels of padding on each side.
-So a one-row box holds one `#` heading or two short lines of text. A full-height
+does not fit is cut off. The app then shows a warning on that box's `::: box` line
+in the editor (or on the slide's first line if the slide has no boxes), and under
+the slide in the preview.
+
+On the default 12x6 grid, one row is 180 pixels tall, and a box has 32 pixels of
+padding on each side. So a one-row box holds one `#` heading or two short lines of text. A full-height
 box holds about 15 short bullet points.
-
-## Rules that keep decks working
-
-- One idea per slide. A title and three to five short bullets is plenty.
-- Keep box text short for the box size. Give a box with a heading and bullets at
-  least three rows.
-- Stay inside the grid: never use a `col` or `row` number larger than the grid.
-- Use `***` for a horizontal rule, never `---`.
-- Never write base64 by hand, in images or in links.
-- Prefer slides without boxes. Use boxes when the layout matters.
 
 ## Delivering a deck
 
@@ -161,7 +167,9 @@ instead (Chrome and Edge), or to drag the images in together with the file.
 **Working with a linked file.** In Chrome and Edge, a file opened with Open stays
 linked to the deck. You can keep editing the `.md` file on disk while the user has
 it linked in uslides. The app checks the file about once a second and shows your
-changes within about a second. The user does not need to reload anything.
+changes within about a second. The user does not need to reload anything. The app
+also saves the user's own edits back to the file, so read the file again before each
+edit. Otherwise you may overwrite changes the user made in the app.
 
 ### If you cannot write files or run code: a `#md=` link
 
@@ -171,7 +179,9 @@ becomes `%` and two hex digits per UTF-8 byte. For example a space is `%20`, a
 new line is `%0A`, `#` is `%23`, `%` is `%25`, and `—` is `%E2%80%94`. Never use `+`
 for a space.
 
-So a deck that is just `# Hello` and a new line becomes:
+End the deck with a new line, so the link ends in `%0A`. Chat apps often drop a
+`.`, `)` or `!` from the end of a link. So a deck that is just `# Hello` and a new
+line becomes:
 
 ```text
 https://uslides.ninetynine.systems/#md=%23%20Hello%0A
@@ -192,8 +202,14 @@ async function uslidesLink(md) {
 }
 ```
 
-In Python: `c = zlib.compressobj(wbits=-15)`, then
-`base64.urlsafe_b64encode(c.compress(md.encode()) + c.flush()).rstrip(b'=')`.
+The same in Python, given the deck text in `md`:
+
+```python
+import base64, zlib
+c = zlib.compressobj(wbits=-15)
+data = base64.urlsafe_b64encode(c.compress(md.encode()) + c.flush()).rstrip(b'=').decode()
+link = 'https://uslides.ninetynine.systems/#z=' + data
+```
 
 ### Size limits
 
@@ -205,6 +221,16 @@ In Python: `c = zlib.compressobj(wbits=-15)`, then
 
 Opening a link always adds a new deck in the user's browser. It never replaces an
 existing one.
+
+## Rules that keep decks working
+
+- One idea per slide. A title and three to five short bullets is plenty.
+- Keep box text short for the box size. Give a box with a heading and bullets at
+  least three rows.
+- Stay inside the grid: never use a `col` or `row` number larger than the grid.
+- Use `***` for a horizontal rule, never `---`.
+- Never write base64 by hand, in images or in links.
+- Prefer slides without boxes. Use boxes when the layout matters.
 
 ## Examples
 
@@ -276,7 +302,7 @@ Q3 results and what comes next
 :::
 
 ::: box col=8-12 row=2-6 fit=cover
-![A line chart that rises over the quarter](./chart.png)
+![A colour gradient placeholder chart](./chart.png)
 :::
 
 ::: box col=9-12 row=6 bg=#f59e0b color=#111827 align=right valign=middle
@@ -296,53 +322,53 @@ of the heart.
 
 <!-- note: A fine grid turns each 1x1 box into one pixel. This slide draws a heart. -->
 
-::: box col=3 row=2 bg=#ef4444
-:::
-::: box col=4 row=2 bg=#ef4444
-:::
-::: box col=7 row=2 bg=#ef4444
-:::
-::: box col=8 row=2 bg=#ef4444
-:::
-::: box col=2 row=3 bg=#ef4444
-:::
-::: box col=3 row=3 bg=#fca5a5
-:::
-::: box col=4 row=3 bg=#ef4444
-:::
-::: box col=5 row=3 bg=#ef4444
-:::
 ::: box col=6 row=3 bg=#ef4444
 :::
 ::: box col=7 row=3 bg=#ef4444
 :::
-::: box col=8 row=3 bg=#ef4444
+::: box col=10 row=3 bg=#ef4444
 :::
-::: box col=9 row=3 bg=#ef4444
-:::
-::: box col=3 row=4 bg=#ef4444
-:::
-::: box col=4 row=4 bg=#ef4444
+::: box col=11 row=3 bg=#ef4444
 :::
 ::: box col=5 row=4 bg=#ef4444
 :::
-::: box col=6 row=4 bg=#ef4444
+::: box col=6 row=4 bg=#fca5a5
 :::
 ::: box col=7 row=4 bg=#ef4444
 :::
 ::: box col=8 row=4 bg=#ef4444
 :::
-::: box col=4 row=5 bg=#ef4444
+::: box col=9 row=4 bg=#ef4444
 :::
-::: box col=5 row=5 bg=#ef4444
+::: box col=10 row=4 bg=#ef4444
+:::
+::: box col=11 row=4 bg=#ef4444
+:::
+::: box col=12 row=4 bg=#ef4444
 :::
 ::: box col=6 row=5 bg=#ef4444
 :::
 ::: box col=7 row=5 bg=#ef4444
 :::
-::: box col=5 row=6 bg=#ef4444
+::: box col=8 row=5 bg=#ef4444
 :::
-::: box col=6 row=6 bg=#ef4444
+::: box col=9 row=5 bg=#ef4444
+:::
+::: box col=10 row=5 bg=#ef4444
+:::
+::: box col=11 row=5 bg=#ef4444
+:::
+::: box col=7 row=6 bg=#ef4444
+:::
+::: box col=8 row=6 bg=#ef4444
+:::
+::: box col=9 row=6 bg=#ef4444
+:::
+::: box col=10 row=6 bg=#ef4444
+:::
+::: box col=8 row=7 bg=#ef4444
+:::
+::: box col=9 row=7 bg=#ef4444
 :::
 
 ---

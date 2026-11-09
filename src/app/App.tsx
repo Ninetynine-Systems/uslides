@@ -1,5 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { deckName } from '../core/settings';
+import type { Slide } from '../core/slide';
+import type { FitResult } from '../render/fit';
+import { cutOffWarnings } from './cutOff';
 import { pickFolder, pickMarkdownFile, readFolderImage, supportsFileLink, supportsFolderLink } from '../files/fileLink';
 import { downloadMarkdown, exportHtml, fileSlug, printDeck, saveBlob } from '../export/download';
 import { baseType, packImages } from '../export/packImages';
@@ -112,6 +115,19 @@ export function App() {
   const current = useDeck(deckId, { onNotice: notify, onChanged: refreshList });
   const { flush, discard, adopt } = current;
   const ready = current.record?.id === deckId;
+  // fitSlide's results for each slide in the preview, so text cut off on a slide becomes an editor warning.
+  const [fits, setFits] = useState<ReadonlyMap<Slide, FitResult[]>>(() => new Map());
+  const onFit = useCallback((slide: Slide, results: FitResult[]) => {
+    setFits((prev) => new Map(prev).set(slide, results));
+  }, []);
+  useEffect(() => {
+    // Forget slides from older parses. The preview has already re-measured the current ones.
+    setFits((prev) => new Map([...prev].filter(([s]) => current.deck?.slides.includes(s))));
+  }, [current.deck]);
+  const warnings = useMemo(
+    () => (current.deck ? [...current.warnings, ...cutOffWarnings(current.deck, fits)] : current.warnings),
+    [current.deck, current.warnings, fits],
+  );
   const sync = useFileSync(current, notify);
   const folderImages = useFolderImages(sync.folder, current.source, ready && !sync.needsAccess, sync.version);
   // Folder first, then images stored in the browser; a path in neither shows the "not found" placeholder.
@@ -567,7 +583,7 @@ export function App() {
               ref={editor}
               value={current.source}
               onChange={current.setSource}
-              warnings={current.warnings}
+              warnings={warnings}
               extensions={editorExtensions}
             />
             </Suspense>
@@ -578,6 +594,7 @@ export function App() {
           images={images}
           showGrid={showGrid}
           onShowGridChange={setShowGrid}
+          onFit={onFit}
           onSelectSlide={(i) => {
             const slide = current.deck?.slides[i];
             if (slide) editor.current?.moveCursorTo(slide.range.from);

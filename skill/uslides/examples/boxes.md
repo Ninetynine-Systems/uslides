@@ -22,7 +22,7 @@ Q3 results and what comes next
 :::
 
 ::: box col=8-12 row=2-6 fit=cover
-![A line chart that rises over the quarter](./chart.png)
+![A colour gradient placeholder chart](./chart.png)
 :::
 
 ::: box col=9-12 row=6 bg=#f59e0b color=#111827 align=right valign=middle

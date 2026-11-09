@@ -90,6 +90,53 @@ test('warnings show in editor', async ({ page }) => {
   await expect(page.locator('.cm-tooltip-lint')).toContainText('outside the grid');
 });
 
+async function setSource(page: Page, text: string) {
+  await editor(page).click();
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.insertText(text);
+}
+
+const bullets = (n: number) => Array.from({ length: n }, (_, i) => `- point number ${i + 1}`).join('\n');
+const BOX_CUT = 'Text in this box is cut off. Shorten it or make the box bigger.';
+const SLIDE_CUT = 'Text on this slide is cut off. Shorten it or split the slide.';
+
+test('text cut off in a box is a warning on the box line, and shortening it clears it', async ({ page }) => {
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  await setSource(page, `# Title\n---\n::: box col=1-3 row=1\n${bullets(30)}\n:::\n`);
+  const marker = page.locator('.cm-lintRange-warning');
+  await expect(marker).toHaveCount(1);
+  await expect(marker).toHaveText('::: box col=1-3 row=1');
+  await marker.hover();
+  await expect(page.locator('.cm-tooltip-lint')).toContainText(BOX_CUT);
+  await expect(page.locator('.slide-warning')).toHaveText([BOX_CUT]);
+
+  await setSource(page, '# Title\n---\n::: box col=1-3 row=1\nShort\n:::\n');
+  await expect(page.locator('.us-stage', { hasText: 'Short' })).toHaveCount(1);
+  await expect(marker).toHaveCount(0);
+  await expect(page.locator('.slide-warning')).toHaveCount(0);
+});
+
+test('text cut off on a slide without boxes is a warning on its first line', async ({ page }) => {
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  await setSource(page, `# Title\n---\n\n## Too much\n${bullets(60)}\n`);
+  const marker = page.locator('.cm-lintRange-warning');
+  await expect(marker).toHaveCount(1);
+  await expect(marker).toHaveText('## Too much');
+  await marker.hover();
+  await expect(page.locator('.cm-tooltip-lint')).toContainText(SLIDE_CUT);
+});
+
+test('on a narrow screen, cut-off text shows a warning under the slide', async ({ page }) => {
+  await page.setViewportSize({ width: 400, height: 800 });
+  const md = `# Crowded\n\n${bullets(60)}\n`;
+  await page.goto(`/?test#md=${encodeURIComponent(md)}`);
+  await expect(page.locator('.us-stage').first()).toContainText('Crowded');
+  await expect(editor(page)).toHaveCount(0);
+  await expect(page.locator('.slide-warning')).toHaveText([SLIDE_CUT]);
+});
+
 test('clicking a slide moves the cursor to it', async ({ page }) => {
   await page.goto('/?test');
   await expect(page.locator('.us-stage')).toHaveCount(4);

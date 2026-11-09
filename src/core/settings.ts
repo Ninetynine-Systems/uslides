@@ -28,8 +28,16 @@ type Block = {
   bodyStart: number;
 };
 
-/** Finds a valid settings block: opening `---`, closing `---`, a YAML mapping with a known key. */
-function findBlock(src: string): Block | null {
+/** True when some line of the block starts with a known key, such as `title:`. */
+function mentionsKnownKey(yaml: string): boolean {
+  return yaml.split('\n').some((line) => KNOWN_KEYS.some((k) => new RegExp(`^${k}\\s*:`).test(line)));
+}
+
+/**
+ * Finds a valid settings block: opening `---`, closing `---`, a YAML mapping with a known key.
+ * A block that names a known key but is not valid YAML gives `invalid`, so the caller can warn.
+ */
+function findBlock(src: string): Block | { invalid: string; to: number } | null {
   if (!src.startsWith('---\n')) return null;
   const contentStart = 4;
   let pos = contentStart;
@@ -38,10 +46,13 @@ function findBlock(src: string): Block | null {
     const end = nl === -1 ? src.length : nl;
     if (src.slice(pos, end) === '---') {
       let data: unknown;
+      const yaml = src.slice(contentStart, pos);
       try {
-        data = load(src.slice(contentStart, pos));
-      } catch {
-        return null;
+        data = load(yaml);
+      } catch (err) {
+        if (!mentionsKnownKey(yaml)) return null;
+        const reason = (err as { reason?: string }).reason ?? String(err);
+        return { invalid: reason, to: Math.max(contentStart, pos - 1) };
       }
       if (typeof data !== 'object' || data === null || Array.isArray(data)) return null;
       const record = data as Record<string, unknown>;
@@ -82,6 +93,11 @@ export function parseSettings(src: string): {
   const settings: DeckSettings = { grid: { ...DEFAULT_GRID }, aspect: '16:9', theme: 'light' };
   const block = findBlock(src);
   if (!block) return { settings, bodyStart: 0, warnings: [] };
+  if ('invalid' in block) {
+    // Read as slides, as if there were no block, but say why: the agent cannot see the extra slide.
+    const message = `The settings block at the top is not valid YAML: ${block.invalid}. Wrap values that contain ": " or start with # in double quotes.`;
+    return { settings, bodyStart: 0, warnings: [{ message, range: { from: 0, to: block.to } }] };
+  }
 
   const warnings: Warning[] = [];
   const warn = (key: string, message: string) =>
@@ -91,6 +107,7 @@ export function parseSettings(src: string): {
     switch (key) {
       case 'title':
         if (value !== null && value !== undefined) settings.title = String(value);
+        else warn(key, 'The title is empty. If it starts with # or contains ": ", wrap it in double quotes.');
         break;
       case 'grid': {
         const grid = typeof value === 'string' ? parseGrid(value) : null;
@@ -152,7 +169,8 @@ function yamlScalar(value: string): string {
 /** Sets `title:` in the settings block, creating the block if needed. */
 export function setTitle(src: string, title: string): string {
   const line = `title: ${yamlScalar(title)}`;
-  const block = findBlock(src);
+  const found = findBlock(src);
+  const block = found && !('invalid' in found) ? found : null;
   if (!block) return `---\n${line}\n---\n\n${src}`;
 
   const range = 'title' in block.data ? keyRange(src, block, 'title') : null;

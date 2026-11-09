@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { APP_ORIGIN } from '../../src/config';
@@ -47,6 +48,29 @@ describe('SKILL.md', () => {
     const link = await makeLink(deck);
     expect(link.startsWith(`${APP_ORIGIN}/#z=`)).toBe(true);
     expect(await readShareHash(link.slice(link.indexOf('#')))).toBe(deck);
+  });
+
+  const hasPython = (() => {
+    try {
+      execFileSync('python3', ['--version']);
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  it.skipIf(!hasPython)('gives a Python #z= recipe that prints a full link the app can read', async () => {
+    const [code] = fencedBlocks(skill, 'python');
+    expect(code).toBeDefined();
+    const deck = example('boxes.md');
+    const script = `import sys\nmd = sys.stdin.read()\n${code}print(link)\n`;
+    const link = execFileSync('python3', ['-I', '-c', script], { input: deck, encoding: 'utf8' }).trim();
+    expect(link.startsWith(`${APP_ORIGIN}/#z=`)).toBe(true);
+    expect(await readShareHash(link.slice(link.indexOf('#')))).toBe(deck);
+  });
+
+  it('tells agents to quote a title that contains a colon', () => {
+    expect(skill).toContain('title: "Q3 review: what changed"');
   });
 });
 

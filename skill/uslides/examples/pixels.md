@@ -2,53 +2,53 @@
 
 <!-- note: A fine grid turns each 1x1 box into one pixel. This slide draws a heart. -->
 
-::: box col=3 row=2 bg=#ef4444
-:::
-::: box col=4 row=2 bg=#ef4444
-:::
-::: box col=7 row=2 bg=#ef4444
-:::
-::: box col=8 row=2 bg=#ef4444
-:::
-::: box col=2 row=3 bg=#ef4444
-:::
-::: box col=3 row=3 bg=#fca5a5
-:::
-::: box col=4 row=3 bg=#ef4444
-:::
-::: box col=5 row=3 bg=#ef4444
-:::
 ::: box col=6 row=3 bg=#ef4444
 :::
 ::: box col=7 row=3 bg=#ef4444
 :::
-::: box col=8 row=3 bg=#ef4444
+::: box col=10 row=3 bg=#ef4444
 :::
-::: box col=9 row=3 bg=#ef4444
-:::
-::: box col=3 row=4 bg=#ef4444
-:::
-::: box col=4 row=4 bg=#ef4444
+::: box col=11 row=3 bg=#ef4444
 :::
 ::: box col=5 row=4 bg=#ef4444
 :::
-::: box col=6 row=4 bg=#ef4444
+::: box col=6 row=4 bg=#fca5a5
 :::
 ::: box col=7 row=4 bg=#ef4444
 :::
 ::: box col=8 row=4 bg=#ef4444
 :::
-::: box col=4 row=5 bg=#ef4444
+::: box col=9 row=4 bg=#ef4444
 :::
-::: box col=5 row=5 bg=#ef4444
+::: box col=10 row=4 bg=#ef4444
+:::
+::: box col=11 row=4 bg=#ef4444
+:::
+::: box col=12 row=4 bg=#ef4444
 :::
 ::: box col=6 row=5 bg=#ef4444
 :::
 ::: box col=7 row=5 bg=#ef4444
 :::
-::: box col=5 row=6 bg=#ef4444
+::: box col=8 row=5 bg=#ef4444
 :::
-::: box col=6 row=6 bg=#ef4444
+::: box col=9 row=5 bg=#ef4444
+:::
+::: box col=10 row=5 bg=#ef4444
+:::
+::: box col=11 row=5 bg=#ef4444
+:::
+::: box col=7 row=6 bg=#ef4444
+:::
+::: box col=8 row=6 bg=#ef4444
+:::
+::: box col=9 row=6 bg=#ef4444
+:::
+::: box col=10 row=6 bg=#ef4444
+:::
+::: box col=8 row=7 bg=#ef4444
+:::
+::: box col=9 row=7 bg=#ef4444
 :::
 
 ---
