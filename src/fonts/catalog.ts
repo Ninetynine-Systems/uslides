@@ -3,12 +3,15 @@ export type Group = 'serif' | 'sans-serif' | 'display' | 'handwriting' | 'monosp
 export type Family = {
   name: string;
   group: Group;
+  /** Upright weights. */
   weights: number[];
-  italic: boolean;
+  italicWeights: number[];
 };
 
 let families: Family[] = [];
 let loading: Promise<void> | undefined;
+let version = 0;
+const listeners = new Set<() => void>();
 
 function readGroup(value: string): Group {
   if (value === 'serif' || value === 'sans-serif' || value === 'display'
@@ -23,10 +26,23 @@ export function loadCatalog(): Promise<void> {
       name: family.n,
       group: readGroup(family.c),
       weights: family.w,
-      italic: family.i,
+      italicWeights: family.i,
     }));
+    version += 1;
+    for (const listener of listeners) listener();
   });
   return loading;
+}
+
+/** A number that changes after the shipped catalog becomes available. */
+export function getCatalogVersion(): number {
+  return version;
+}
+
+/** Runs a listener when catalog lookups may return new results. */
+export function subscribeCatalog(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }
 
 /** Finds a family by its whole name, ignoring upper and lower case. */

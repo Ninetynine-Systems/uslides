@@ -34,16 +34,18 @@ const families = ordered.map((family) => {
   const group = GROUPS[family.category];
   if (!group) throw new Error(`Unknown Google Fonts category "${family.category}" for "${family.family}"`);
   const keys = Object.keys(family.fonts ?? {});
-  const weights = [...new Set(keys.flatMap((key) => {
-    const match = /^(\d+)(?:i)?$/.exec(key);
+  const readWeights = (pattern) => [...new Set(keys.flatMap((key) => {
+    const match = pattern.exec(key);
     return match ? [Number(match[1])] : [];
   }))].sort((a, b) => a - b);
-  if (weights.length === 0) throw new Error(`No weights for "${family.family}"`);
+  const weights = readWeights(/^(\d+)$/);
+  const italicWeights = readWeights(/^(\d+)i$/);
+  if (weights.length === 0 && italicWeights.length === 0) throw new Error(`No weights for "${family.family}"`);
   return {
     n: family.family,
     c: group,
     w: weights,
-    i: keys.some((key) => /^\d+i$/.test(key)),
+    i: italicWeights,
   };
 });
 

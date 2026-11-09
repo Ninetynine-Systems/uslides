@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { parseDeck } from '../../src/core/parse';
+import { loadCatalog } from '../../src/fonts/catalog';
 import { renderSlide } from '../../src/render/renderSlide';
+
+beforeAll(() => loadCatalog());
 
 function render(src: string, opts?: Parameters<typeof renderSlide>[2]) {
   const deck = parseDeck(src);
@@ -34,10 +37,16 @@ describe('renderSlide', () => {
     expect(box.style.fontFamily).toBe('"Lora", var(--us-font)');
   });
 
-  it('uses the theme font when outside requests are blocked', () => {
+  it('uses the theme font for catalog fonts when outside requests are blocked', () => {
     const stage = render('---\nfont: Inter\n---\n::: box font=Lora\nA\n:::', { blockExternal: true });
     expect(stage.style.fontFamily).toBe('');
     expect(stage.querySelector<HTMLElement>('.us-box')!.style.fontFamily).toBe('');
+  });
+
+  it('keeps local and system fonts when outside requests are blocked', () => {
+    const stage = render('---\nfont: Georgia\n---\n::: box font=Georgia\nA\n:::', { blockExternal: true });
+    expect(stage.style.fontFamily).toBe('"Georgia", var(--us-font)');
+    expect(stage.querySelector<HTMLElement>('.us-box')!.style.fontFamily).toBe('"Georgia", var(--us-font)');
   });
 
   it('places boxes on the grid with increasing z-index', () => {

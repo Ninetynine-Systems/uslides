@@ -2,6 +2,7 @@ import { STAGE } from '../config';
 import type { Box, Slide } from '../core/slide';
 import type { DeckSettings } from '../core/settings';
 import { renderMarkdown } from '../core/markdown';
+import { findFamily } from '../fonts/catalog';
 import './themes.css';
 import './slide.css';
 
@@ -76,6 +77,10 @@ function fillLoose(el: HTMLElement, slide: Slide, opts: RenderOptions): void {
   if (isImageOnly(el)) el.classList.add('us-image-only');
 }
 
+function mayUseFont(name: string, blockExternal: boolean | undefined): boolean {
+  return !blockExternal || findFamily(name) === undefined;
+}
+
 function renderBox(box: Box, index: number, opts: RenderOptions): HTMLElement {
   const el = document.createElement('div');
   el.className = `us-box us-align-${box.align} us-valign-${box.valign} us-fit-${box.fit}`;
@@ -86,7 +91,9 @@ function renderBox(box: Box, index: number, opts: RenderOptions): HTMLElement {
   el.style.zIndex = String(index + 1);
   if (box.bg) el.style.backgroundColor = box.bg;
   if (box.color) el.style.color = box.color;
-  if (box.font && !opts.blockExternal) el.style.fontFamily = `"${box.font}", var(--us-font)`;
+  if (box.font && mayUseFont(box.font, opts.blockExternal)) {
+    el.style.fontFamily = `"${box.font}", var(--us-font)`;
+  }
   fill(el, box.markdown, opts);
   return el;
 }
@@ -105,7 +112,9 @@ export function renderSlide(slide: Slide, settings: DeckSettings, opts: RenderOp
   stage.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
   if (slide.bg) stage.style.backgroundColor = slide.bg;
   if (slide.color) stage.style.color = slide.color;
-  if (settings.font && !opts.blockExternal) stage.style.fontFamily = `"${settings.font}", var(--us-font)`;
+  if (settings.font && mayUseFont(settings.font, opts.blockExternal)) {
+    stage.style.fontFamily = `"${settings.font}", var(--us-font)`;
+  }
 
   const loose = document.createElement('div');
   loose.className = 'us-loose us-align-left us-valign-top us-fit-contain';

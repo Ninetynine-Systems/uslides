@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { deckFonts } from '../core/external';
 import type { Deck } from '../core/parse';
-import { findFamily, type Family } from './catalog';
+import { findFamily, getCatalogVersion, subscribeCatalog, type Family } from './catalog';
 
 function nearestWeight(weights: number[], wanted: number): number {
   const first = weights[0];
@@ -13,18 +13,28 @@ function nearestWeight(weights: number[], wanted: number): number {
   }, first);
 }
 
+function requestedWeights(weights: number[]): number[] {
+  if (weights.length === 0) return [];
+  const regular = nearestWeight(weights, 400);
+  const requested = [regular];
+  if (weights.includes(700) && regular !== 700) requested.push(700);
+  return requested.sort((a, b) => a - b);
+}
+
 /** The Google Fonts stylesheet for the regular, bold and italic styles this family has. */
 export function fontCssUrl(family: Family): string {
-  const regular = nearestWeight(family.weights, 400);
-  const weights = [regular];
-  if (family.weights.includes(700) && regular !== 700) weights.push(700);
+  const upright = requestedWeights(family.weights);
+  const italic = requestedWeights(family.italicWeights);
+  if (upright.length === 0 && italic.length === 0) {
+    throw new Error('A font family must have at least one weight');
+  }
   const name = encodeURIComponent(family.name).replace(/%20/g, '+');
-  if (!family.italic) {
-    return `https://fonts.googleapis.com/css2?family=${name}:wght@${weights.join(';')}&display=swap`;
+  if (italic.length === 0) {
+    return `https://fonts.googleapis.com/css2?family=${name}:wght@${upright.join(';')}&display=swap`;
   }
   const styles = [
-    ...weights.map((weight) => `0,${weight}`),
-    ...weights.map((weight) => `1,${weight}`),
+    ...upright.map((weight) => `0,${weight}`),
+    ...italic.map((weight) => `1,${weight}`),
   ];
   return `https://fonts.googleapis.com/css2?family=${name}:ital,wght@${styles.join(';')}&display=swap`;
 }
@@ -53,6 +63,7 @@ function addFontLink(family: Family): void {
   if (fontLink(family.name)) return;
   const link = document.createElement('link');
   link.rel = 'stylesheet';
+  link.crossOrigin = 'anonymous';
   link.href = fontCssUrl(family);
   link.dataset.uslidesFont = family.name;
   void waitForLink(link);
@@ -62,13 +73,11 @@ function addFontLink(family: Family): void {
 /** Loads the catalog fonts a deck uses and reports each completed browser font-loading pass. */
 export function useDeckFonts(deck: Deck | undefined, blocked: boolean): number {
   const [version, setVersion] = useState(0);
-  const names = deck ? deckFonts(deck) : [];
-  const key = names.join('\n');
-  const families = useMemo(
-    () => names.map((name) => findFamily(name)).filter((family): family is Family => family !== undefined),
-    // `key` changes when the catalog replaces typed casing with its canonical spelling.
-    [key],
-  );
+  const catalogVersion = useSyncExternalStore(subscribeCatalog, getCatalogVersion, getCatalogVersion);
+  const families = useMemo(() => {
+    const names = deck ? deckFonts(deck) : [];
+    return names.map((name) => findFamily(name)).filter((family): family is Family => family !== undefined);
+  }, [deck, catalogVersion]);
 
   useEffect(() => {
     const fonts = document.fonts;

@@ -82,17 +82,50 @@ test('a blocked deck asks for no font and shows the theme font', async ({ page }
     'This deck wants to load images and fonts from 2 other websites. They are blocked until you allow them.',
   )).toBeVisible();
   await expect(page.locator('link[data-uslides-font]')).toHaveCount(0);
-  expect(await box.evaluate((element: HTMLElement) => ({
-    inline: element.style.fontFamily,
-    box: getComputedStyle(element).fontFamily,
-    stage: getComputedStyle(element.closest('.us-stage')!).fontFamily,
-  }))).toEqual(expect.objectContaining({ inline: '' }));
+  expect(await box.evaluate((element: HTMLElement) => ({ inline: element.style.fontFamily })))
+    .toEqual(expect.objectContaining({ inline: '' }));
   const families = await box.evaluate((element: HTMLElement) => ({
     box: getComputedStyle(element).fontFamily,
     stage: getComputedStyle(element.closest('.us-stage')!).fontFamily,
   }));
   expect(families.box).toBe(families.stage);
   expect(counts).toEqual({ css: 0, font: 0 });
+});
+
+test('a shared deck loads its font when the catalog arrives after the deck', async ({ page }) => {
+  const counts = { css: 0, font: 0 };
+  let releaseCatalog: () => void = () => undefined;
+  const heldCatalog = new Promise<void>((resolve) => {
+    releaseCatalog = resolve;
+  });
+  let sawCatalogRequest: () => void = () => undefined;
+  const catalogRequested = new Promise<void>((resolve) => {
+    sawCatalogRequest = resolve;
+  });
+  await page.route(/\/assets\/catalog-[^/]+\.js(?:\?.*)?$/, async (route) => {
+    sawCatalogRequest();
+    await heldCatalog;
+    await route.continue();
+  });
+  await routeFontCss(page, counts);
+  await page.route('https://fonts.gstatic.com/**', (route) => {
+    counts.font += 1;
+    return route.fulfill({ status: 200, contentType: 'font/woff2', path: WOFF2 });
+  });
+
+  await page.goto(`/?test#md=${encodeURIComponent(FONT_DECK)}`);
+  await catalogRequested;
+  const box = page.locator('.slide-card .us-box').first();
+  await expect(box).toBeVisible();
+  await expect(page.locator('link[data-uslides-font]')).toHaveCount(0);
+
+  releaseCatalog();
+  await expect(page.getByRole('complementary', { name: 'Other websites blocked' })).toBeVisible();
+  await expect(box).toHaveCSS('font-family', /system-ui/);
+  await page.getByRole('button', { name: 'Allow once' }).click();
+
+  await expect(page.locator('link[data-uslides-font="Lora"]')).toHaveCount(1);
+  await expect.poll(() => counts.css).toBe(1);
 });
 
 test('present waits for fonts up to 3 seconds', async ({ page }) => {

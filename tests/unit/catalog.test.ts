@@ -21,8 +21,9 @@ describe('font catalog', () => {
     expect(catalog.families.length).toBeGreaterThanOrEqual(1_500);
     for (const family of catalog.families) {
       expect(['serif', 'sans-serif', 'display', 'handwriting', 'monospace']).toContain(family.c);
-      expect(family.w.length).toBeGreaterThan(0);
+      expect(family.w.length + family.i.length).toBeGreaterThan(0);
       expect(family.w.every((weight) => Number.isInteger(weight))).toBe(true);
+      expect(family.i.every((weight) => Number.isInteger(weight))).toBe(true);
     }
     expect(allFamilies()).toHaveLength(catalog.families.length);
   });

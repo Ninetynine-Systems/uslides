@@ -1,32 +1,105 @@
 // @vitest-environment jsdom
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Family } from '../../src/fonts/catalog';
-import { fontCssUrl, waitForFonts } from '../../src/fonts/load';
+import { loadCatalog, type Family } from '../../src/fonts/catalog';
+import { parseDeck } from '../../src/core/parse';
+import { fontCssUrl, useDeckFonts, waitForFonts } from '../../src/fonts/load';
+
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
+const originalFonts = Object.getOwnPropertyDescriptor(document, 'fonts');
 
 describe('font loading', () => {
   afterEach(() => {
     vi.useRealTimers();
+    document.querySelectorAll('link[data-uslides-font]').forEach((link) => link.remove());
+    if (originalFonts) Object.defineProperty(document, 'fonts', originalFonts);
+    else Reflect.deleteProperty(document, 'fonts');
   });
 
-  it('fontCssUrl asks only for the styles a family has', () => {
-    const upright: Family = {
-      name: 'Example Sans',
-      group: 'sans-serif',
-      weights: [300, 600, 700],
-      italic: false,
-    };
-    const italic: Family = {
-      name: 'Example Serif',
-      group: 'serif',
-      weights: [400, 500],
-      italic: true,
+  it('loads a deck font when the catalog finishes loading after the deck renders', async () => {
+    const deck = parseDeck('::: box font=Lora\nHello\n:::\n');
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const FontLoader = () => {
+      useDeckFonts(deck, false);
+      return null;
     };
 
-    expect(fontCssUrl(upright)).toBe(
-      'https://fonts.googleapis.com/css2?family=Example+Sans:wght@300;700&display=swap',
+    await act(async () => root.render(createElement(FontLoader)));
+    expect(document.querySelector('link[data-uslides-font="Lora"]')).toBeNull();
+
+    await act(async () => loadCatalog());
+
+    const link = document.querySelector<HTMLLinkElement>('link[data-uslides-font="Lora"]');
+    expect(link).not.toBeNull();
+    expect(link?.crossOrigin).toBe('anonymous');
+    await act(async () => root.unmount());
+  });
+
+  it('fontCssUrl requests a family with one upright weight', () => {
+    const family: Family = {
+      name: 'Example Sans',
+      group: 'sans-serif',
+      weights: [400],
+      italicWeights: [],
+    };
+
+    expect(fontCssUrl(family)).toBe(
+      'https://fonts.googleapis.com/css2?family=Example+Sans:wght@400&display=swap',
     );
-    expect(fontCssUrl(italic)).toBe(
-      'https://fonts.googleapis.com/css2?family=Example+Serif:ital,wght@0,400;1,400&display=swap',
+  });
+
+  it('fontCssUrl requests a family with one italic-only weight', () => {
+    const family: Family = {
+      name: 'Example Script',
+      group: 'handwriting',
+      weights: [],
+      italicWeights: [400],
+    };
+
+    expect(fontCssUrl(family)).toBe(
+      'https://fonts.googleapis.com/css2?family=Example+Script:ital,wght@1,400&display=swap',
+    );
+  });
+
+  it('fontCssUrl uses an italic weight that has no 400 style', () => {
+    const family: Family = {
+      name: 'Example Serif',
+      group: 'serif',
+      weights: [400],
+      italicWeights: [300],
+    };
+
+    expect(fontCssUrl(family)).toBe(
+      'https://fonts.googleapis.com/css2?family=Example+Serif:ital,wght@0,400;1,300&display=swap',
+    );
+  });
+
+  it('fontCssUrl uses 700 when it is the only weight', () => {
+    const family: Family = {
+      name: 'Example Display',
+      group: 'display',
+      weights: [700],
+      italicWeights: [700],
+    };
+
+    expect(fontCssUrl(family)).toBe(
+      'https://fonts.googleapis.com/css2?family=Example+Display:ital,wght@0,700;1,700&display=swap',
+    );
+  });
+
+  it('fontCssUrl keeps different upright and italic weights separate', () => {
+    const family: Family = {
+      name: 'Example Hand',
+      group: 'handwriting',
+      weights: [300, 700],
+      italicWeights: [500, 600, 700],
+    };
+
+    expect(fontCssUrl(family)).toBe(
+      'https://fonts.googleapis.com/css2?family=Example+Hand:ital,wght@0,300;0,700;1,500;1,700&display=swap',
     );
   });
 

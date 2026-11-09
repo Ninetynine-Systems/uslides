@@ -6,7 +6,7 @@ import type { Family } from '../../src/fonts/catalog';
 const known = new Set(['inter', 'playfair display']);
 const find = (name: string): Family | undefined =>
   known.has(name.toLowerCase())
-    ? { name, group: 'sans-serif', weights: [400], italic: false }
+    ? { name, group: 'sans-serif', weights: [400], italicWeights: [] }
     : undefined;
 
 describe('fontWarnings', () => {

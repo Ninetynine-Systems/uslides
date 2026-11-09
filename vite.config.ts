@@ -63,7 +63,10 @@ export default defineConfig({
           {
             urlPattern: ({ url }) => url.hostname === 'fonts.googleapis.com',
             handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'uslides-font-css' },
+            options: {
+              cacheName: 'uslides-font-css',
+              expiration: { maxEntries: 30, purgeOnQuotaError: true },
+            },
           },
           {
             urlPattern: ({ url }) => url.hostname === 'fonts.gstatic.com',
