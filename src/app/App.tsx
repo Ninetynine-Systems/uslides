@@ -1,7 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { deckName } from '../core/settings';
+import { LONG_LINK_CHARS, makeShareLink, readShareHash, ShareLinkError } from '../share/link';
 import {
-  createDeck, deleteDeck, duplicateDeck, listDecks, renameDeck,
+  createDeck, deleteDeck, duplicateDeck, getImages, listDecks, renameDeck,
 } from '../storage/db';
 import { DeckList, type DeckSummary } from './DeckList';
 import type { EditorHandle } from './Editor';
@@ -19,7 +20,14 @@ const Editor = lazy(() => import('./Editor').then((m) => ({ default: m.Editor })
 
 const NEW_DECK = '# Untitled\n';
 
-let boot: Promise<string> | undefined;
+export const DAMAGED_LINK_NOTICE = 'This link is damaged or incomplete';
+export const LONG_LINK_NOTICE =
+  'This link is very long and some chat apps may cut it off. Download the deck as a file to share it instead.';
+export const IMAGES_NOTICE = 'Images stored in this browser are not included in links';
+
+type Boot = { id: string; damaged: boolean };
+
+let boot: Promise<Boot> | undefined;
 
 /** Returns `wanted` if that deck exists, else the newest deck, else a new copy of the sample. */
 async function resolveDeck(wanted: string | undefined): Promise<string> {
@@ -29,9 +37,22 @@ async function resolveDeck(wanted: string | undefined): Promise<string> {
   return (await createDeck(sample)).id;
 }
 
-/** The first deck to show. Cached so React's double effect in development cannot create two samples. */
-function pickInitialDeck(): Promise<string> {
-  boot ??= resolveDeck(parseRoute(location.hash).deckId);
+/**
+ * The first deck to show. A share link in the URL becomes a new deck; a damaged one is reported and
+ * the normal pick is used instead. Cached so React's double effect in development cannot create two decks.
+ */
+function pickInitialDeck(): Promise<Boot> {
+  boot ??= (async () => {
+    let damaged = false;
+    try {
+      const shared = await readShareHash(location.hash);
+      if (shared !== null) return { id: (await createDeck(shared)).id, damaged };
+    } catch (err) {
+      if (!(err instanceof ShareLinkError)) throw err;
+      damaged = true;
+    }
+    return { id: await resolveDeck(parseRoute(location.hash).deckId), damaged };
+  })();
   return boot;
 }
 
@@ -71,22 +92,54 @@ export function App() {
   const openDeck = useCallback((id: string) => {
     setDeckId(id);
     const route = parseRoute(location.hash);
-    if (!location.hash || (route.deckId !== undefined && route.deckId !== id)) {
+    // Also replaces a share link or any other hash that is not a deck route.
+    if (route.deckId !== id) {
       history.replaceState(null, '', deckHash(id));
       setPresenting(undefined);
     }
   }, []);
 
   useEffect(() => {
-    void pickInitialDeck().then((id) => {
-      openDeck(id);
+    void pickInitialDeck().then((first) => {
+      openDeck(first.id);
       refreshList();
+      if (first.damaged) {
+        first.damaged = false; // report once even if this effect runs twice
+        notify(DAMAGED_LINK_NOTICE);
+      }
     });
-  }, [openDeck, refreshList]);
+  }, [openDeck, refreshList, notify]);
+
+  const deckIdRef = useRef(deckId);
+  deckIdRef.current = deckId;
 
   // Back and forward, or a pasted deck link.
   useEffect(() => {
+    /** Handles a pasted share link. Returns true if the hash was one (good or damaged). */
+    const onShareHash = async (hash: string): Promise<boolean> => {
+      try {
+        const shared = await readShareHash(hash);
+        if (shared === null) return false;
+        const id = (await createDeck(shared)).id;
+        history.replaceState(null, '', deckHash(id));
+        setPresenting(undefined);
+        setDeckId(id);
+      } catch (err) {
+        if (!(err instanceof ShareLinkError)) throw err;
+        notify(DAMAGED_LINK_NOTICE);
+        const keep = deckIdRef.current;
+        if (keep) history.replaceState(null, '', deckHash(keep));
+      }
+      refreshList();
+      return true;
+    };
     const onHash = () => {
+      if (/^#(z|md)=/.test(location.hash)) {
+        onShareHash(location.hash).catch((err: unknown) =>
+          notify(`Something went wrong: ${err instanceof Error ? err.message : String(err)}`),
+        );
+        return;
+      }
       const route = parseRoute(location.hash);
       const id = route.deckId;
       if (!id) return;
@@ -103,7 +156,7 @@ export function App() {
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, [refreshList]);
+  }, [refreshList, notify]);
 
   useEffect(() => {
     if (window.__uslides) window.__uslides.getSource = () => current.source;
@@ -212,6 +265,22 @@ export function App() {
     refreshList();
   };
 
+  /** Copies a `#z=` link to the clipboard. Returns the link when the clipboard refused, so the user can copy it by hand. */
+  const copyLink = async (): Promise<string | undefined> => {
+    if (!deckId || !ready) return undefined;
+    await flush();
+    const link = await makeShareLink(current.source, 'z');
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      return link;
+    }
+    notify('Link copied');
+    if (link.length > LONG_LINK_CHARS) notify(LONG_LINK_NOTICE);
+    if ((await getImages(deckId)).size > 0) notify(IMAGES_NOTICE);
+    return undefined;
+  };
+
   const showPresent = presenting !== undefined && ready && current.deck !== undefined;
 
   return (
@@ -226,6 +295,7 @@ export function App() {
         onDuplicate={guarded(duplicate)}
         onDelete={guarded(remove)}
         onPresent={() => startPresenting(1)}
+        onCopyLink={copyLink}
       />
       <div className="decks" id="decks" hidden={!listOpen}>
         <DeckList decks={decks} activeId={deckId} onSelect={selectDeck} onNew={guarded(newDeck)} />
