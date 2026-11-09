@@ -17,7 +17,12 @@ type Session = {
   /** Text currently in the editor. */
   latest: string;
   timer?: ReturnType<typeof setTimeout>;
-  saving: boolean;
+  /** The write that is running now, if any. */
+  inflight?: Promise<void>;
+  /** Set when the deck is being deleted: nothing more may be written. */
+  discarded: boolean;
+  /** The last write threw; stops the flush loop from retrying forever. */
+  failed?: boolean;
 };
 
 type Options = {
@@ -67,11 +72,8 @@ export function useDeck(id: string | undefined, options: Options): UseDeck {
     setDeck(parseDeck(rec.source));
   }, []);
 
-  const flushSession = useCallback(async (s: Session): Promise<void> => {
-    clearTimeout(s.timer);
-    s.timer = undefined;
-    if (s.saving || s.latest === s.saved) return;
-    s.saving = true;
+  /** Writes `s.latest` once. Never throws. */
+  const saveOnce = useCallback(async (s: Session): Promise<void> => {
     const text = s.latest;
     try {
       const result = await saveDeck(s.id, text, s.revision);
@@ -85,21 +87,36 @@ export function useDeck(id: string | undefined, options: Options): UseDeck {
       } else {
         s.revision = result.current.revision;
         s.saved = s.latest = result.current.source;
-        if (open) {
-          show(result.current);
-          setConflict(true);
-          opts.current.onNotice(CONFLICT_NOTICE);
-        }
+        if (open) show(result.current);
+        if (open) setConflict(true);
+        // Also when the user has already left this deck: their last edits were not kept.
+        opts.current.onNotice(CONFLICT_NOTICE);
       }
       opts.current.onChanged();
     } catch (err) {
-      opts.current.onNotice(`Could not save: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      s.saving = false;
+      if (!s.discarded) {
+        opts.current.onNotice(`Could not save: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      s.failed = true;
     }
-    // More typing happened while the write was in flight.
-    if (s.latest !== s.saved) void flushSession(s);
   }, [show]);
+
+  /** Resolves when everything typed so far is stored (or the save failed or the deck was discarded). */
+  const flushSession = useCallback(async (s: Session): Promise<void> => {
+    clearTimeout(s.timer);
+    s.timer = undefined;
+    s.failed = false;
+    while (!s.discarded && !s.failed) {
+      if (s.inflight) {
+        await s.inflight;
+        continue;
+      }
+      if (s.latest === s.saved) return;
+      s.inflight = saveOnce(s).finally(() => {
+        s.inflight = undefined;
+      });
+    }
+  }, [saveOnce]);
 
   const flush = useCallback(async () => {
     if (session.current) await flushSession(session.current);
@@ -109,7 +126,7 @@ export function useDeck(id: string | undefined, options: Options): UseDeck {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    const s: Session = { id, revision: 0, saved: '', latest: '', saving: false };
+    const s: Session = { id, revision: 0, saved: '', latest: '', discarded: false };
     session.current = s;
     setConflict(false);
     void Promise.all([getDeck(id), getImages(id)]).then(([rec, imgs]) => {
@@ -137,11 +154,11 @@ export function useDeck(id: string | undefined, options: Options): UseDeck {
       opts.current.onChanged();
       const s = session.current;
       if (!s || s.id !== msg.id || msg.revision <= s.revision) return;
-      const dirty = s.latest !== s.saved || s.saving || s.timer !== undefined;
+      const dirty = s.latest !== s.saved || s.inflight !== undefined || s.timer !== undefined;
       if (dirty) return; // our next save will meet the conflict path
       void getDeck(s.id).then((rec) => {
         if (!rec || session.current !== s || rec.revision <= s.revision) return;
-        if (s.latest !== s.saved || s.saving) return;
+        if (s.latest !== s.saved || s.inflight) return;
         s.revision = rec.revision;
         s.saved = s.latest = rec.source;
         show(rec);
@@ -184,6 +201,7 @@ export function useDeck(id: string | undefined, options: Options): UseDeck {
   const discard = useCallback(() => {
     const s = session.current;
     if (!s) return;
+    s.discarded = true;
     clearTimeout(s.timer);
     s.timer = undefined;
     s.latest = s.saved;

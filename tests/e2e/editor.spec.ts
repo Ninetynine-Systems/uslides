@@ -58,7 +58,7 @@ test('new, rename, duplicate, delete', async ({ page }) => {
   await expect.poll(() => getSource(page)).toBe('# Untitled\n');
 
   page.once('dialog', (d) => void d.accept('Quarterly plan'));
-  await page.getByRole('button', { name: 'Rename' }).click();
+  await page.getByRole('button', { name: 'Rename', exact: true }).click();
   await expect(items.first()).toContainText('Quarterly plan');
   await expect.poll(() => getSource(page)).toContain('title: Quarterly plan');
 
@@ -93,6 +93,7 @@ test('warnings show in editor', async ({ page }) => {
 test('clicking a slide moves the cursor to it', async ({ page }) => {
   await page.goto('/?test');
   await expect(page.locator('.us-stage')).toHaveCount(4);
+  await expect(editor(page)).toBeVisible(); // the editor loads lazily
   await page.getByRole('button', { name: 'Slide 3' }).click();
   await page.keyboard.type('@@');
   const src = await getSource(page);
@@ -132,4 +133,63 @@ test('two tabs: a stale tab shows the conflict notice and keeps the other tab\'s
   await expect(b.getByText('This deck changed in another tab')).toBeVisible();
   await expect.poll(() => getSource(b)).toContain('from A');
   expect(await getSource(b)).not.toContain('from B');
+});
+
+test('rename right after typing keeps the typed text, with no conflict notice', async ({ page }) => {
+  // Make every write report "done" 300 ms late, so a save is still in flight when the user acts again.
+  await page.addInitScript(() => {
+    const add = IDBTransaction.prototype.addEventListener;
+    IDBTransaction.prototype.addEventListener = function (this: IDBTransaction, type: string, fn: EventListenerOrEventListenerObject, ...rest: unknown[]) {
+      if (type === 'complete' && (window as unknown as { slowWrites?: boolean }).slowWrites) {
+        const slow: EventListener = (e) => setTimeout(() => (typeof fn === 'function' ? fn(e) : fn.handleEvent(e)), 300);
+        return add.call(this, type, slow, ...(rest as [boolean]));
+      }
+      return add.call(this, type, fn, ...(rest as [boolean]));
+    } as typeof add;
+  });
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  await page.evaluate(() => ((window as unknown as { slowWrites: boolean }).slowWrites = true));
+
+  await typeAtEnd(page, '\nfirst');
+  await page.waitForTimeout(450); // the save has started and is waiting
+  await page.keyboard.type(' second');
+  page.once('dialog', (d) => void d.accept('Renamed'));
+  await page.getByRole('button', { name: 'Rename', exact: true }).click();
+
+  await expect.poll(() => getSource(page)).toContain('title: Renamed');
+  expect(await getSource(page)).toContain('first second');
+  await page.waitForTimeout(1200);
+  await expect(page.getByText('This deck changed in another tab')).toHaveCount(0);
+  await expect(page.getByText(/Could not save/)).toHaveCount(0);
+  expect(await getSource(page)).toContain('first second');
+
+  await page.reload();
+  await expect.poll(() => getSource(page)).toContain('first second');
+  expect(await getSource(page)).toContain('title: Renamed');
+});
+
+test('a link to a deck that does not exist shows another deck', async ({ page }) => {
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  const items = page.getByRole('navigation', { name: 'Decks' }).getByRole('listitem');
+  const idA = new URL(page.url()).hash.replace('#/deck/', '');
+
+  await page.getByRole('button', { name: 'New deck' }).click();
+  await expect(items).toHaveCount(2);
+  await items.filter({ hasText: 'Welcome to uslides' }).getByRole('button').click();
+  await expect.poll(() => page.url()).toContain(idA);
+  page.once('dialog', (d) => void d.accept());
+  await page.getByRole('button', { name: 'Delete' }).click();
+  await expect(items).toHaveCount(1);
+
+  await page.evaluate((id) => {
+    location.hash = `#/deck/${id}`;
+  }, idA);
+  await expect(page.getByRole('textbox', { name: 'Deck source' })).toBeVisible();
+  await expect.poll(() => getSource(page)).toBe('# Untitled\n');
+  expect(page.url()).not.toContain(idA);
+  // Toolbar actions still work.
+  await page.getByRole('button', { name: 'Duplicate' }).click();
+  await expect(items).toHaveCount(2);
 });

@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { deckName } from '../core/settings';
 import {
   createDeck, deleteDeck, duplicateDeck, listDecks, renameDeck,
 } from '../storage/db';
 import { DeckList, type DeckSummary } from './DeckList';
-import { Editor, type EditorHandle } from './Editor';
+import type { EditorHandle } from './Editor';
 import { Notices, useNotices } from './Notices';
 import { Preview } from './Preview';
 import { Toolbar } from './Toolbar';
@@ -13,20 +13,38 @@ import sample from './sample.md?raw';
 import { useDeck } from './useDeck';
 import './app.css';
 
+// The editor (CodeMirror) is a separate chunk, so phones, which hide it, never download it.
+const Editor = lazy(() => import('./Editor').then((m) => ({ default: m.Editor })));
+
 const NEW_DECK = '# Untitled\n';
 
 let boot: Promise<string> | undefined;
 
-/** Picks the deck to show first: the one in the URL, else the newest, else a new copy of the sample. */
+/** Returns `wanted` if that deck exists, else the newest deck, else a new copy of the sample. */
+async function resolveDeck(wanted: string | undefined): Promise<string> {
+  const decks = await listDecks();
+  if (wanted && decks.some((d) => d.id === wanted)) return wanted;
+  if (decks[0]) return decks[0].id;
+  return (await createDeck(sample)).id;
+}
+
+/** The first deck to show. Cached so React's double effect in development cannot create two samples. */
 function pickInitialDeck(): Promise<string> {
-  boot ??= (async () => {
-    const decks = await listDecks();
-    const wanted = parseRoute(location.hash).deckId;
-    if (wanted && decks.some((d) => d.id === wanted)) return wanted;
-    if (decks[0]) return decks[0].id;
-    return (await createDeck(sample)).id;
-  })();
+  boot ??= resolveDeck(parseRoute(location.hash).deckId);
   return boot;
+}
+
+/** True when the screen is wide enough to show the editor. */
+function useWide(): boolean {
+  const query = '(min-width: 768px)';
+  const [wide, setWide] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const on = () => setWide(m.matches);
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, []);
+  return wide;
 }
 
 export function App() {
@@ -34,6 +52,7 @@ export function App() {
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [listOpen, setListOpen] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   const [showGrid, setShowGrid] = useState(true);
+  const wide = useWide();
   const { notices, notify, dismiss } = useNotices();
   const editor = useRef<EditorHandle>(null);
 
@@ -64,11 +83,17 @@ export function App() {
   useEffect(() => {
     const onHash = () => {
       const id = parseRoute(location.hash).deckId;
-      if (id) setDeckId(id);
+      if (!id) return;
+      // A link to a deck that no longer exists (for example Back after deleting it) shows another deck.
+      void resolveDeck(id).then((found) => {
+        if (found !== id) history.replaceState(null, '', deckHash(found));
+        setDeckId(found);
+        refreshList();
+      });
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, []);
+  }, [refreshList]);
 
   useEffect(() => {
     if (window.__uslides) window.__uslides.getSource = () => current.source;
@@ -78,6 +103,13 @@ export function App() {
   const selectDeck = (id: string) => {
     if (id !== deckId) location.hash = deckHash(id);
   };
+
+  /** Runs a toolbar action and reports a storage error as a notice instead of an unhandled rejection. */
+  const guarded =
+    (action: () => Promise<void>) =>
+    () => {
+      action().catch((err: unknown) => notify(`Something went wrong: ${err instanceof Error ? err.message : String(err)}`));
+    };
 
   const newDeck = async () => {
     await flush();
@@ -119,22 +151,24 @@ export function App() {
         listOpen={listOpen}
         onToggleList={() => setListOpen((o) => !o)}
         name={name}
-        onRename={rename}
-        onDuplicate={duplicate}
-        onDelete={remove}
+        onRename={guarded(rename)}
+        onDuplicate={guarded(duplicate)}
+        onDelete={guarded(remove)}
       />
       <div className="decks" id="decks" hidden={!listOpen}>
-        <DeckList decks={decks} activeId={deckId} onSelect={selectDeck} onNew={newDeck} />
+        <DeckList decks={decks} activeId={deckId} onSelect={selectDeck} onNew={guarded(newDeck)} />
       </div>
       <main className="workspace">
         <div className="editor-pane">
-          {ready && (
+          {ready && wide && (
+            <Suspense fallback={null}>
             <Editor
               ref={editor}
               value={current.source}
               onChange={current.setSource}
               warnings={current.warnings}
             />
+            </Suspense>
           )}
         </div>
         <Preview

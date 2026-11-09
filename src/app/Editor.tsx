@@ -80,7 +80,7 @@ export function Editor({ value, onChange, warnings = [], extensions = [], ref }:
   useEffect(() => {
     const v = view.current;
     if (v) v.dispatch(setDiagnostics(v.state, toDiagnostics(warnings, v.state.doc.length)));
-  }, [warnings, value]);
+  }, [warnings]);
 
   useImperativeHandle(ref, () => ({
     moveCursorTo(pos) {
