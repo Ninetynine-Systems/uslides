@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { APP_ORIGIN } from '../../src/config';
-import { makeShareLink, readShareHash, ShareLinkError } from '../../src/share/link';
+import { MAX_DECK_BYTES, makeShareLink, readShareHash, ShareLinkError } from '../../src/share/link';
 
 const deck = '---\ntitle: Salām\n---\n\n# Hello 👋🏽\n\nআমার সোনার বাংলা\n\n---\n\n- one\n- two\n';
 const hashOf = (link: string) => link.slice(link.indexOf('#'));
@@ -53,5 +53,17 @@ describe('share links', () => {
   it('reads a link an agent built with plain encodeURIComponent', async () => {
     const hash = `#md=${encodeURIComponent(deck)}`;
     expect(await readShareHash(hash)).toBe(deck);
+  });
+
+  it('refuses a link that would inflate past the size cap, without inflating it all', async () => {
+    const link = await makeShareLink('a'.repeat(MAX_DECK_BYTES + 1024 * 1024), 'z');
+    const started = performance.now();
+    await expect(readShareHash(hashOf(link))).rejects.toThrow('This link is too large to open');
+    await expect(readShareHash(hashOf(link))).rejects.toBeInstanceOf(ShareLinkError);
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+
+  it('refuses an #md= payload over the size cap', async () => {
+    await expect(readShareHash(`#md=${'a'.repeat(MAX_DECK_BYTES + 1)}`)).rejects.toBeInstanceOf(ShareLinkError);
   });
 });

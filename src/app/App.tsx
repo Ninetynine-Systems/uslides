@@ -20,12 +20,12 @@ const Editor = lazy(() => import('./Editor').then((m) => ({ default: m.Editor })
 
 const NEW_DECK = '# Untitled\n';
 
-export const DAMAGED_LINK_NOTICE = 'This link is damaged or incomplete';
 export const LONG_LINK_NOTICE =
   'This link is very long and some chat apps may cut it off. Download the deck as a file to share it instead.';
 export const IMAGES_NOTICE = 'Images stored in this browser are not included in links';
 
-type Boot = { id: string; damaged: boolean };
+/** `damaged` holds the notice text when the link in the URL could not be opened. */
+type Boot = { id: string; damaged?: string };
 
 let boot: Promise<Boot> | undefined;
 
@@ -43,13 +43,13 @@ async function resolveDeck(wanted: string | undefined): Promise<string> {
  */
 function pickInitialDeck(): Promise<Boot> {
   boot ??= (async () => {
-    let damaged = false;
+    let damaged: string | undefined;
     try {
       const shared = await readShareHash(location.hash);
       if (shared !== null) return { id: (await createDeck(shared)).id, damaged };
     } catch (err) {
       if (!(err instanceof ShareLinkError)) throw err;
-      damaged = true;
+      damaged = err.message;
     }
     return { id: await resolveDeck(parseRoute(location.hash).deckId), damaged };
   })();
@@ -104,8 +104,9 @@ export function App() {
       openDeck(first.id);
       refreshList();
       if (first.damaged) {
-        first.damaged = false; // report once even if this effect runs twice
-        notify(DAMAGED_LINK_NOTICE);
+        const text = first.damaged;
+        first.damaged = undefined; // report once even if this effect runs twice
+        notify(text);
       }
     });
   }, [openDeck, refreshList, notify]);
@@ -126,7 +127,7 @@ export function App() {
         setDeckId(id);
       } catch (err) {
         if (!(err instanceof ShareLinkError)) throw err;
-        notify(DAMAGED_LINK_NOTICE);
+        notify(err.message); // "damaged or incomplete", or "too large to open"
         const keep = deckIdRef.current;
         if (keep) history.replaceState(null, '', deckHash(keep));
       }
@@ -269,16 +270,24 @@ export function App() {
   const copyLink = async (): Promise<string | undefined> => {
     if (!deckId || !ready) return undefined;
     await flush();
-    const link = await makeShareLink(current.source, 'z');
+    let link: string;
+    let copied = false;
+    try {
+      link = await makeShareLink(current.source, 'z');
+    } catch (err) {
+      notify(`Could not make a link: ${err instanceof Error ? err.message : String(err)}`);
+      return undefined;
+    }
     try {
       await navigator.clipboard.writeText(link);
+      copied = true;
+      notify('Link copied');
     } catch {
-      return link;
+      // The menu shows the link so the user can copy it by hand; the warnings below still apply.
     }
-    notify('Link copied');
     if (link.length > LONG_LINK_CHARS) notify(LONG_LINK_NOTICE);
     if ((await getImages(deckId)).size > 0) notify(IMAGES_NOTICE);
-    return undefined;
+    return copied ? undefined : link;
   };
 
   const showPresent = presenting !== undefined && ready && current.deck !== undefined;

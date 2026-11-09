@@ -127,3 +127,16 @@ test('a deck with stored images warns they are not in the link', async ({ page }
   await page.getByRole('button', { name: 'Copy link' }).click();
   await expect(page.getByText('Images stored in this browser are not included in links')).toBeVisible();
 });
+
+test('when the clipboard refuses, the link is shown in a read-only field', async ({ page }) => {
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  await page.evaluate(() => {
+    navigator.clipboard.writeText = () => Promise.reject(new Error('denied'));
+  });
+  await page.getByRole('button', { name: 'Share' }).click();
+  await page.getByRole('button', { name: 'Copy link' }).click();
+  const field = page.locator('.share-manual input');
+  await expect(field).toHaveAttribute('readonly', '');
+  await expect(field).toHaveValue(/#z=/);
+});

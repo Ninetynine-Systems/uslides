@@ -3,6 +3,11 @@ import { APP_ORIGIN } from '../config';
 /** Links longer than this may be cut off by chat apps, so the app suggests downloading the file instead. */
 export const LONG_LINK_CHARS = 8000;
 
+/** The most text a link may hold once unpacked. Stops a tiny crafted link from inflating to gigabytes. */
+export const MAX_DECK_BYTES = 10 * 1024 * 1024;
+
+const TOO_LARGE = 'This link is too large to open';
+
 /** The link is damaged or incomplete and cannot be turned back into a deck. */
 export class ShareLinkError extends Error {
   constructor(message = 'This link is damaged or incomplete') {
@@ -14,6 +19,31 @@ export class ShareLinkError extends Error {
 async function pipe(bytes: Uint8Array, stream: CompressionStream | DecompressionStream): Promise<Uint8Array> {
   const out = new Blob([bytes as BlobPart]).stream().pipeThrough(stream);
   return new Uint8Array(await new Response(out).arrayBuffer());
+}
+
+/** Inflates `bytes`, stopping with a ShareLinkError as soon as the output passes MAX_DECK_BYTES. */
+async function inflateLimited(bytes: Uint8Array): Promise<Uint8Array> {
+  const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > MAX_DECK_BYTES) {
+      void reader.cancel().catch(() => {});
+      throw new ShareLinkError(TOO_LARGE);
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.length;
+  }
+  return out;
 }
 
 function toBase64Url(bytes: Uint8Array): string {
@@ -42,8 +72,12 @@ export async function readShareHash(hash: string): Promise<string | null> {
   const payload = m[2]!;
   if (payload === '') throw new ShareLinkError();
   try {
-    if (m[1] === 'md') return decodeURIComponent(payload);
-    const bytes = await pipe(fromBase64Url(payload), new DecompressionStream('deflate-raw'));
+    if (m[1] === 'md') {
+      const text = decodeURIComponent(payload);
+      if (new TextEncoder().encode(text).length > MAX_DECK_BYTES) throw new ShareLinkError(TOO_LARGE);
+      return text;
+    }
+    const bytes = await inflateLimited(fromBase64Url(payload));
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch (err) {
     throw err instanceof ShareLinkError ? err : new ShareLinkError();
