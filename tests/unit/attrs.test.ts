@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAttrs, parseGrid, parseSpan } from '../../src/core/attrs';
+import { parseAttrs, parseGrid, parseSpan, scanAttrs } from '../../src/core/attrs';
 import { sanitizeColor } from '../../src/core/colors';
 
 describe('parseAttrs', () => {
@@ -20,6 +20,15 @@ describe('parseAttrs', () => {
   });
   it('handles empty input', () => {
     expect(parseAttrs('  ')).toEqual({ attrs: {}, errors: [] });
+  });
+});
+
+describe('scanAttrs', () => {
+  it('returns offsets for bare and quoted attribute values', () => {
+    expect(scanAttrs('col=1 row="2-3"')).toEqual([
+      { key: 'col', from: 0, to: 5, valueFrom: 4, valueTo: 5 },
+      { key: 'row', from: 6, to: 15, valueFrom: 10, valueTo: 15 },
+    ]);
   });
 });
 

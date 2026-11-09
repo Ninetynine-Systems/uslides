@@ -48,10 +48,44 @@ describe('box source edits', () => {
     );
   });
 
+  it('removes every occurrence of a repeated attribute', () => {
+    expect(run('::: box bg=red bg=blue\nx\n:::\n', (d) => setBoxAttrs(d.source, box(d), { bg: null }))).toBe(
+      '::: box\nx\n:::\n',
+    );
+  });
+
+  it('removes an attribute from a tab-separated opening line', () => {
+    expect(run('::: box\tcol=1\tbg=red\nx\n:::\n', (d) => setBoxAttrs(d.source, box(d), { bg: null }))).toBe(
+      '::: box\tcol=1\nx\n:::\n',
+    );
+  });
+
+  it('removes a quoted attribute', () => {
+    expect(run('::: box col=1 bg="#ff0000"\nx\n:::\n', (d) => setBoxAttrs(d.source, box(d), { bg: null }))).toBe(
+      '::: box col=1\nx\n:::\n',
+    );
+  });
+
   it('quotes a value that contains a space', () => {
     expect(run('::: box\nHi\n:::\n', (d) => setBoxAttrs(d.source, box(d), { font: 'Playfair Display' }))).toBe(
       '::: box font="Playfair Display"\nHi\n:::\n',
     );
+  });
+
+  it('refuses attribute and span edits when the opening line has an unterminated quote', () => {
+    const deck = parseDeck('::: box bg="broken\nx\n:::\n');
+    const target = box(deck);
+
+    expect(setBoxAttrs(deck.source, target, { bg: 'red' })).toEqual({ changes: [] });
+    expect(setBoxSpan(deck.source, target, [2, 3], [2, 2], deck.settings.grid)).toEqual({ changes: [] });
+  });
+
+  it('refuses values containing a newline or carriage return', () => {
+    const deck = parseDeck('::: box bg=red\nx\n:::\n');
+    const target = box(deck);
+
+    expect(setBoxAttrs(deck.source, target, { bg: 'blue\ncolor=red' })).toEqual({ changes: [] });
+    expect(setBoxAttrs(deck.source, target, { bg: 'blue\rcolor=red' })).toEqual({ changes: [] });
   });
 
   it('moving a box changes only col and row', () => {
@@ -74,6 +108,11 @@ describe('box source edits', () => {
     expect(run(src, (d) => deleteBox(d.source, box(d)))).toBe('# A\n\nTail\n');
   });
 
+  it('deletes the last box without leaving an extra blank line', () => {
+    const src = '# A\n\n::: box\nx\n:::\n';
+    expect(run(src, (d) => deleteBox(d.source, box(d)))).toBe('# A\n');
+  });
+
   it('bring to front moves the block after the last box; send to back before the first', () => {
     const src = '::: box\na\n:::\n\n::: box\nb\n:::\n\n::: box\nc\n:::\n';
     const front = parseDeck(src);
@@ -87,6 +126,19 @@ describe('box source edits', () => {
     );
 
     expect(bringToFront(front.source, front.slides[0]!, front.slides[0]!.boxes[2]!)).toEqual({ changes: [] });
+  });
+
+  it('keeps free-flowing text when moving boxes to the front or back', () => {
+    const src = '::: box\na\n:::\n\nBetween\n\n::: box\nb\n:::\n';
+    const front = parseDeck(src);
+    expect(apply(front.source, bringToFront(front.source, front.slides[0]!, front.slides[0]!.boxes[0]!).changes)).toBe(
+      'Between\n\n::: box\nb\n:::\n\n::: box\na\n:::\n',
+    );
+
+    const back = parseDeck(src);
+    expect(apply(back.source, sendToBack(back.source, back.slides[0]!, back.slides[0]!.boxes[1]!).changes)).toBe(
+      '::: box\nb\n:::\n\n::: box\na\n:::\n\nBetween\n',
+    );
   });
 
   it('duplicate puts the copy after the last box, one cell right and down', () => {

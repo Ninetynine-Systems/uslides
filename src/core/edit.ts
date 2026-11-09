@@ -1,4 +1,4 @@
-import { scanAttrs } from './attrs';
+import { parseAttrs, scanAttrs } from './attrs';
 import { duplicateSpan } from './layout';
 import type { Box, Slide } from './slide';
 import type { Grid, Span } from './types';
@@ -17,38 +17,43 @@ function writtenValue(value: string): string | null {
   return /\s/.test(value) ? `"${value}"` : value;
 }
 
-function lastAttribute(text: string, key: string) {
-  const attrs = scanAttrs(text);
-  for (let i = attrs.length - 1; i >= 0; i--) {
-    if (attrs[i]!.key === key) return attrs[i];
-  }
-  return undefined;
+function matchingAttributes(text: string, key: string) {
+  return scanAttrs(text).filter((attr) => attr.key === key);
+}
+
+function hasUnterminatedQuote(text: string): boolean {
+  const attrText = /^:::\s*box(?:\s+(.*))?$/.exec(text)?.[1] ?? '';
+  return parseAttrs(attrText).errors.some((error) => error.startsWith('Unterminated quote'));
 }
 
 export function setBoxAttrs(source: string, box: Box, attrs: Record<string, string | null>): EditResult {
   const values = Object.entries(attrs);
-  if (values.some(([, value]) => value !== null && value.includes('"'))) return { changes: [] };
+  if (values.some(([, value]) => value !== null && /["\r\n]/.test(value))) return { changes: [] };
 
   const line = openingLine(source, box);
+  if (hasUnterminatedQuote(line.text)) return { changes: [] };
+
   const changes: Edit[] = [];
   const additions: string[] = [];
 
   for (const [key, value] of values) {
-    const found = lastAttribute(line.text, key);
+    const found = matchingAttributes(line.text, key);
     if (value === null) {
-      if (!found) continue;
-      const removeSpace = found.from > 0 && /\s/.test(line.text.charAt(found.from - 1)) ? 1 : 0;
-      changes.push({
-        from: line.from + found.from - removeSpace,
-        to: line.from + found.to,
-        insert: '',
-      });
+      for (const attr of found) {
+        const removeSpace = attr.from > 0 && /\s/.test(line.text.charAt(attr.from - 1)) ? 1 : 0;
+        changes.push({
+          from: line.from + attr.from - removeSpace,
+          to: line.from + attr.to,
+          insert: '',
+        });
+      }
       continue;
     }
 
     const insert = writtenValue(value)!;
-    if (found) {
-      changes.push({ from: line.from + found.valueFrom, to: line.from + found.valueTo, insert });
+    const effective = found.at(-1);
+    if (effective) {
+      changes.push({ from: line.from + effective.valueFrom, to: line.from + effective.valueTo, insert });
     } else {
       additions.push(` ${key}=${insert}`);
     }
@@ -102,7 +107,9 @@ function lineBreaksBefore(source: string, at: number): number {
 export function deleteBox(source: string, box: Box): EditResult {
   const after = lineBreaksAfter(source, box.range.to);
   const to = Math.min(after, box.range.to + 2);
-  return { changes: [{ from: box.range.from, to, insert: '' }] };
+  const blankLinesBefore = lineBreaksBefore(source, box.range.from);
+  const from = after === source.length ? Math.min(box.range.from, blankLinesBefore + 1) : box.range.from;
+  return { changes: [{ from, to, insert: '' }] };
 }
 
 export function bringToFront(source: string, slide: Slide, box: Box): EditResult {
