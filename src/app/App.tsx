@@ -166,6 +166,43 @@ export function App() {
   const flushRef = useRef(flush);
   flushRef.current = flush;
 
+  const presentingRef = useRef(presenting);
+  presentingRef.current = presenting;
+  const getSavedRef = useRef(current.getSaved);
+  getSavedRef.current = current.getSaved;
+  /** Set when a new version took control and this tab still has to reload. */
+  const reloadPending = useRef(false);
+
+  /**
+   * Reloads onto the new version, once nothing can be lost: not while presenting, and only after the
+   * pending edit is saved. An old tab must reload: its lazy-loaded editor file may no longer be cached.
+   */
+  const reloadWhenSafe = useCallback(() => {
+    // Leaving present mode with Back changes the address a moment later; reloading before that would land back in it.
+    if (!reloadPending.current || presentingRef.current !== undefined || parseRoute(location.hash).present !== undefined) return;
+    reloadPending.current = false;
+    flushRef.current()
+      .catch(() => undefined)
+      .then(() => {
+        const saved = getSavedRef.current();
+        if (saved && saved.latest !== saved.source) {
+          // The edit could not be stored. Reloading would throw it away, so the user decides.
+          notify('A new version is ready, but your last edit could not be saved. Copy it, then reload.', {
+            sticky: true,
+            action: { label: 'Reload anyway', run: () => location.reload() },
+          });
+          return;
+        }
+        location.reload();
+      });
+  }, [notify]);
+  // A tab that was presenting reloads as soon as present mode ends.
+  useEffect(() => {
+    reloadWhenSafe();
+    window.addEventListener('hashchange', reloadWhenSafe);
+    return () => window.removeEventListener('hashchange', reloadWhenSafe);
+  }, [presenting, reloadWhenSafe]);
+
   // Once per page load: ask for permanent storage, show the Safari note, and watch for a new version.
   useEffect(() => {
     if (pwaStarted) return;
@@ -174,6 +211,9 @@ export function App() {
     if (shouldShowSafariNote()) notify(SAFARI_NOTE, { sticky: true, onDismiss: dismissSafariNote });
     let applying = false;
     const updateSW = registerSW({
+      // Every open tab gets the new version when one tab accepts it, so every tab reloads, but safely (see
+      // reloadWhenSafe). The library's own reload would drop typing that is not saved yet.
+      onNeedReload() {},
       onNeedRefresh() {
         const apply = () => {
           if (applying) return; // ignore repeat clicks
@@ -189,7 +229,19 @@ export function App() {
         notify('', { sticky: true, action: { label: 'Update available — reload', run: apply } });
       },
     });
-  }, [notify]);
+    // The new version took over from the one this page was loaded with, in this tab or another one.
+    if ('serviceWorker' in navigator) {
+      let controlled = navigator.serviceWorker.controller !== null;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!controlled) {
+          controlled = true; // the first version taking control is not an update
+          return;
+        }
+        reloadPending.current = true;
+        reloadWhenSafe();
+      });
+    }
+  }, [notify, reloadWhenSafe]);
 
   const deckIdRef = useRef(deckId);
   deckIdRef.current = deckId;

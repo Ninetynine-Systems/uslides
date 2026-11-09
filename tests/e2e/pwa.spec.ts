@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { buildApp, close, imageServer, listen, staticServer } from './helpers/servers';
 
 test.use({ serviceWorkers: 'allow' });
@@ -118,6 +118,93 @@ test('update flow: the notice appears, nothing reloads by itself, clicking reloa
     await openMenu(page);
     await expect(page.getByText('build-b')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Update available — reload' })).toHaveCount(0);
+  } finally {
+    await close(server);
+  }
+});
+
+/** Two tabs of the same app (one service worker for both), both controlled, on build A. Then build B is published. */
+async function twoTabs(context: BrowserContext, root: string) {
+  const a = await context.newPage();
+  await a.goto(`${root}/?test`);
+  await serviceWorkerActive(a);
+  await a.reload();
+  const b = await context.newPage();
+  await b.goto(`${root}/?test`);
+  await expect(b.locator('.us-stage').first()).toBeVisible();
+  for (const page of [a, b]) {
+    expect(await page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
+    await page.evaluate(() => ((window as unknown as { marker: string }).marker = 'old page'));
+  }
+  return { a, b };
+}
+
+const marker = (page: Page) => page.evaluate(() => (window as unknown as { marker?: string }).marker);
+
+test('an update in one tab saves the typing in another tab before it reloads', async ({ context }) => {
+  test.slow();
+  const { server, setRoot } = staticServer(buildApp('build-a'));
+  const next = buildApp('build-b');
+  await listen(server, 4176);
+  try {
+    const { a, b } = await twoTabs(context, 'http://127.0.0.1:4176');
+    setRoot(next);
+    await a.evaluate(async () => (await navigator.serviceWorker.ready).update());
+    const update = a.getByRole('button', { name: 'Update available — reload' });
+    await expect(update).toBeVisible();
+    await expect(b.getByRole('button', { name: 'Update available — reload' })).toBeVisible();
+
+    // Type in tab B, and stop its 400 ms save timer from ever firing, so only a flush can save the text.
+    await b.bringToFront();
+    await b.evaluate(() => {
+      const real = window.setTimeout.bind(window);
+      window.setTimeout = ((fn: TimerHandler, ms?: number, ...args: unknown[]) =>
+        ms === 400 ? 0 : real(fn, ms, ...args)) as typeof window.setTimeout;
+    });
+    await editor(b).click();
+    await b.keyboard.press('ControlOrMeta+End');
+    await b.keyboard.type('\ntyped in the other tab');
+    await expect.poll(() => b.evaluate(() => window.__uslides!.getSource())).toContain('typed in the other tab');
+
+    await Promise.all([b.waitForEvent('load'), a.bringToFront().then(() => update.click())]);
+    expect(await marker(b)).toBeUndefined();
+    await expect(b.locator('.us-stage').first()).toBeVisible();
+    await expect.poll(() => b.evaluate(() => window.__uslides!.getSource())).toContain('typed in the other tab');
+    await openMenu(b);
+    await expect(b.getByText('build-b')).toBeVisible();
+  } finally {
+    await close(server);
+  }
+});
+
+test('a tab that is presenting reloads only after present mode ends', async ({ context }) => {
+  test.slow();
+  const { server, setRoot } = staticServer(buildApp('build-a'));
+  const next = buildApp('build-b');
+  await listen(server, 4176);
+  try {
+    const { a, b } = await twoTabs(context, 'http://127.0.0.1:4176');
+    setRoot(next);
+    await a.evaluate(async () => (await navigator.serviceWorker.ready).update());
+    const update = a.getByRole('button', { name: 'Update available — reload' });
+    await expect(update).toBeVisible();
+    await expect(b.getByRole('button', { name: 'Update available — reload' })).toBeVisible();
+
+    await b.bringToFront();
+    await b.getByRole('button', { name: 'Present' }).click();
+    await expect(b.locator('.present')).toBeVisible();
+
+    await Promise.all([a.waitForEvent('load'), update.click()]);
+    await expect(a.locator('.us-stage').first()).toBeVisible();
+    await b.waitForTimeout(2000);
+    expect(await marker(b)).toBe('old page'); // still the old page, still presenting
+    await expect(b.locator('.present')).toBeVisible();
+
+    await Promise.all([b.waitForEvent('load'), b.keyboard.press('Escape')]);
+    await expect(b.locator('.us-stage').first()).toBeVisible();
+    expect(await marker(b)).toBeUndefined();
+    await openMenu(b);
+    await expect(b.getByText('build-b')).toBeVisible();
   } finally {
     await close(server);
   }
