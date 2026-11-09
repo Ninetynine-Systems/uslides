@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Deck } from '../core/parse';
+import { attachControls } from '../render/controls';
 import { fitSlide, mountScaled } from '../render/fit';
 import { slideTarget } from '../render/nav';
 import { renderSlide } from '../render/renderSlide';
@@ -14,8 +15,6 @@ type Props = {
   onGo(slide: number): void;
   onExit(): void;
 };
-
-const HIDE_CURSOR_MS = 2000;
 
 export function Present({ deck, images, slide, onGo, onExit }: Props) {
   const root = useRef<HTMLDivElement>(null);
@@ -77,22 +76,16 @@ export function Present({ deck, images, slide, onGo, onExit }: Props) {
     return () => window.removeEventListener('keydown', onKey, true);
   }, []);
 
-  // Hide the mouse pointer after a short time without movement.
-  useEffect(() => {
-    const el = root.current!;
-    let timer: ReturnType<typeof setTimeout>;
-    const wake = () => {
-      el.classList.remove('idle');
-      clearTimeout(timer);
-      timer = setTimeout(() => el.classList.add('idle'), HIDE_CURSOR_MS);
-    };
-    wake();
-    el.addEventListener('mousemove', wake);
-    return () => {
-      clearTimeout(timer);
-      el.removeEventListener('mousemove', wake);
-    };
-  }, []);
+  // Touch (tap, swipe), the exit button, and hiding the pointer and the button when idle.
+  useEffect(
+    () =>
+      attachControls(root.current!, {
+        state: () => ({ at: latest.current.current, count: latest.current.count }),
+        go: (n) => latest.current.onGo(n),
+        exit: () => latest.current.onExit(),
+      }),
+    [],
+  );
 
   return (
     <div

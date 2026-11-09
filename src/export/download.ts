@@ -46,7 +46,7 @@ export function buildHtml(source: string, name: string, playerJs: string): strin
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="${CSP}">
 <title>${htmlText(name)}</title>
-<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}#player{width:100vw;height:100vh;height:100dvh}</style>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none}#player{width:100vw;height:100vh;height:100dvh}</style>
 </head>
 <body>
 <div id="player" role="region" aria-label="Slides"></div>

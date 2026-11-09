@@ -1,5 +1,6 @@
 import { parseDeck } from '../core/parse';
 import { unescapeFromScript } from '../core/embed';
+import { attachControls } from '../render/controls';
 import { fitSlide, mountScaled } from '../render/fit';
 import { slideTarget } from '../render/nav';
 import { renderSlide } from '../render/renderSlide';
@@ -39,3 +40,16 @@ frame.addEventListener('click', (e) => {
 });
 
 show(1);
+
+// Touch: tap the left third to go back, tap elsewhere to go forward, swipe to change slide.
+// The exit button leaves fullscreen if the page is in it; otherwise it goes back to where the file was opened from,
+// or tries to close the tab when there is nowhere to go back to.
+attachControls(document.body, {
+  state: () => ({ at: current, count }),
+  go: show,
+  exit() {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+    else if (history.length > 1) history.back();
+    else window.close();
+  },
+});
