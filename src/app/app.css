@@ -51,6 +51,11 @@ button.danger { color: var(--danger); }
 .decks { grid-area: decks; overflow: auto; background: var(--panel); border-right: 1px solid var(--line); }
 .decks[hidden] { display: none; }
 .decklist-head { display: flex; justify-content: space-between; align-items: center; padding: 12px; }
+.decklist-head { gap: 8px; }
+.decklist-head strong { flex: 1; }
+.decklist-menu { display: flex; flex-direction: column; gap: 8px; margin: 0 12px 12px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.decklist-menu .about { margin: 0; font-size: 0.8rem; overflow-wrap: anywhere; }
+.notice-action { background: transparent; color: inherit; border-color: currentColor; }
 .decklist ul { list-style: none; margin: 0; padding: 0 8px 12px; }
 .deck-item { display: flex; flex-direction: column; align-items: flex-start; width: 100%; margin-bottom: 4px; border-color: transparent; text-align: left; }
 .deck-item.active { background: var(--accent-soft); border-color: var(--accent); }

@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 export type DeckSummary = { id: string; name: string; updatedAt: number };
 
 type Props = {
@@ -6,6 +8,8 @@ type Props = {
   now?: number;
   onSelect(id: string): void;
   onNew(): void;
+  onBackup(): void;
+  onRestore(): void;
 };
 
 /** "just now", "5 min ago", "3 h ago", "2 d ago", or a date for anything older than a month. */
@@ -21,7 +25,12 @@ export function relativeTime(then: number, now: number): string {
   return new Date(then).toLocaleDateString();
 }
 
-export function DeckList({ decks, activeId, now = Date.now(), onSelect, onNew }: Props) {
+export function DeckList({ decks, activeId, now = Date.now(), onSelect, onNew, onBackup, onRestore }: Props) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const choose = (action: () => void) => () => {
+    setMenuOpen(false);
+    action();
+  };
   return (
     <nav className="decklist" aria-label="Decks">
       <div className="decklist-head">
@@ -29,7 +38,21 @@ export function DeckList({ decks, activeId, now = Date.now(), onSelect, onNew }:
         <button type="button" onClick={onNew}>
           New deck
         </button>
+        <button type="button" aria-haspopup="true" aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}>
+          Menu
+        </button>
       </div>
+      {menuOpen && (
+        <div className="decklist-menu" onKeyDown={(e) => e.key === 'Escape' && setMenuOpen(false)}>
+          <button type="button" onClick={choose(onBackup)}>
+            Back up all decks
+          </button>
+          <button type="button" onClick={choose(onRestore)}>
+            Restore from backup
+          </button>
+          <p className="muted about">{`uslides, build ${__BUILD_ID__}`}</p>
+        </div>
+      )}
       <ul>
         {decks.map((d) => (
           <li key={d.id}>

@@ -1,0 +1,68 @@
+import 'fake-indexeddb/auto'
+import { IDBFactory } from 'fake-indexeddb'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { exportBackup, importBackup } from '../../src/storage/backup'
+import { _resetForTests, createDeck, getDeck, getImages, listDecks, putImage } from '../../src/storage/db'
+
+beforeEach(async () => {
+  await _resetForTests()
+  globalThis.indexedDB = new IDBFactory()
+})
+
+const bytesOf = async (b: Blob) => [...new Uint8Array(await b.arrayBuffer())]
+
+describe('backup', () => {
+  it('round-trips sources and images', async () => {
+    const a = await createDeck('# Alpha')
+    await putImage(a.id, 'img/dot.png', new Blob([new Uint8Array([0, 1, 2, 250, 255])], { type: 'image/png' }))
+    await createDeck('# Beta')
+    const blob = await exportBackup()
+    const parsed = JSON.parse(await blob.text())
+    expect(parsed.app).toBe('uslides')
+    expect(parsed.version).toBe(1)
+    expect(parsed.decks).toHaveLength(2)
+
+    await _resetForTests()
+    globalThis.indexedDB = new IDBFactory()
+    expect(await importBackup(blob)).toBe(2)
+    const names = (await listDecks()).map((d) => d.name).sort()
+    expect(names).toEqual(['Alpha', 'Beta'])
+    const restoredId = (await listDecks()).find((d) => d.name === 'Alpha')!.id
+    expect((await getDeck(restoredId))?.source).toBe('# Alpha')
+    const images = await getImages(restoredId)
+    const img = images.get('img/dot.png')!
+    expect(img.type).toBe('image/png')
+    expect(await bytesOf(img)).toEqual([0, 1, 2, 250, 255])
+  })
+
+  it('adds to existing decks and never replaces any', async () => {
+    const mine = await createDeck('# Mine')
+    const blob = await exportBackup()
+    expect(await importBackup(blob)).toBe(1)
+    expect(await importBackup(blob)).toBe(1)
+    const all = await listDecks()
+    expect(all).toHaveLength(3)
+    expect(all.some((d) => d.id === mine.id)).toBe(true)
+    expect(new Set(all.map((d) => d.id)).size).toBe(3)
+  })
+
+  it('keeps the original dates', async () => {
+    const a = await createDeck('# Dated')
+    const blob = await exportBackup()
+    await importBackup(blob)
+    const copy = (await listDecks()).find((d) => d.id !== a.id)!
+    expect((await getDeck(copy.id))?.createdAt).toBe(a.createdAt)
+    expect(copy.updatedAt).toBe(a.updatedAt)
+  })
+
+  it.each([
+    ['not json', 'nope'],
+    ['wrong app', JSON.stringify({ app: 'other', version: 1, decks: [] })],
+    ['wrong version', JSON.stringify({ app: 'uslides', version: 2, decks: [] })],
+    ['no decks array', JSON.stringify({ app: 'uslides', version: 1 })],
+    ['null', 'null'],
+  ])('rejects a bad file: %s', async (_name, text) => {
+    await expect(importBackup(new Blob([text]))).rejects.toThrow('This is not a uslides backup')
+    expect(await listDecks()).toHaveLength(0)
+  })
+})

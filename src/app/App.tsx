@@ -10,6 +10,9 @@ import {
 } from '../storage/db';
 import { DeckList, type DeckSummary } from './DeckList';
 import type { EditorHandle } from './Editor';
+import { exportBackup, importBackup } from '../storage/backup';
+import { dismissSafariNote, requestPersistence, SAFARI_NOTE, shouldShowSafariNote } from '../storage/persist';
+import { registerSW } from 'virtual:pwa-register';
 import { ConflictDialog, FilePicker } from './FileDialogs';
 import { isImageDrop } from './editor/dropMarker';
 import { pasteImage } from './editor/pasteImage';
@@ -49,6 +52,7 @@ export const IMAGES_NOTICE = 'Images stored in this browser are not included in 
 type Boot = { id: string; damaged?: string };
 
 let boot: Promise<Boot> | undefined;
+let pwaStarted = false;
 
 /** Returns `wanted` if that deck exists, else the newest deck, else a new copy of the sample. */
 async function resolveDeck(wanted: string | undefined): Promise<string> {
@@ -141,6 +145,19 @@ export function App() {
       }
     });
   }, [openDeck, refreshList, notify]);
+
+  // Once per page load: ask for permanent storage, show the Safari note, and watch for a new version.
+  useEffect(() => {
+    if (pwaStarted) return;
+    pwaStarted = true;
+    void requestPersistence();
+    if (shouldShowSafariNote()) notify(SAFARI_NOTE, { sticky: true, onDismiss: dismissSafariNote });
+    const updateSW = registerSW({
+      onNeedRefresh() {
+        notify('', { sticky: true, action: { label: 'Update available — reload', run: () => void updateSW(true) } });
+      },
+    });
+  }, [notify]);
 
   const deckIdRef = useRef(deckId);
   deckIdRef.current = deckId;
@@ -475,6 +492,25 @@ export function App() {
     return copied ? undefined : link;
   };
 
+  const restoreInput = useRef<HTMLInputElement>(null);
+
+  const backupAll = async () => {
+    await flush();
+    const day = new Date().toISOString().slice(0, 10);
+    saveBlob(await exportBackup(), `uslides-backup-${day}.json`);
+  };
+
+  const restoreFrom = async (file: File) => {
+    await flush();
+    try {
+      const count = await importBackup(file);
+      refreshList();
+      notify(`Restored ${count} ${count === 1 ? 'deck' : 'decks'}`);
+    } catch (err) {
+      reportError(err);
+    }
+  };
+
   const showPresent = presenting !== undefined && ready && current.deck !== undefined;
 
   return (
@@ -503,7 +539,10 @@ export function App() {
         onUnlink={guarded(sync.unlink)}
       />
       <div className="decks" id="decks" hidden={!listOpen}>
-        <DeckList decks={decks} activeId={deckId} onSelect={selectDeck} onNew={guarded(newDeck)} />
+        <DeckList decks={decks} activeId={deckId} onSelect={selectDeck} onNew={guarded(newDeck)}
+          onBackup={guarded(backupAll)}
+          onRestore={() => restoreInput.current?.click()}
+        />
       </div>
       <main className="workspace">
         <div className="editor-pane">
@@ -542,6 +581,18 @@ export function App() {
           const picked = [...(e.currentTarget.files ?? [])];
           e.currentTarget.value = '';
           if (picked.length > 0) openImported(() => importFiles(picked)).catch(reportError);
+        }}
+      />
+      <input
+        ref={restoreInput}
+        type="file"
+        hidden
+        accept=".json,application/json"
+        aria-label="Restore from backup file"
+        onChange={(e) => {
+          const picked = e.currentTarget.files?.[0];
+          e.currentTarget.value = '';
+          if (picked) guarded(() => restoreFrom(picked))();
         }}
       />
       {dragging && <div className="drop-overlay">Drop Markdown and image files to open them</div>}

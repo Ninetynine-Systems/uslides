@@ -191,3 +191,27 @@ export async function getImages(deckId: string): Promise<Map<string, Blob>> {
   const rows = await (await db()).getAllFromIndex('images', 'deckId', deckId);
   return new Map(rows.map((r) => [r.path, new Blob([r.bytes], { type: r.type })]));
 }
+
+export async function getAllDecks(): Promise<DeckRecord[]> {
+  return (await db()).getAll('decks');
+}
+
+/** Adds a deck with its images as a new deck (new id), keeping the given dates. Used by restore. */
+export async function addDeckWithImages(
+  source: string,
+  createdAt: number,
+  updatedAt: number,
+  images: Array<{ path: string; blob: Blob }>,
+): Promise<DeckRecord> {
+  const deck: DeckRecord = { id: crypto.randomUUID(), source, createdAt, updatedAt, revision: 1 };
+  // Read the bytes first: a transaction closes if we wait on anything but the database.
+  const rows: ImageRecord[] = [];
+  for (const img of images) {
+    rows.push({ deckId: deck.id, path: normalizePath(img.path), type: img.blob.type, bytes: await img.blob.arrayBuffer() });
+  }
+  const tx = (await db()).transaction(['decks', 'images'], 'readwrite');
+  await tx.objectStore('decks').put(deck);
+  for (const row of rows) await tx.objectStore('images').put(row);
+  await tx.done;
+  return deck;
+}
