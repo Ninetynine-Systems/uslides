@@ -162,7 +162,12 @@ export function App() {
           if (applying) return; // ignore repeat clicks
           applying = true;
           // Save what was typed in the last moment first: the reload would drop it.
-          flushRef.current().catch(() => undefined).then(() => updateSW(true), () => undefined);
+          flushRef.current()
+            .catch(() => undefined)
+            .then(() => updateSW(true))
+            .catch(() => {
+              applying = false; // let the user try again
+            });
         };
         notify('', { sticky: true, action: { label: 'Update available — reload', run: apply } });
       },

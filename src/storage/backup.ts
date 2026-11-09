@@ -1,4 +1,4 @@
-import { baseType, bytesToBase64, isEmbeddableType } from '../export/packImages';
+import { bytesToBase64 } from '../export/packImages';
 import { addDecksWithImages, getAllDecks, getImages, normalizePath, type NewDeck } from './db';
 
 export const NOT_A_BACKUP = 'This is not a uslides backup';
@@ -50,14 +50,13 @@ function decodeDeck(d: unknown, n: number): NewDeck {
     } catch {
       throw damaged(`deck ${n} has an image with a bad path (${y.path})`);
     }
-    if (!isEmbeddableType(y.type)) throw damaged(`deck ${n} has an image of an unsupported type (${y.type})`);
     let bytes: Uint8Array<ArrayBuffer>;
     try {
       bytes = base64ToBytes(y.base64);
     } catch {
       throw damaged(`an image in deck ${n} could not be decoded`);
     }
-    return { path: y.path, type: baseType(y.type), bytes: bytes.buffer };
+    return { path: y.path, type: y.type, bytes: bytes.buffer };
   });
   return { source: x.source, createdAt: x.createdAt, updatedAt: x.updatedAt, images };
 }

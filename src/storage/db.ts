@@ -216,6 +216,7 @@ export async function addDecksWithImages(decks: NewDeck[]): Promise<void> {
       for (const img of images) await tx.objectStore('images').put(img);
     }
   } catch (err) {
+    tx.done.catch(() => undefined); // the abort rejects this; the original error is the one to report
     tx.abort();
     throw err;
   }

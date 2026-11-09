@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { exportBackup, importBackup } from '../../src/storage/backup'
-import { _resetForTests, createDeck, getDeck, getImages, listDecks, putImage } from '../../src/storage/db'
+import { _resetForTests, addDecksWithImages, createDeck, getDeck, getImages, listDecks, putImage } from '../../src/storage/db'
 
 beforeEach(async () => {
   await _resetForTests()
@@ -75,11 +75,32 @@ describe('all or nothing', () => {
   it.each([
     ['bad base64', { ...good, source: '# Bad', images: [image({ base64: '***not base64***' })] }],
     ['bad path', { ...good, source: '# Bad', images: [image({ path: '../x.png' })] }],
-    ['disallowed image type', { ...good, source: '# Bad', images: [image({ type: 'text/html' })] }],
   ])('a deck with %s as the second deck adds nothing', async (_n, bad) => {
     await createDeck('# Existing')
     await expect(importBackup(file(good, bad))).rejects.toThrow(/^This backup file is damaged: /)
     expect(await listDecks()).toHaveLength(1)
+  })
+
+  it('restores images of any type, including an empty one, as stored', async () => {
+    const d = await createDeck('# Odd')
+    await putImage(d.id, 'a.bmp', new Blob([new Uint8Array([66, 77])], { type: 'image/bmp' }))
+    await putImage(d.id, 'b', new Blob([new Uint8Array([1, 2, 3])], { type: '' }))
+    const backup = await exportBackup()
+    await _resetForTests()
+    globalThis.indexedDB = new IDBFactory()
+    expect(await importBackup(backup)).toBe(1)
+    const id = (await listDecks())[0]!.id
+    const images = await getImages(id)
+    expect(images.get('a.bmp')!.type).toBe('image/bmp')
+    expect([...new Uint8Array(await images.get('a.bmp')!.arrayBuffer())]).toEqual([66, 77])
+    expect(images.get('b')!.type).toBe('')
+    expect([...new Uint8Array(await images.get('b')!.arrayBuffer())]).toEqual([1, 2, 3])
+  })
+
+  it('a failure inside the transaction keeps its own error and adds nothing', async () => {
+    const bad = { source: '# X', createdAt: 1, updatedAt: 1, images: [{ path: 'a.png', type: 'image/png', bytes: (() => 1) as unknown as ArrayBuffer }] }
+    await expect(addDecksWithImages([bad])).rejects.toMatchObject({ name: 'DataCloneError' })
+    expect(await listDecks()).toHaveLength(0)
   })
 
   it('a second deck of the wrong shape adds nothing', async () => {
