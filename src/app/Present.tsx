@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Deck } from '../core/parse';
 import { fitSlide, mountScaled } from '../render/fit';
+import { slideTarget } from '../render/nav';
 import { renderSlide } from '../render/renderSlide';
 import { imageKey, useImageUrls } from './Preview';
 
@@ -15,8 +16,6 @@ type Props = {
 };
 
 const HIDE_CURSOR_MS = 2000;
-const NEXT = new Set(['ArrowRight', 'ArrowDown', ' ', 'PageDown']);
-const PREVIOUS = new Set(['ArrowLeft', 'ArrowUp', 'PageUp']);
 
 export function Present({ deck, images, slide, onGo, onExit }: Props) {
   const root = useRef<HTMLDivElement>(null);
@@ -68,13 +67,9 @@ export function Present({ deck, images, slide, onGo, onExit }: Props) {
     const onKey = (e: KeyboardEvent) => {
       if (e.altKey || e.ctrlKey || e.metaKey) return;
       const { current: at, count: n, onGo: go, onExit: exit } = latest.current;
-      let target: number | undefined;
       if (e.key === 'Escape') return exit();
-      else if (NEXT.has(e.key)) target = Math.min(at + 1, n);
-      else if (PREVIOUS.has(e.key)) target = Math.max(at - 1, 1);
-      else if (e.key === 'Home') target = 1;
-      else if (e.key === 'End') target = n;
-      else return;
+      const target = slideTarget(e.key, at, n);
+      if (target === undefined) return;
       e.preventDefault();
       if (target !== at) go(target);
     };

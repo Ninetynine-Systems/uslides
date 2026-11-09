@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { deckName } from '../core/settings';
 import { pickFolder, pickMarkdownFile, readFolderImage, supportsFileLink, supportsFolderLink } from '../files/fileLink';
+import { downloadMarkdown, exportHtml, fileSlug, printDeck, saveBlob } from '../export/download';
 import { baseType, packImages } from '../export/packImages';
 import { importFiles, importFromFolder, NO_MARKDOWN, openFolder, readDrop } from '../files/importFiles';
 import { LONG_LINK_CHARS, makeShareLink, readShareHash, ShareLinkError } from '../share/link';
@@ -14,7 +15,7 @@ import { isImageDrop } from './editor/dropMarker';
 import { pasteImage } from './editor/pasteImage';
 import { Notices, useNotices } from './Notices';
 import { Present } from './Present';
-import { imageKey, Preview } from './Preview';
+import { imageKey, Preview, useImageUrls } from './Preview';
 import { Toolbar } from './Toolbar';
 import { deckHash, parseRoute } from './route';
 import sample from './sample.md?raw';
@@ -34,8 +35,14 @@ const EXT_TYPES: Record<string, string> = {
   webp: 'image/webp', svg: 'image/svg+xml', avif: 'image/avif',
 };
 
+/** The notice for images that could not be embedded, shared by Pack images and Download .html. */
+function failedImagesNotice(failed: string[], tooLarge: string[]): string {
+  const label = (src: string) => (tooLarge.includes(src) ? `${src} (over 5 MB)` : src);
+  return `Could not embed ${failed.length === 1 ? 'this image' : `these ${failed.length} images`}: ${failed.map(label).join(', ')}`;
+}
+
 export const LONG_LINK_NOTICE =
-  'This link is very long and some chat apps may cut it off. Download the deck as a file to share it instead.';
+  'This link is very long and some chat apps may cut it off. Use Download .html or Download .md to share it as a file instead.';
 export const IMAGES_NOTICE = 'Images stored in this browser are not included in links';
 
 /** `damaged` holds the notice text when the link in the URL could not be opened. */
@@ -368,8 +375,7 @@ export function App() {
       else current.setSource(source);
     }
     if (failed.length > 0) {
-      const label = (src: string) => (tooLarge.includes(src) ? `${src} (over 5 MB)` : src);
-      notify(`Could not embed ${failed.length === 1 ? 'this image' : `these ${failed.length} images`}: ${failed.map(label).join(', ')}`);
+      notify(failedImagesNotice(failed, tooLarge));
     } else if (source === before) {
       notify('There are no images to pack.');
     } else {
@@ -377,7 +383,29 @@ export function App() {
     }
   };
 
+  const printUrls = useImageUrls(images);
   const name = ready ? deckName(current.source) : '';
+
+  const downloadMd = async () => {
+    if (!ready) return;
+    await flush();
+    downloadMarkdown(sourceRef.current, deckName(sourceRef.current));
+  };
+
+  const downloadHtml = async () => {
+    if (!ready) return;
+    await flush();
+    const source = sourceRef.current;
+    const { blob, failed, tooLarge } = await exportHtml(source, fetchImage);
+    saveBlob(blob, `${fileSlug(deckName(source))}.html`);
+    if (failed.length > 0) notify(failedImagesNotice(failed, tooLarge));
+  };
+
+  const print = async () => {
+    if (!ready || !current.deck) return;
+    await flush();
+    await printDeck(current.deck, (src) => printUrls.get(imageKey(src)));
+  };
   const selectDeck = (id: string) => {
     if (id !== deckId) location.hash = deckHash(id);
   };
@@ -463,6 +491,9 @@ export function App() {
         onPresent={() => startPresenting(1)}
         onCopyLink={copyLink}
         onPackImages={guarded(packAllImages)}
+        onDownloadMarkdown={guarded(downloadMd)}
+        onDownloadHtml={guarded(downloadHtml)}
+        onPrint={guarded(print)}
         onOpen={openFile}
         onOpenFolder={supportsFolderLink() ? openFolderClick : undefined}
         link={ready ? sync.link : undefined}

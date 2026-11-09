@@ -11,6 +11,9 @@ type Props = {
   /** Copies the share link. Resolves to the link when the clipboard could not be written, else undefined. */
   onCopyLink(): Promise<string | undefined>;
   onPackImages(): void;
+  onDownloadMarkdown(): void;
+  onDownloadHtml(): void;
+  onPrint(): void;
   onOpen(): void;
   /** Undefined when the browser cannot open folders. */
   onOpenFolder?(): void;
@@ -81,9 +84,37 @@ function ShareMenu({ onCopyLink }: { onCopyLink: Props['onCopyLink'] }) {
   );
 }
 
+function DownloadMenu({ onMarkdown, onHtml, onPrint }: { onMarkdown(): void; onHtml(): void; onPrint(): void }) {
+  const [open, setOpen] = useState(false);
+  const choose = (action: () => void) => () => {
+    setOpen(false);
+    action();
+  };
+  return (
+    <div className="share" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
+      <button type="button" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        Download
+      </button>
+      {open && (
+        <div className="share-menu">
+          <button type="button" onClick={choose(onMarkdown)}>
+            Download .md
+          </button>
+          <button type="button" onClick={choose(onHtml)}>
+            Download .html
+          </button>
+          <button type="button" onClick={choose(onPrint)}>
+            Print / PDF
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Toolbar({
   listOpen, onToggleList, name, onRename, onDuplicate, onDelete, onPresent, onCopyLink,
-  onPackImages, onOpen, onOpenFolder, link, needsAccess, readOnly, onGrant, onUnlink,
+  onPackImages, onDownloadMarkdown, onDownloadHtml, onPrint, onOpen, onOpenFolder, link, needsAccess, readOnly, onGrant, onUnlink,
 }: Props) {
   return (
     <header className="toolbar">
@@ -119,6 +150,7 @@ export function Toolbar({
           Pack images
         </button>
         <ShareMenu onCopyLink={onCopyLink} />
+        <DownloadMenu onMarkdown={onDownloadMarkdown} onHtml={onDownloadHtml} onPrint={onPrint} />
         <button type="button" onClick={onRename}>
           Rename
         </button>

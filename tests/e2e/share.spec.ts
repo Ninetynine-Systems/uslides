@@ -102,7 +102,7 @@ test('a very long link still copies but suggests downloading', async ({ page }) 
   await expect(page.locator('.us-stage').first()).toContainText('Long');
   const hash = await copyHash(page);
   expect(hash.length).toBeGreaterThan(8000);
-  await expect(page.getByText(/download/i)).toBeVisible();
+  await expect(page.locator('.notice').getByText(/download/i)).toBeVisible();
 });
 
 test('a deck with stored images warns they are not in the link', async ({ page }) => {

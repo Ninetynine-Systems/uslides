@@ -1,0 +1,19 @@
+/* Print: one slide per page. printDeck adds an @page rule with the deck's page size, which depends on its aspect. */
+.us-print {
+  /* On screen the pages are laid out far off to the side, so text fitting can measure them. */
+  position: fixed;
+  left: -100000px;
+  top: 0;
+}
+
+@media print {
+  #root { display: none !important; }
+  html, body { height: auto !important; background: #fff; }
+  .us-print { position: static; }
+  .us-print .us-stage {
+    break-after: page;
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

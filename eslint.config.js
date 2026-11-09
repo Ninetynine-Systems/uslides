@@ -1,7 +1,7 @@
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'test-results', 'playwright-report', '.superpowers'] },
+  { ignores: ['dist', 'node_modules', 'test-results', 'playwright-report', '.superpowers', 'public/player'] },
   ...tseslint.configs.recommended,
   {
     files: ['src/core/**/*.ts'],
