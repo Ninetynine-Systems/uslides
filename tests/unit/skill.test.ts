@@ -72,6 +72,17 @@ describe('SKILL.md', () => {
   it('tells agents to quote a title that contains a colon', () => {
     expect(skill).toContain('title: "Q3 review: what changed"');
   });
+
+  it('documents fonts and the privacy rule for opened decks', () => {
+    expect(skill).toContain('font: Inter');
+    expect(skill).toContain('font="Playfair Display"');
+    for (const name of ['`Inter`', '`Lora`', '`"Playfair Display"`', '`"JetBrains Mono"`']) {
+      expect(skill).toContain(name);
+    }
+    expect(skill).toContain('must match a name in the Google Fonts catalog');
+    expect(skill).toContain('blocked until the user allows them');
+    expect(skill).toContain('Pack images');
+  });
 });
 
 describe('the examples folder', () => {

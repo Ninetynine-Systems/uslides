@@ -88,6 +88,11 @@ function failedImagesNotice(failed: string[], tooLarge: string[]): string {
   return `Could not embed ${failed.length === 1 ? 'this image' : `these ${failed.length} images`}: ${failed.map(label).join(', ')}`;
 }
 
+function failedFontsNotice(failed: string[]): string {
+  const n = failed.length;
+  return `Could not embed ${n === 1 ? 'this font' : `these ${n} fonts`}: ${failed.join(', ')}. The file uses the theme font instead.`;
+}
+
 export const LONG_LINK_NOTICE =
   'This link is very long and some chat apps may cut it off. Use Download .html or Download .md to share it as a file instead.';
 export const IMAGES_NOTICE = 'Images stored in this browser are not included in links';
@@ -662,9 +667,10 @@ export function App() {
       if (err instanceof PlayerMissingError) return void notify(err.message);
       throw err;
     }
-    const { blob, failed, tooLarge } = result;
+    const { blob, failed, tooLarge, failedFonts } = result;
     saveBlob(blob, `${fileSlug(deckName(source))}.html`);
     if (failed.length > 0) notify(failedImagesNotice(failed, tooLarge));
+    if (failedFonts.length > 0) notify(failedFontsNotice(failedFonts));
   };
 
   const print = async () => {

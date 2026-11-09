@@ -1,11 +1,12 @@
 import { escapeForScript } from '../core/embed';
-import type { Deck } from '../core/parse';
+import { parseDeck, type Deck } from '../core/parse';
 import { deckName } from '../core/settings';
 import { STAGE } from '../config';
 import { fitSlide } from '../render/fit';
 import { renderSlide } from '../render/renderSlide';
 import { deckFonts } from '../core/external';
 import { findFamily } from '../fonts/catalog';
+import { embedFonts } from '../fonts/embed';
 import { waitForFonts } from '../fonts/load';
 import '../render/print.css';
 import { packImages } from './packImages';
@@ -36,10 +37,10 @@ export function downloadMarkdown(source: string, name: string): void {
 const htmlText = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /** No network at all: the file shows the deck, and an image that was not packed simply does not load. */
-const CSP = "default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'";
+const CSP = "default-src 'none'; img-src data: blob:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'";
 
 /** The text of the single-file page: the deck source and the player script, nothing else. */
-export function buildHtml(source: string, name: string, playerJs: string): string {
+export function buildHtml(source: string, name: string, playerJs: string, fontCss = ''): string {
   // In JavaScript, `<\/script` means the same as `</script`, so the player needs no un-escaping.
   const player = playerJs.replace(/<\/script/gi, '<\\/script');
   return `<!doctype html>
@@ -49,6 +50,7 @@ export function buildHtml(source: string, name: string, playerJs: string): strin
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="${CSP}">
 <title>${htmlText(name)}</title>
+<style id="fonts">${fontCss}</style>
 <style>html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none}#player{width:100vw;height:100vh;height:100dvh}</style>
 </head>
 <body>
@@ -60,20 +62,47 @@ export function buildHtml(source: string, name: string, playerJs: string): strin
 `;
 }
 
-export type ExportResult = { blob: Blob; failed: string[]; tooLarge: string[] };
+export type ExportResult = { blob: Blob; failed: string[]; tooLarge: string[]; failedFonts: string[] };
+
+async function fetchText(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    return response.ok ? await response.text() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchBytes(url: string): Promise<Blob | null> {
+  try {
+    const response = await fetch(url);
+    return response.ok ? await response.blob() : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
- * Builds the single-file `.html`. Images are packed into the source first, with the same lookup as Pack images.
- * Ones that cannot be packed stay as links and are listed in `failed`. The caller's text is not changed.
+ * Builds the single-file `.html`. Images use the same lookup as Pack images, and catalog fonts are embedded.
+ * Files that cannot be fetched are reported. The caller's text and saved privacy choice are not changed.
  */
 export async function exportHtml(
   source: string,
   fetchImage: (src: string) => Promise<Blob | null>,
   fetchPlayer: () => Promise<string> = fetchPlayerScript,
 ): Promise<ExportResult> {
-  const packed = await packImages(source, fetchImage);
-  const html = buildHtml(packed.source, deckName(packed.source), await fetchPlayer());
-  return { blob: new Blob([html], { type: 'text/html;charset=utf-8' }), failed: packed.failed, tooLarge: packed.tooLarge };
+  const [packed, fonts, player] = await Promise.all([
+    packImages(source, fetchImage),
+    embedFonts(deckFonts(parseDeck(source)), fetchText, fetchBytes),
+    fetchPlayer(),
+  ]);
+  const html = buildHtml(packed.source, deckName(packed.source), player, fonts.css);
+  return {
+    blob: new Blob([html], { type: 'text/html;charset=utf-8' }),
+    failed: packed.failed,
+    tooLarge: packed.tooLarge,
+    failedFonts: fonts.failed,
+  };
 }
 
 export class PlayerMissingError extends Error {

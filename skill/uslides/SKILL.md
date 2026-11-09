@@ -23,6 +23,7 @@ title: Quarterly review
 grid: 12x6
 aspect: 16:9
 theme: light
+font: Inter
 ---
 ```
 
@@ -31,8 +32,10 @@ theme: light
   Each number is 1 to 200.
 - `aspect`: `16:9` (default, slides are 1920×1080 pixels) or `4:3` (1440×1080).
 - `theme`: `light` (default) or `dark`. There are no other themes.
+- `font`: the default font for the deck. Safe choices are `Inter`, `Lora`,
+  `"Playfair Display"` and `"JetBrains Mono"`. Without it, the theme font is used.
 
-Use only these four keys. Any other key gets a warning. The block counts as
+Use only these five keys. Any other key gets a warning. The block counts as
 settings only if `---` is the very first line and it holds at least one of these keys.
 
 The block is YAML. Wrap a value in double quotes if it contains `: ` or starts with
@@ -63,7 +66,7 @@ Most slides should look like this.
 A box puts some Markdown in a rectangle on the slide's grid:
 
 ```markdown
-::: box col=1-7 row=2-6 bg=#1e3a8a color=white
+::: box col=1-7 row=2-6 bg=#1e3a8a color=white font="Playfair Display"
 ## Left title
 - a point
 :::
@@ -88,9 +91,15 @@ A box puts some Markdown in a rectangle on the slide's grid:
 | `align` | `left`, `center`, `right` | `left` |
 | `valign` | `top`, `middle`, `bottom` | `top` |
 | `fit` | `contain` or `cover`, for an image | `contain` |
+| `font` | a Google Fonts family name, or `default` | the deck or theme font |
 
 A colour is `#rgb`, `#rrggbb`, `#rrggbbaa`, or a CSS colour name such as `white`
 or `tomato`. Anything else is ignored, with a warning.
+
+A font must match a name in the Google Fonts catalog. Matching ignores upper and
+lower case. Names with spaces need double quotes in a box attribute, such as
+`font="Playfair Display"` or `font="JetBrains Mono"`. Use `font=default` to use the
+deck or theme font. A box font overrides the deck font.
 
 ### Stacking
 
@@ -142,6 +151,10 @@ image. `fit=cover` fills the box and crops the edges.
 
 Links may use `https:`, `http:`, `mailto:` or a relative path. Anything else, such
 as `javascript:`, is dropped and only the link text is kept.
+
+Web images and Google fonts in decks opened from a file, folder or link are
+blocked until the user allows them. For images, **Pack images** is the reliable way
+to make a deck look right everywhere.
 
 ### Text that does not fit
 

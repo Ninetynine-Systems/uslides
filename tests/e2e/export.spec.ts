@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
+const LORA_CSS = readFileSync('tests/e2e/fakes/lora.css', 'utf8');
+const LORA_WOFF2 = 'tests/e2e/fakes/lora-latin-400-normal.woff2';
 const TINY_PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
@@ -21,9 +23,11 @@ const DECK = [
   '',
 ].join('\n');
 
-async function openDeck(page: Page, md: string) {
+const FONT_DECK = '::: box col=1-6 row=1-2 font=Lora\n# Lora offline\n:::\n';
+
+async function openDeck(page: Page, md: string, expected = 'Export Me') {
   await page.goto(`/?test#md=${encodeURIComponent(md)}`);
-  await expect(page.locator('.us-stage').first()).toContainText('Export Me');
+  await expect(page.locator('.us-stage').first()).toContainText(expected);
 }
 
 async function download(page: Page, item: string) {
@@ -91,6 +95,58 @@ test('Download .html is one file that plays offline', async ({ page, browser }) 
   await expect(stage).toContainText('Second slide');
   expect(errors).toEqual([]);
   await context.close();
+});
+
+test('Download .html embeds Lora for offline use', async ({ page, browser }) => {
+  const requests = { css: 0, font: 0 };
+  await page.route('https://fonts.googleapis.com/**', (route) => {
+    requests.css += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: 'text/css',
+      headers: { 'access-control-allow-origin': '*' },
+      body: LORA_CSS,
+    });
+  });
+  await page.route('https://fonts.gstatic.com/**', (route) => {
+    requests.font += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: 'font/woff2',
+      headers: { 'access-control-allow-origin': '*' },
+      path: LORA_WOFF2,
+    });
+  });
+  await openDeck(page, FONT_DECK, 'Lora offline');
+  const blocked = page.getByRole('complementary', { name: 'Other websites blocked' });
+  await expect(blocked).toBeVisible();
+  expect(requests).toEqual({ css: 0, font: 0 });
+
+  const dl = await download(page, 'Download .html');
+  const path = test.info().outputPath('font-export.html');
+  await dl.saveAs(path);
+  expect(requests).toEqual({ css: 1, font: 1 });
+  await expect(blocked).toBeVisible();
+
+  const context = await browser.newContext();
+  await context.route(/^https?:/, (route) => route.abort());
+  const player = await context.newPage();
+  await player.goto(`file://${path}`);
+  await expect(player.locator('.us-box')).toContainText('Lora offline');
+  await expect.poll(() => player.evaluate(() => document.fonts.check('16px Lora'))).toBe(true);
+  await context.close();
+});
+
+test('Download .html names a font that could not be embedded', async ({ page }) => {
+  await page.route('https://fonts.googleapis.com/**', (route) => route.fulfill({ status: 503, body: '' }));
+  await page.route('https://fonts.gstatic.com/**', (route) => route.abort());
+  await openDeck(page, FONT_DECK, 'Lora offline');
+
+  await download(page, 'Download .html');
+
+  await expect(page.getByText(
+    'Could not embed this font: Lora. The file uses the theme font instead.',
+  )).toBeVisible();
 });
 
 test('Print / PDF lays out one page per slide', async ({ page }) => {
