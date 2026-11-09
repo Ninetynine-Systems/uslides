@@ -27,6 +27,13 @@ describe('renderSlide', () => {
     expect(stage.classList.contains('us-theme-dark')).toBe(true);
   });
 
+  it('the box font wins over the deck font', () => {
+    const stage = render('---\nfont: Inter\n---\n::: box font=Lora\nA\n:::');
+    const box = stage.querySelector<HTMLElement>('.us-box')!;
+    expect(stage.style.fontFamily).toBe('"Inter", var(--us-font)');
+    expect(box.style.fontFamily).toBe('"Lora", var(--us-font)');
+  });
+
   it('places boxes on the grid with increasing z-index', () => {
     const stage = render('::: box col=1-7 row=2-6\nA\n:::\n\n::: box\nB\n:::\n\nloose');
     const boxes = stage.querySelectorAll<HTMLElement>('.us-box');

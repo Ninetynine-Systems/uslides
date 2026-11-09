@@ -117,6 +117,35 @@ describe('boxes', () => {
     expect(warnings).toEqual([]);
   });
 
+  it('reads font="Playfair Display" on a box', () => {
+    const src = '::: box font="Playfair Display"\n## T\n:::\n';
+    const { slide, warnings } = slideOf(src);
+    const box = slide.boxes[0]!;
+    expect(box.font).toBe('Playfair Display');
+    expect(src.slice(box.fontRange!.from, box.fontRange!.to)).toBe('::: box font="Playfair Display"');
+    expect(warnings).toEqual([]);
+  });
+
+  it('font=default means no font', () => {
+    const { slide, warnings } = slideOf('::: box font=default\nx\n:::');
+    expect(slide.boxes[0]!.font).toBeUndefined();
+    expect(slide.boxes[0]!.fontRange).toBeUndefined();
+    expect(warnings).toEqual([]);
+  });
+
+  it('refuses a font name that could break CSS', () => {
+    const d = parseDeck('::: box font="a}b"\nHi\n:::\n');
+    expect(d.slides[0]!.boxes[0]!.font).toBeUndefined();
+    expect(d.warnings[0]!.message).toBe('Invalid font name "a}b". Font names use only letters, numbers and spaces.');
+  });
+
+  it('refuses a font name longer than 60 characters', () => {
+    const name = 'A'.repeat(61);
+    const d = parseDeck(`::: box font="${name}"\nHi\n:::\n`);
+    expect(d.slides[0]!.boxes[0]!.font).toBeUndefined();
+    expect(d.warnings[0]!.message).toBe(`Invalid font name "${name}". Font names use only letters, numbers and spaces.`);
+  });
+
   it('uses defaults', () => {
     const { slide } = slideOf('::: box\nx\n:::');
     const box = slide.boxes[0]!;

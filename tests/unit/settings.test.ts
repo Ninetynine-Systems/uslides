@@ -13,6 +13,26 @@ describe('parseSettings', () => {
     expect(r.warnings).toEqual([]);
   });
 
+  it('reads the font deck setting', () => {
+    const r = parseSettings('---\nfont: Inter\n---\n# A\n');
+    expect(r.settings.font).toBe('Inter');
+    expect(r.warnings).toEqual([]);
+  });
+
+  it('font: default means no deck font', () => {
+    const r = parseSettings('---\nfont: default\n---\n# A\n');
+    expect(r.settings.font).toBeUndefined();
+    expect(r.warnings).toEqual([]);
+  });
+
+  it('refuses an invalid font deck setting', () => {
+    const src = '---\nfont: a}b\n---\n# A\n';
+    const r = parseSettings(src);
+    expect(r.settings.font).toBeUndefined();
+    expect(r.warnings[0]!.message).toBe('Invalid font name "a}b". Font names use only letters, numbers and spaces.');
+    expect(src.slice(r.warnings[0]!.range.from, r.warnings[0]!.range.to)).toBe('font: a}b');
+  });
+
   it('uses defaults without a block', () => {
     const r = parseSettings('# Hi');
     expect(r.settings).toEqual(defaults);

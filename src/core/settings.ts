@@ -5,12 +5,13 @@ import type { Grid, SourceRange, Warning } from './types';
 
 export type DeckSettings = {
   title?: string;
+  font?: string;
   grid: Grid;
   aspect: '16:9' | '4:3';
   theme: 'light' | 'dark';
 };
 
-const KNOWN_KEYS = ['title', 'grid', 'aspect', 'theme'];
+const KNOWN_KEYS = ['title', 'font', 'grid', 'aspect', 'theme'];
 const DEFAULT_GRID: Grid = { cols: 12, rows: 6 };
 
 /** Strips a BOM and converts CRLF / CR line endings to LF. */
@@ -109,6 +110,13 @@ export function parseSettings(src: string): {
         if (value !== null && value !== undefined) settings.title = String(value);
         else warn(key, 'The title is empty. If it starts with # or contains ": ", wrap it in double quotes.');
         break;
+      case 'font': {
+        if (value === null || value === undefined || value === 'default') break;
+        const name = String(value);
+        if (name.length <= 60 && /^[A-Za-z0-9][A-Za-z0-9 ]*$/.test(name)) settings.font = name;
+        else warn(key, `Invalid font name "${name}". Font names use only letters, numbers and spaces.`);
+        break;
+      }
       case 'grid': {
         const grid = typeof value === 'string' ? parseGrid(value) : null;
         if (grid) settings.grid = grid;

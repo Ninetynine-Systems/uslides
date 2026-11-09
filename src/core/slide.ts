@@ -10,6 +10,9 @@ export type Box = {
   row: Span;
   bg?: string;
   color?: string;
+  font?: string;
+  /** The opening box line, used for warnings about the font. */
+  fontRange?: SourceRange;
   align: 'left' | 'center' | 'right';
   valign: 'top' | 'middle' | 'bottom';
   fit: 'contain' | 'cover';
@@ -130,8 +133,9 @@ function parseSlideComment(
 function parseBox(
   attrText: string,
   grid: Grid,
+  openingRange: SourceRange,
   warn: (message: string) => void,
-): Pick<Box, 'col' | 'row' | 'bg' | 'color' | 'align' | 'valign' | 'fit'> {
+): Pick<Box, 'col' | 'row' | 'bg' | 'color' | 'font' | 'fontRange' | 'align' | 'valign' | 'fit'> {
   const { attrs, errors } = parseAttrs(attrText);
   for (const e of errors) warn(`Box: ${e}.`);
 
@@ -153,8 +157,15 @@ function parseBox(
     if (value !== undefined && !found) warn(`Invalid ${name} "${value}". Use ${allowed.join(', ')}. Using ${allowed[0]}.`);
     return found ?? allowed[0]!;
   };
+  const fontName = () => {
+    const value = attrs.font;
+    if (value === undefined || value === 'default') return undefined;
+    if (value.length <= 60 && /^[A-Za-z0-9][A-Za-z0-9 ]*$/.test(value)) return value;
+    warn(`Invalid font name "${value}". Font names use only letters, numbers and spaces.`);
+    return undefined;
+  };
 
-  const known = ['col', 'row', 'bg', 'color', 'align', 'valign', 'fit'];
+  const known = ['col', 'row', 'bg', 'color', 'font', 'align', 'valign', 'fit'];
   for (const key of Object.keys(attrs)) {
     if (!known.includes(key)) warn(`Unknown box attribute "${key}" was ignored.`);
   }
@@ -168,8 +179,13 @@ function parseBox(
   };
   const bg = colour('bg');
   const color = colour('color');
+  const font = fontName();
   if (bg) box.bg = bg;
   if (color) box.color = color;
+  if (font) {
+    box.font = font;
+    box.fontRange = openingRange;
+  }
   return box;
 }
 
@@ -250,7 +266,7 @@ export function parseSlide(
         open.content.push(line);
       }
     } else if (word === 'box') {
-      const attrs = parseBox(fence[2]!, slide.grid, (m) => warn(m, line.range));
+      const attrs = parseBox(fence[2]!, slide.grid, line.range, (m) => warn(m, line.range));
       open = { line, attrs, content: [] };
     } else {
       if (word === '') warn('A ":::" line with no open box was shown as plain text.', line.range);

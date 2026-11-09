@@ -86,6 +86,7 @@ function renderBox(box: Box, index: number, opts: RenderOptions): HTMLElement {
   el.style.zIndex = String(index + 1);
   if (box.bg) el.style.backgroundColor = box.bg;
   if (box.color) el.style.color = box.color;
+  if (box.font) el.style.fontFamily = `"${box.font}", var(--us-font)`;
   fill(el, box.markdown, opts);
   return el;
 }
@@ -104,6 +105,7 @@ export function renderSlide(slide: Slide, settings: DeckSettings, opts: RenderOp
   stage.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
   if (slide.bg) stage.style.backgroundColor = slide.bg;
   if (slide.color) stage.style.color = slide.color;
+  if (settings.font) stage.style.fontFamily = `"${settings.font}", var(--us-font)`;
 
   const loose = document.createElement('div');
   loose.className = 'us-loose us-align-left us-valign-top us-fit-contain';
