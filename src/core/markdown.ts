@@ -1,5 +1,5 @@
 import MarkdownIt from 'markdown-it';
-import type { StateBlock, StateCore, StateInline } from 'markdown-it';
+import type { StateBlock, StateCore, StateInline, Token } from 'markdown-it';
 
 export interface RenderOptions {
   /** Maps a relative image path to a loadable URL. Returns undefined when the image is not available. */
@@ -146,6 +146,11 @@ md.renderer.rules.image = (tokens, idx, options, env, self) => {
   const titleAttr = title ? ` title="${esc(String(title))}"` : '';
   return `<img src="${esc(finalSrc)}" alt="${esc(alt)}"${titleAttr}>`;
 };
+
+/** Parses Markdown with the same safety and comment rules used by the renderer. */
+export function parseMarkdownTokens(source: string): Token[] {
+  return md.parse(source, {});
+}
 
 export function renderMarkdown(source: string, opts: RenderOptions = {}): string {
   const env: RenderEnv = {

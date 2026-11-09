@@ -4,6 +4,9 @@ import { deckName } from '../core/settings';
 import { STAGE } from '../config';
 import { fitSlide } from '../render/fit';
 import { renderSlide } from '../render/renderSlide';
+import { deckFonts } from '../core/external';
+import { findFamily } from '../fonts/catalog';
+import { waitForFonts } from '../fonts/load';
 import '../render/print.css';
 import { packImages } from './packImages';
 
@@ -101,6 +104,7 @@ export async function printDeck(
   resolveImage: (src: string) => string | undefined = () => undefined,
   opts: { blockExternal?: boolean } = {},
 ): Promise<void> {
+  if (!opts.blockExternal) await waitForFonts(deckFonts(deck).filter((name) => findFamily(name) !== undefined));
   const size = STAGE[deck.settings.aspect];
   const page = document.createElement('style');
   page.textContent = `@page { size: ${size.w}px ${size.h}px; margin: 0 }`;

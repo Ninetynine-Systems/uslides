@@ -9,6 +9,7 @@ import type { Slide } from '../core/slide';
 import { STAGE } from '../config';
 import { fitSlide, mountScaled, type FitResult } from '../render/fit';
 import { renderSlide } from '../render/renderSlide';
+import { useDeckFonts } from '../fonts/load';
 import { BOX_CUT_OFF, SLIDE_CUT_OFF } from './cutOff';
 import { Overlay, type SelectionRequest } from './edit/Overlay';
 import type { TypingAreaProps } from './edit/TypingArea';
@@ -78,6 +79,7 @@ function SlideCard(props: {
   onSelect(): void;
   selectionRequest?: SelectionRequest;
   onSelectionRequestHandled(id: number): void;
+  fontVersion: number;
   onFit?(slide: Slide, results: FitResult[]): void;
 }) {
   const {
@@ -110,7 +112,7 @@ function SlideCard(props: {
       unmount();
       stage.remove();
     };
-  }, [slide, deck.settings, urls, showGrid, blockExternal]);
+  }, [slide, deck.settings, urls, showGrid, blockExternal, props.fontVersion]);
 
   return (
     <figure className="slide-card">
@@ -167,6 +169,7 @@ export function Preview({
   getDeck, getSource, onUndo, onRedo, editable, onSelectSlide, onFit,
 }: Props) {
   const urls = useImageUrls(images);
+  const fontVersion = useDeckFonts(deck, blockExternal);
   const slideCount = deck?.slides.length ?? 0;
   const shownIndex = Math.min(Math.max(0, currentSlide), Math.max(0, slideCount - 1));
   const shownSlide = deck?.slides[shownIndex];
@@ -235,6 +238,7 @@ export function Preview({
               onSelect={() => onSelectSlide(slide.index)}
               selectionRequest={selectionRequest?.slideIndex === slide.index ? selectionRequest.request : undefined}
               onSelectionRequestHandled={selectionRequestHandled}
+              fontVersion={fontVersion}
               onFit={onFit}
             />
           ))}
@@ -275,6 +279,7 @@ export function Preview({
                 onSelect={() => onSelectSlide(shownIndex)}
                 selectionRequest={selectionRequest?.slideIndex === shownIndex ? selectionRequest.request : undefined}
                 onSelectionRequestHandled={selectionRequestHandled}
+                fontVersion={fontVersion}
                 onFit={onFit}
               />
             </>

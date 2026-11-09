@@ -34,6 +34,12 @@ describe('renderSlide', () => {
     expect(box.style.fontFamily).toBe('"Lora", var(--us-font)');
   });
 
+  it('uses the theme font when outside requests are blocked', () => {
+    const stage = render('---\nfont: Inter\n---\n::: box font=Lora\nA\n:::', { blockExternal: true });
+    expect(stage.style.fontFamily).toBe('');
+    expect(stage.querySelector<HTMLElement>('.us-box')!.style.fontFamily).toBe('');
+  });
+
   it('places boxes on the grid with increasing z-index', () => {
     const stage = render('::: box col=1-7 row=2-6\nA\n:::\n\n::: box\nB\n:::\n\nloose');
     const boxes = stage.querySelectorAll<HTMLElement>('.us-box');

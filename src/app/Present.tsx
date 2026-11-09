@@ -1,5 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { deckFonts } from '../core/external';
 import type { Deck } from '../core/parse';
+import { findFamily } from '../fonts/catalog';
+import { useDeckFonts, waitForFonts } from '../fonts/load';
 import { attachControls } from '../render/controls';
 import { fitSlide, mountScaled } from '../render/fit';
 import { slideTarget } from '../render/nav';
@@ -21,6 +24,10 @@ export function Present({ deck, images, blockExternal, slide, onGo, onExit }: Pr
   const root = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const urls = useImageUrls(images);
+  const fontVersion = useDeckFonts(deck, blockExternal);
+  const fontNames = deckFonts(deck).filter((name) => findFamily(name) !== undefined);
+  const fontKey = fontNames.map((name) => name.toLowerCase()).join('\n');
+  const [fontsReady, setFontsReady] = useState(blockExternal);
   const count = deck.slides.length;
   const current = Math.min(Math.max(1, slide), count);
 
@@ -33,10 +40,31 @@ export function Present({ deck, images, blockExternal, slide, onGo, onExit }: Pr
     if (current !== slide) onGo(current);
   }, [current, slide, onGo]);
 
+  // Keep the first frame blank until its fonts settle, but never for more than three seconds.
+  useEffect(() => {
+    let active = true;
+    if (blockExternal || fontNames.length === 0) {
+      setFontsReady(true);
+    } else {
+      setFontsReady(false);
+      void waitForFonts(fontNames).then(() => {
+        if (active) setFontsReady(true);
+      });
+    }
+    return () => {
+      active = false;
+    };
+  // `fontKey` represents the case-insensitive list used by this wait.
+  }, [blockExternal, fontKey]);
+
   // Draw the slide. Runs again if the deck changes underneath.
   const shown = deck.slides[current - 1]!;
   useEffect(() => {
     const container = frame.current!;
+    if (!fontsReady) {
+      container.replaceChildren();
+      return undefined;
+    }
     const stage = renderSlide(shown, deck.settings, {
       blockExternal,
       resolveImage: (src) => urls.get(imageKey(src)),
@@ -47,7 +75,7 @@ export function Present({ deck, images, blockExternal, slide, onGo, onExit }: Pr
       unmount();
       container.replaceChildren();
     };
-  }, [shown, deck.settings, urls, blockExternal]);
+  }, [shown, deck.settings, urls, blockExternal, fontsReady, fontVersion]);
 
   // Fullscreen: ask on entry (the click or key that opened us counts as the user gesture).
   // If it is refused, this stays a full-window view.

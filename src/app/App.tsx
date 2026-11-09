@@ -174,7 +174,7 @@ export function App() {
   );
   const hosts = useMemo(
     () => (ready && current.deck ? externalHosts(current.deck) : []),
-    [ready, current.deck],
+    [ready, current.deck, catalogLoaded],
   );
   const changeAskFirst = useCallback((on: boolean) => {
     writeAskFirst(on);

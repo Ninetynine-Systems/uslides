@@ -60,6 +60,20 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          {
+            urlPattern: ({ url }) => url.hostname === 'fonts.googleapis.com',
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'uslides-font-css' },
+          },
+          {
+            urlPattern: ({ url }) => url.hostname === 'fonts.gstatic.com',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'uslides-fonts',
+              expiration: { maxEntries: 100, purgeOnQuotaError: true },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
     }),

@@ -1,8 +1,10 @@
-import MarkdownIt from 'markdown-it';
 import type { Token } from 'markdown-it';
+import { findFamily } from '../fonts/catalog';
+import { parseMarkdownTokens } from './markdown';
 import type { Deck } from './parse';
 
-const md = new MarkdownIt({ html: false });
+type FontMatch = boolean | { name: string } | undefined;
+type FontLookup = (name: string) => FontMatch;
 
 function addImageHosts(markdown: string, hosts: Set<string>): void {
   const visit = (tokens: Token[]) => {
@@ -19,15 +21,42 @@ function addImageHosts(markdown: string, hosts: Set<string>): void {
       if (token.children) visit(token.children);
     }
   };
-  visit(md.parse(markdown, {}));
+  visit(parseMarkdownTokens(markdown));
 }
 
-/** Sorted website names used by web images in the rendered deck. */
-export function externalHosts(deck: Deck): string[] {
+function fontNames(deck: Deck): string[] {
+  const names: string[] = [];
+  if (deck.settings.font) names.push(deck.settings.font);
+  for (const slide of deck.slides) {
+    for (const box of slide.boxes) if (box.font) names.push(box.font);
+  }
+  return names;
+}
+
+/** Font names used by the deck, once each; catalog-known names use catalog spelling. */
+export function deckFonts(deck: Deck): string[] {
+  const found: string[] = [];
+  const seen = new Set<string>();
+  for (const name of fontNames(deck)) {
+    const canonical = findFamily(name)?.name ?? name;
+    const key = canonical.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    found.push(canonical);
+  }
+  return found;
+}
+
+/** Sorted website names used by web images and catalog-known fonts in the rendered deck. */
+export function externalHosts(deck: Deck, isKnownFont: FontLookup = findFamily): string[] {
   const hosts = new Set<string>();
   for (const slide of deck.slides) {
     addImageHosts(slide.loose, hosts);
     for (const box of slide.boxes) addImageHosts(box.markdown, hosts);
+  }
+  if (deckFonts(deck).some((name) => Boolean(isKnownFont(name)))) {
+    hosts.add('fonts.googleapis.com');
+    hosts.add('fonts.gstatic.com');
   }
   return [...hosts].sort();
 }
