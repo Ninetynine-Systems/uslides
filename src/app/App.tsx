@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { deckName } from '../core/settings';
-import { pickFolder, pickMarkdownFile, supportsFileLink, supportsFolderLink } from '../files/fileLink';
+import { pickFolder, pickMarkdownFile, readFolderImage, supportsFileLink, supportsFolderLink } from '../files/fileLink';
+import { baseType, packImages } from '../export/packImages';
 import { importFiles, importFromFolder, NO_MARKDOWN, openFolder, readDrop } from '../files/importFiles';
 import { LONG_LINK_CHARS, makeShareLink, readShareHash, ShareLinkError } from '../share/link';
 import {
@@ -9,9 +10,11 @@ import {
 import { DeckList, type DeckSummary } from './DeckList';
 import type { EditorHandle } from './Editor';
 import { ConflictDialog, FilePicker } from './FileDialogs';
+import { isImageDrop } from './editor/dropMarker';
+import { pasteImage } from './editor/pasteImage';
 import { Notices, useNotices } from './Notices';
 import { Present } from './Present';
-import { Preview } from './Preview';
+import { imageKey, Preview } from './Preview';
 import { Toolbar } from './Toolbar';
 import { deckHash, parseRoute } from './route';
 import sample from './sample.md?raw';
@@ -24,6 +27,12 @@ import './app.css';
 const Editor = lazy(() => import('./Editor').then((m) => ({ default: m.Editor })));
 
 const NEW_DECK = '# Untitled\n';
+
+/** Media types by file extension, for stored images that came without one. */
+const EXT_TYPES: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  webp: 'image/webp', svg: 'image/svg+xml', avif: 'image/avif',
+};
 
 export const LONG_LINK_NOTICE =
   'This link is very long and some chat apps may cut it off. Download the deck as a file to share it instead.';
@@ -296,6 +305,7 @@ export function App() {
       e.preventDefault();
       depth = 0;
       setDragging(false);
+      if (isImageDrop(e)) return; // the editor took the images and inserted them into the deck
       const dropped = readDrop(e.dataTransfer!); // must start inside the event
       openImported(async () => importFiles(await dropped)).catch(reportError);
     };
@@ -310,6 +320,61 @@ export function App() {
       window.removeEventListener('drop', onDrop);
     };
   }, [openImported, reportError]);
+
+  /** Extensions for the editor, fixed for its life. Notices are the only thing they need from the app. */
+  const editorExtensions = useMemo(() => [pasteImage({ onNotice: notify })], [notify]);
+
+  const sourceRef = useRef(current.source);
+  sourceRef.current = current.source;
+  const lookupRef = useRef({ folder: sync.folder, allowed: false, stored: current.images });
+  lookupRef.current = { folder: sync.folder, allowed: ready && !sync.needsAccess, stored: current.images };
+
+  /** Finds an image for Pack images: web URLs over the network; relative paths in the folder, then in this browser. */
+  const fetchImage = useCallback(async (src: string): Promise<Blob | null> => {
+    if (/^https?:\/\//i.test(src)) {
+      try {
+        const res = await fetch(src);
+        return res.ok ? await res.blob() : null;
+      } catch {
+        return null; // offline, or the site does not allow other pages to read its images
+      }
+    }
+    let path = src;
+    try {
+      path = decodeURIComponent(src);
+    } catch {
+      // keep the raw text
+    }
+    const key = imageKey(path);
+    if (key === '' || key.split('/').includes('..')) return null;
+    const { folder, allowed, stored } = lookupRef.current;
+    const blob = (folder && allowed ? await readFolderImage(folder, key) : undefined) ?? stored.get(key);
+    if (!blob) return null;
+    if (baseType(blob.type) !== '' && baseType(blob.type) !== 'application/octet-stream') return blob;
+    const guess = EXT_TYPES[key.split('.').pop()?.toLowerCase() ?? ''];
+    return guess ? new Blob([blob], { type: guess }) : blob;
+  }, []);
+
+  const packAllImages = async () => {
+    if (!ready) return;
+    const before = current.source;
+    const { source, failed } = await packImages(before, fetchImage);
+    if (sourceRef.current !== before) {
+      notify('The deck changed while images were being packed. Try again.');
+      return;
+    }
+    if (source !== before) {
+      if (editor.current) editor.current.replaceSource(source);
+      else current.setSource(source);
+    }
+    if (failed.length > 0) {
+      notify(`Could not embed ${failed.length === 1 ? 'this image' : `these ${failed.length} images`}: ${failed.join(', ')}`);
+    } else if (source === before) {
+      notify('There are no images to pack.');
+    } else {
+      notify('Images packed into the deck.');
+    }
+  };
 
   const name = ready ? deckName(current.source) : '';
   const selectDeck = (id: string) => {
@@ -396,6 +461,7 @@ export function App() {
         onDelete={guarded(remove)}
         onPresent={() => startPresenting(1)}
         onCopyLink={copyLink}
+        onPackImages={guarded(packAllImages)}
         onOpen={openFile}
         onOpenFolder={supportsFolderLink() ? openFolderClick : undefined}
         link={ready ? sync.link : undefined}
@@ -416,6 +482,7 @@ export function App() {
               value={current.source}
               onChange={current.setSource}
               warnings={current.warnings}
+              extensions={editorExtensions}
             />
             </Suspense>
           )}

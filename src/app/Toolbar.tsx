@@ -10,6 +10,7 @@ type Props = {
   onPresent(): void;
   /** Copies the share link. Resolves to the link when the clipboard could not be written, else undefined. */
   onCopyLink(): Promise<string | undefined>;
+  onPackImages(): void;
   onOpen(): void;
   /** Undefined when the browser cannot open folders. */
   onOpenFolder?(): void;
@@ -82,7 +83,7 @@ function ShareMenu({ onCopyLink }: { onCopyLink: Props['onCopyLink'] }) {
 
 export function Toolbar({
   listOpen, onToggleList, name, onRename, onDuplicate, onDelete, onPresent, onCopyLink,
-  onOpen, onOpenFolder, link, needsAccess, readOnly, onGrant, onUnlink,
+  onPackImages, onOpen, onOpenFolder, link, needsAccess, readOnly, onGrant, onUnlink,
 }: Props) {
   return (
     <header className="toolbar">
@@ -113,6 +114,9 @@ export function Toolbar({
         )}
         <button type="button" onClick={onPresent}>
           Present
+        </button>
+        <button type="button" onClick={onPackImages}>
+          Pack images
         </button>
         <ShareMenu onCopyLink={onCopyLink} />
         <button type="button" onClick={onRename}>
