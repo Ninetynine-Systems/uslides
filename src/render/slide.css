@@ -20,6 +20,9 @@
   font-size: calc(var(--us-size) * var(--us-scale, 1));
 }
 
+/* Children never shrink, so overflow shows up on the box where fitSlide measures it. */
+.us-loose > *, .us-box > * { flex-shrink: 0; }
+
 /* Vertical alignment uses auto margins so that overflowing content grows downward and stays measurable. */
 .us-valign-top > :first-child { margin-top: 0; }
 .us-valign-top > :last-child { margin-bottom: 0; }
@@ -54,7 +57,7 @@
 }
 .us-stage code, .us-stage pre { font-family: var(--us-mono); font-size: 0.85em; }
 .us-stage code { background: var(--us-code-bg); padding: 0.1em 0.3em; border-radius: 0.2em; }
-.us-stage pre { background: var(--us-code-bg); padding: 0.6em 0.8em; border-radius: 0.3em; overflow: hidden; }
+.us-stage pre { background: var(--us-code-bg); padding: 0.6em 0.8em; border-radius: 0.3em; }
 .us-stage pre code { background: none; padding: 0; }
 .us-stage table { border-collapse: collapse; }
 .us-stage th, .us-stage td { border: 1px solid var(--us-rule); padding: 0.2em 0.6em; }
