@@ -5,9 +5,10 @@ type Props = {
   onRename(): void;
   onDuplicate(): void;
   onDelete(): void;
+  onPresent(): void;
 };
 
-export function Toolbar({ listOpen, onToggleList, name, onRename, onDuplicate, onDelete }: Props) {
+export function Toolbar({ listOpen, onToggleList, name, onRename, onDuplicate, onDelete, onPresent }: Props) {
   return (
     <header className="toolbar">
       <button type="button" onClick={onToggleList} aria-expanded={listOpen} aria-controls="decks">
@@ -15,6 +16,9 @@ export function Toolbar({ listOpen, onToggleList, name, onRename, onDuplicate, o
       </button>
       <h1 className="toolbar-name">{name}</h1>
       <div className="toolbar-actions">
+        <button type="button" onClick={onPresent}>
+          Present
+        </button>
         <button type="button" onClick={onRename}>
           Rename
         </button>

@@ -6,6 +6,7 @@ import {
 import { DeckList, type DeckSummary } from './DeckList';
 import type { EditorHandle } from './Editor';
 import { Notices, useNotices } from './Notices';
+import { Present } from './Present';
 import { Preview } from './Preview';
 import { Toolbar } from './Toolbar';
 import { deckHash, parseRoute } from './route';
@@ -55,6 +56,8 @@ export function App() {
   const wide = useWide();
   const { notices, notify, dismiss } = useNotices();
   const editor = useRef<EditorHandle>(null);
+  /** 1-based slide shown in present mode, or undefined when not presenting. */
+  const [presenting, setPresenting] = useState<number | undefined>(() => parseRoute(location.hash).present);
 
   const refreshList = useCallback(() => {
     void listDecks().then(setDecks);
@@ -67,8 +70,10 @@ export function App() {
   /** Shows a deck and updates the URL without adding a history entry. */
   const openDeck = useCallback((id: string) => {
     setDeckId(id);
-    if (!location.hash || parseRoute(location.hash).deckId !== undefined) {
+    const route = parseRoute(location.hash);
+    if (!location.hash || (route.deckId !== undefined && route.deckId !== id)) {
       history.replaceState(null, '', deckHash(id));
+      setPresenting(undefined);
     }
   }, []);
 
@@ -82,11 +87,16 @@ export function App() {
   // Back and forward, or a pasted deck link.
   useEffect(() => {
     const onHash = () => {
-      const id = parseRoute(location.hash).deckId;
+      const route = parseRoute(location.hash);
+      const id = route.deckId;
       if (!id) return;
+      setPresenting(route.present);
       // A link to a deck that no longer exists (for example Back after deleting it) shows another deck.
       void resolveDeck(id).then((found) => {
-        if (found !== id) history.replaceState(null, '', deckHash(found));
+        if (found !== id) {
+          history.replaceState(null, '', deckHash(found));
+          setPresenting(undefined);
+        }
         setDeckId(found);
         refreshList();
       });
@@ -98,6 +108,63 @@ export function App() {
   useEffect(() => {
     if (window.__uslides) window.__uslides.getSource = () => current.source;
   }, [current.source]);
+
+  const slideCount = ready ? current.deck?.slides.length : undefined;
+
+  /** Starts presenting. Adds a history entry, so Back leaves present mode. */
+  const startPresenting = useCallback(
+    (slide: number) => {
+      if (!deckId || !slideCount) return;
+      history.pushState({ present: true }, '', deckHash(deckId, slide));
+      setPresenting(slide);
+    },
+    [deckId, slideCount],
+  );
+
+  /** Changes slide while presenting. Replaces the history entry, so Back does not step through slides. */
+  const goToSlide = useCallback(
+    (slide: number) => {
+      if (!deckId) return;
+      history.replaceState(history.state, '', deckHash(deckId, slide));
+      setPresenting(slide);
+    },
+    [deckId],
+  );
+
+  const stopPresenting = useCallback(() => {
+    if (!deckId) return;
+    if ((history.state as { present?: boolean } | null)?.present) {
+      history.back(); // the hashchange handler then clears present mode
+    } else {
+      history.replaceState(null, '', deckHash(deckId));
+    }
+    setPresenting(undefined);
+  }, [deckId]);
+
+  /** The slide the editor cursor is in: the one whose range holds it, else the last one starting before it. */
+  const slideAtCursor = useCallback((): number => {
+    const slides = current.deck?.slides;
+    const at = editor.current?.getCursor();
+    if (!slides || at === undefined) return 1;
+    let found = 0;
+    slides.forEach((slide, i) => {
+      if (slide.range.from <= at) found = i;
+    });
+    return found + 1;
+  }, [current.deck]);
+
+  // Ctrl/Cmd+Enter starts presenting. Runs before the editor sees the key, which would insert a line.
+  useEffect(() => {
+    if (presenting !== undefined) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      startPresenting(slideAtCursor());
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [presenting, startPresenting, slideAtCursor]);
 
   const name = ready ? deckName(current.source) : '';
   const selectDeck = (id: string) => {
@@ -145,8 +212,12 @@ export function App() {
     refreshList();
   };
 
+  const showPresent = presenting !== undefined && ready && current.deck !== undefined;
+
   return (
-    <div className={listOpen ? 'app list-open' : 'app'}>
+    <>
+    {/* inert: while presenting, nothing behind the slide can take focus or keys. */}
+    <div className={listOpen ? 'app list-open' : 'app'} inert={showPresent}>
       <Toolbar
         listOpen={listOpen}
         onToggleList={() => setListOpen((o) => !o)}
@@ -154,6 +225,7 @@ export function App() {
         onRename={guarded(rename)}
         onDuplicate={guarded(duplicate)}
         onDelete={guarded(remove)}
+        onPresent={() => startPresenting(1)}
       />
       <div className="decks" id="decks" hidden={!listOpen}>
         <DeckList decks={decks} activeId={deckId} onSelect={selectDeck} onNew={guarded(newDeck)} />
@@ -184,5 +256,15 @@ export function App() {
       </main>
       <Notices notices={notices} onDismiss={dismiss} />
     </div>
+    {showPresent && (
+      <Present
+        deck={current.deck!}
+        images={current.images}
+        slide={presenting}
+        onGo={goToSlide}
+        onExit={stopPresenting}
+      />
+    )}
+    </>
   );
 }

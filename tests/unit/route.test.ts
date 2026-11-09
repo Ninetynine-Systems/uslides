@@ -6,8 +6,11 @@ describe('route', () => {
     expect(deckHash('abc')).toBe('#/deck/abc');
     expect(parseRoute('#/deck/abc')).toEqual({ deckId: 'abc' });
   });
-  it('ignores a present suffix when reading the id', () => {
-    expect(parseRoute('#/deck/abc/present/3')).toEqual({ deckId: 'abc' });
+  it('reads the slide number from a present suffix', () => {
+    expect(deckHash('abc', 3)).toBe('#/deck/abc/present/3');
+    expect(parseRoute('#/deck/abc/present/3')).toEqual({ deckId: 'abc', present: 3 });
+    expect(parseRoute('#/deck/abc/present/x')).toEqual({ deckId: 'abc' });
+    expect(parseRoute('#/deck/abc/present/0')).toEqual({ deckId: 'abc', present: 1 });
   });
   it('leaves unknown forms alone', () => {
     expect(parseRoute('')).toEqual({});

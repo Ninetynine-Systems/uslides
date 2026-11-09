@@ -14,12 +14,12 @@ type Props = {
   onSelectSlide(index: number): void;
 };
 
-function imageKey(path: string): string {
+export function imageKey(path: string): string {
   return path.split('/').filter((p) => p !== '' && p !== '.').join('/');
 }
 
 /** Object URLs for the deck's stored images. They are released when the images change. */
-function useImageUrls(images: Map<string, Blob> | undefined): Map<string, string> {
+export function useImageUrls(images: Map<string, Blob> | undefined): Map<string, string> {
   const urls = useMemo(() => {
     const map = new Map<string, string>();
     for (const [path, blob] of images ?? []) map.set(path, URL.createObjectURL(blob));

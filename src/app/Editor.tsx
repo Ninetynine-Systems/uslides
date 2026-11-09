@@ -12,6 +12,8 @@ const externalChange = Annotation.define<boolean>();
 export type EditorHandle = {
   /** Moves the cursor to a character offset, scrolls it into view and focuses the editor. */
   moveCursorTo(pos: number): void;
+  /** The cursor's character offset. */
+  getCursor(): number;
 };
 
 type Props = {
@@ -90,6 +92,7 @@ export function Editor({ value, onChange, warnings = [], extensions = [], ref }:
       v.dispatch({ selection: { anchor }, scrollIntoView: true });
       v.focus();
     },
+    getCursor: () => view.current?.state.selection.main.head ?? 0,
   }));
 
   return <div className="editor" ref={host} />;
