@@ -166,6 +166,9 @@ describe('box source edits', () => {
 });
 
 describe('deck font source edits', () => {
+  const slideSources = (deck: Deck) => deck.slides.map((slide) =>
+    deck.source.slice(slide.range.from, slide.range.to));
+
   it('adds a font line to an existing settings block', () => {
     const source = '---\ntitle: A deck\n---\n\n# A\n';
 
@@ -196,6 +199,28 @@ describe('deck font source edits', () => {
     expect(apply(source, setDeckFont(source, null).changes)).toBe('# A\n');
   });
 
+  it('keeps a comment-only settings block from becoming a slide separator', () => {
+    const source = '---\n# Keep this note.\nfont: Lora\n---\n\n# A\n\n---\n\n# B\n';
+    const before = parseDeck(source);
+    const changed = apply(source, setDeckFont(source, null).changes);
+    const after = parseDeck(changed);
+
+    expect(after.settings.font).toBeUndefined();
+    expect(slideSources(after)).toEqual(slideSources(before));
+    expect(changed).toContain('# Keep this note.');
+  });
+
+  it('keeps an unknown setting from becoming a slide separator', () => {
+    const source = '---\nfont: Lora\ncustom: keep\n---\n\n# A\n\n---\n\n# B\n';
+    const before = parseDeck(source);
+    const changed = apply(source, setDeckFont(source, null).changes);
+    const after = parseDeck(changed);
+
+    expect(after.settings.font).toBeUndefined();
+    expect(slideSources(after)).toEqual(slideSources(before));
+    expect(changed).toContain('custom: keep');
+  });
+
   it('creates a settings block when the deck has none', () => {
     const source = '# A\n';
 
@@ -206,5 +231,11 @@ describe('deck font source edits', () => {
 
   it('does nothing when removing a missing deck font', () => {
     expect(setDeckFont('# A\n', null)).toEqual({ changes: [] });
+  });
+
+  it('does nothing when setting the current deck font', () => {
+    const source = '---\nfont: Lora\n---\n\n# A\n';
+
+    expect(setDeckFont(source, 'Lora')).toEqual({ changes: [] });
   });
 });

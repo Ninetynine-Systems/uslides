@@ -162,6 +162,10 @@ export function App() {
   /** 1-based slide shown in present mode, or undefined when not presenting. */
   const [presenting, setPresenting] = useState<number | undefined>(() => parseRoute(location.hash).present);
 
+  useEffect(() => {
+    setDeckFontOpen(false);
+  }, [deckId]);
+
   const refreshList = useCallback(() => {
     void listDecks().then(setDecks);
   }, []);
@@ -239,7 +243,9 @@ export function App() {
         : getFreshDeck();
       if (!deck) return;
       const result = make(deck);
-      if (result) target.applyEdit(result, opts);
+      if (result && (result.changes.length > 0 || result.select !== undefined)) {
+        target.applyEdit(result, opts);
+      }
     },
     [getFreshDeck],
   );

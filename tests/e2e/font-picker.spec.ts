@@ -49,6 +49,18 @@ async function openDeckPicker(page: Page) {
   return dialog;
 }
 
+async function waitForRequestsToSettle(page: Page, requests: string[]) {
+  let previous = -1;
+  let stableChecks = 0;
+  await expect.poll(async () => {
+    const current = requests.length;
+    stableChecks = current === previous ? stableChecks + 1 : 0;
+    previous = current;
+    await page.waitForTimeout(50);
+    return stableChecks;
+  }).toBeGreaterThanOrEqual(2);
+}
+
 test('searching narrows the list as you type', async ({ page }) => {
   await routeFonts(page);
   await page.setViewportSize({ width: 375, height: 812 });
@@ -56,9 +68,15 @@ test('searching narrows the list as you type', async ({ page }) => {
   await expect(page.locator('.us-stage').first()).toBeVisible();
 
   const dialog = await openDeckPicker(page);
-  const search = dialog.getByRole('searchbox', { name: 'Search fonts' });
+  const search = dialog.getByRole('combobox', { name: 'Search fonts' });
   const list = dialog.getByRole('listbox', { name: 'Fonts' });
   await expect(search).toBeFocused();
+  await expect(search).toHaveAttribute('aria-controls', await list.getAttribute('id') ?? 'missing');
+  await expect(search).toHaveAttribute('aria-expanded', 'true');
+  const activeId = await search.getAttribute('aria-activedescendant');
+  expect(activeId).not.toBeNull();
+  await expect(dialog.locator(`[id="${activeId}"]`)).toHaveCount(1);
+  await expect(list.getByRole('option').first()).toHaveAttribute('tabindex', '-1');
   const countBefore = await list.getByRole('option').count();
   await search.fill('Playfair Display');
 
@@ -98,7 +116,7 @@ test('picking a font writes font="Name" and one undo removes it', async ({ page 
   await clickBox(page);
   await page.locator('.us-floating-bar').getByRole('button', { name: 'Font', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Font picker' });
-  const search = dialog.getByRole('searchbox', { name: 'Search fonts' });
+  const search = dialog.getByRole('combobox', { name: 'Search fonts' });
 
   await search.fill('Playfair Display');
   await search.press('ArrowDown');
@@ -115,7 +133,7 @@ test('Deck font writes font: Name into the settings block', async ({ page }) => 
   await openAllowedDeck(page);
   const dialog = await openDeckPicker(page);
 
-  await dialog.getByRole('searchbox', { name: 'Search fonts' }).fill('Lora');
+  await dialog.getByRole('combobox', { name: 'Search fonts' }).fill('Lora');
   await dialog.getByRole('option', { name: 'Lora', exact: true }).click();
 
   await expect.poll(() => getSource(page)).toBe(`---\nfont: Lora\n---\n\n${BOX_DECK}`);
@@ -128,23 +146,38 @@ test('each visible name loads only its own letters', async ({ page }) => {
   const dialog = await openDeckPicker(page);
 
   await expect.poll(() => cssRequests.length).toBeGreaterThan(0);
-  const visibleNames = await dialog.locator('[role="option"]:visible').allTextContents();
-  const previewNames = visibleNames.filter((name) => name !== 'Theme font');
-  expect(cssRequests.length).toBeLessThanOrEqual(previewNames.length);
+  await waitForRequestsToSettle(page, cssRequests);
+  const list = dialog.getByRole('listbox', { name: 'Fonts' });
+  const renderedNames = (await list.getByRole('option').allTextContents())
+    .filter((name) => name !== 'Theme font');
+  // IntersectionObserver may request fewer rows than virtualization renders, never more.
+  expect(cssRequests.length).toBeLessThanOrEqual(renderedNames.length);
+  expect(new Set(cssRequests).size).toBe(cssRequests.length);
   for (const request of cssRequests) {
     const url = new URL(request);
     const name = url.searchParams.get('text');
     expect(name).not.toBeNull();
-    expect(previewNames).toContain(name);
+    expect(url.searchParams.get('family')).toBe(name);
+    expect(renderedNames).toContain(name);
     expect(request).toContain('&text=');
   }
+
+  await list.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await waitForRequestsToSettle(page, cssRequests);
+  await list.evaluate((element) => { element.scrollTop = 0; });
+  await waitForRequestsToSettle(page, cssRequests);
+  expect(new Set(cssRequests).size).toBe(cssRequests.length);
 });
 
 test('while blocked, names show plain with a Show previews button', async ({ page }) => {
   const cssRequests: string[] = [];
   await routeFonts(page, cssRequests);
-  await page.goto(`/?test#md=${encodeURIComponent(BOX_DECK)}`);
+  const blockedDeck = `---\nfont: Lora\n---\n\n${BOX_DECK}`;
+  await page.goto(`/?test#md=${encodeURIComponent(blockedDeck)}`);
   await expect(page.locator('.us-box')).toHaveCount(1);
+  const banner = page.getByRole('complementary', { name: 'Other websites blocked' });
+  await expect(banner).toBeVisible();
+  await expect(page.locator('link[data-uslides-font]')).toHaveCount(0);
   await clickBox(page);
   await page.locator('.us-floating-bar').getByRole('button', { name: 'Font', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Font picker' });
@@ -159,9 +192,42 @@ test('while blocked, names show plain with a Show previews button', async ({ pag
   await previews.click();
   await expect(previews).toHaveCount(0);
   await expect.poll(() => cssRequests.length).toBeGreaterThan(0);
+  await expect(banner).toBeVisible();
+  await expect(page.locator('link[data-uslides-font]')).toHaveCount(0);
 
   await page.keyboard.press('Escape');
   await page.locator('.us-floating-bar').getByRole('button', { name: 'Font', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Font picker' }).getByRole('button', { name: 'Show previews' }))
     .toBeVisible();
+});
+
+test('switching decks closes the deck font picker', async ({ page }) => {
+  await routeFonts(page);
+  await openAllowedDeck(page);
+  const decks = page.getByRole('navigation', { name: 'Decks' });
+  await page.getByRole('button', { name: 'New deck' }).click();
+  await expect.poll(() => getSource(page)).toBe('# Untitled\n');
+  await openDeckPicker(page);
+
+  await decks.locator('.deck-item:not(.active)').click();
+
+  await expect.poll(() => getSource(page)).toBe(BOX_DECK);
+  await expect(page.getByRole('dialog', { name: 'Font picker' })).toHaveCount(0);
+});
+
+test('picking the current deck font adds no undo step', async ({ page }) => {
+  await routeFonts(page);
+  const source = `---\nfont: Lora\n---\n\n${BOX_DECK}`;
+  await openAllowedDeck(page, source);
+  await editor(page).focus();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.insertText('\nMarker');
+  await expect.poll(() => getSource(page)).toContain('Marker');
+  const dialog = await openDeckPicker(page);
+  await dialog.getByRole('combobox', { name: 'Search fonts' }).fill('Lora');
+  await dialog.getByRole('option', { name: 'Lora', exact: true }).click();
+
+  await editor(page).focus();
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(() => getSource(page)).toBe(source);
 });

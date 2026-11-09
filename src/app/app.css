@@ -235,6 +235,7 @@ button.danger { color: var(--danger); }
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+.us-font-catalog-error { margin: 0 12px 8px; color: var(--danger); font-size: 0.85rem; }
 .us-font-preview-choice {
   display: flex;
   align-items: center;

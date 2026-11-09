@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -52,27 +53,22 @@ function FontOption(props: {
   active: boolean;
   selected: boolean;
   previews: boolean;
+  requestPreview(name: string): void;
   onActivate(index: number): void;
   onPick(): void;
 }) {
-  const { id, index, name, active, selected, previews, onActivate, onPick } = props;
+  const { id, index, name, active, selected, previews, requestPreview, onActivate, onPick } = props;
   const row = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const element = row.current;
     if (!element || !name || !previews) return;
-    let link: HTMLLinkElement | undefined;
     const show = () => {
-      if (link) return;
-      link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = previewUrl(name);
-      link.dataset.uslidesFontPreview = name;
-      document.head.append(link);
+      requestPreview(name);
     };
     if (!('IntersectionObserver' in window)) {
       show();
-      return () => link?.remove();
+      return;
     }
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) show();
@@ -80,9 +76,8 @@ function FontOption(props: {
     observer.observe(element);
     return () => {
       observer.disconnect();
-      link?.remove();
     };
-  }, [name, previews]);
+  }, [name, previews, requestPreview]);
 
   const style: CSSProperties = {
     top: index * ROW_HEIGHT,
@@ -95,6 +90,7 @@ function FontOption(props: {
       id={id}
       type="button"
       role="option"
+      tabIndex={-1}
       aria-selected={selected}
       className={`us-font-option${active ? ' active' : ''}`}
       style={style}
@@ -111,6 +107,7 @@ export function FontPicker({ value, blocked, onPick, onClose }: FontPickerProps)
   const listId = useId();
   const search = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
+  const previewLinks = useRef(new Map<string, HTMLLinkElement>());
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const catalogVersion = useSyncExternalStore(subscribeCatalog, getCatalogVersion, getCatalogVersion);
@@ -120,16 +117,31 @@ export function FontPicker({ value, blocked, onPick, onClose }: FontPickerProps)
   const [scrollTop, setScrollTop] = useState(0);
   const [listHeight, setListHeight] = useState(DEFAULT_LIST_HEIGHT);
   const [showBlockedPreviews, setShowBlockedPreviews] = useState(false);
+  const [catalogError, setCatalogError] = useState(false);
   const previews = !blocked || showBlockedPreviews;
   const families = useMemo(
     () => (query === '' && !group ? allFamilies() : searchFamilies(query, group)),
     [catalogVersion, group, query],
   );
   const count = families.length + 1;
+  const activeIndex = Math.min(active, count - 1);
+
+  const requestPreview = useCallback((name: string) => {
+    if (previewLinks.current.has(name)) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = previewUrl(name);
+    link.dataset.uslidesFontPreview = name;
+    previewLinks.current.set(name, link);
+    document.head.append(link);
+  }, []);
 
   useEffect(() => {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
-    void loadCatalog().catch(() => undefined);
+    let mounted = true;
+    void loadCatalog().catch(() => {
+      if (mounted) setCatalogError(true);
+    });
     search.current?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
@@ -139,10 +151,17 @@ export function FontPicker({ value, blocked, onPick, onClose }: FontPickerProps)
     };
     document.addEventListener('keydown', closeOnEscape, true);
     return () => {
+      mounted = false;
       document.removeEventListener('keydown', closeOnEscape, true);
+      for (const link of previewLinks.current.values()) link.remove();
+      previewLinks.current.clear();
       previousFocus?.focus();
     };
   }, []);
+
+  useEffect(() => {
+    if (active !== activeIndex) setActive(activeIndex);
+  }, [active, activeIndex]);
 
   useLayoutEffect(() => {
     const element = list.current;
@@ -171,11 +190,18 @@ export function FontPicker({ value, blocked, onPick, onClose }: FontPickerProps)
     }
   };
   const move = (step: number) => {
-    const next = Math.min(Math.max(0, active + step), count - 1);
+    const next = Math.min(Math.max(0, activeIndex + step), count - 1);
     setActive(next);
     scrollTo(next);
   };
-  const pickAt = (index: number) => onPick(index === 0 ? null : families[index - 1]?.name ?? null);
+  const pickAt = (index: number) => {
+    if (index === 0) {
+      onPick(null);
+      return;
+    }
+    const family = families[index - 1];
+    if (family) onPick(family.name);
+  };
   const onSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
@@ -204,8 +230,11 @@ export function FontPicker({ value, blocked, onPick, onClose }: FontPickerProps)
         <input
           ref={search}
           type="search"
+          role="combobox"
           aria-label="Search fonts"
           aria-controls={listId}
+          aria-expanded="true"
+          aria-activedescendant={optionId(activeIndex)}
           placeholder="Search fonts"
           value={query}
           onChange={(event) => {
@@ -225,6 +254,7 @@ export function FontPicker({ value, blocked, onPick, onClose }: FontPickerProps)
           {GROUPS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
         </select>
       </div>
+      {catalogError && <p className="us-font-catalog-error">Could not load the font list.</p>}
       {blocked && !showBlockedPreviews && (
         <div className="us-font-preview-choice">
           <span>Font previews are hidden.</span>
@@ -245,7 +275,6 @@ export function FontPicker({ value, blocked, onPick, onClose }: FontPickerProps)
         className="us-font-list"
         role="listbox"
         aria-label="Fonts"
-        aria-activedescendant={optionId(active)}
         onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
       >
         <div className="us-font-list-inner" style={{ height: count * ROW_HEIGHT }}>
@@ -257,9 +286,10 @@ export function FontPicker({ value, blocked, onPick, onClose }: FontPickerProps)
                 id={optionId(index)}
                 index={index}
                 name={name}
-                active={active === index}
+                active={activeIndex === index}
                 selected={name === null ? value === undefined : name.toLowerCase() === value?.toLowerCase()}
                 previews={previews}
+                requestPreview={requestPreview}
                 onActivate={setActive}
                 onPick={() => pickAt(index)}
               />

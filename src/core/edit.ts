@@ -10,11 +10,12 @@ export type EditResult = { changes: Edit[]; select?: number };
 
 /** Sets `font:` in the settings block, creating or removing the line as needed. */
 export function setDeckFont(source: string, name: string | null): EditResult {
+  const parsed = parseSettings(source);
   const range = settingRange(source, 'font');
   if (name === null) {
     if (!range) return { changes: [] };
     const to = source.charAt(range.to) === '\n' ? range.to + 1 : range.to;
-    const { bodyStart } = parseSettings(source);
+    const { bodyStart } = parsed;
     const closingLine = bodyStart > 0 ? source.lastIndexOf('\n---', bodyStart - 1) + 1 : 0;
     const remaining = closingLine > 0
       ? source.slice(4, range.from) + source.slice(to, closingLine)
@@ -23,13 +24,18 @@ export function setDeckFont(source: string, name: string | null): EditResult {
       const blockTo = source.charAt(bodyStart) === '\n' ? bodyStart + 1 : bodyStart;
       return { changes: [{ from: 0, to: blockTo, insert: '' }] };
     }
+    const withoutFont = source.slice(0, range.from) + source.slice(to);
+    if (parseSettings(withoutFont).bodyStart === 0) {
+      return { changes: [{ from: range.from, to: range.to, insert: 'font: default' }] };
+    }
     return { changes: [{ from: range.from, to, insert: '' }] };
   }
   if (!isValidFontName(name)) return { changes: [] };
+  if (parsed.settings.font?.toLowerCase() === name.toLowerCase()) return { changes: [] };
 
   const line = `font: ${name}`;
   if (range) return { changes: [{ from: range.from, to: range.to, insert: line }] };
-  if (parseSettings(source).bodyStart > 0) {
+  if (parsed.bodyStart > 0) {
     return { changes: [{ from: 4, to: 4, insert: `${line}\n` }] };
   }
   return { changes: [{ from: 0, to: 0, insert: `---\n${line}\n---\n\n` }] };
