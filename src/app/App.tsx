@@ -358,7 +358,7 @@ export function App() {
   const packAllImages = async () => {
     if (!ready) return;
     const before = current.source;
-    const { source, failed } = await packImages(before, fetchImage);
+    const { source, failed, tooLarge } = await packImages(before, fetchImage);
     if (sourceRef.current !== before) {
       notify('The deck changed while images were being packed. Try again.');
       return;
@@ -368,7 +368,8 @@ export function App() {
       else current.setSource(source);
     }
     if (failed.length > 0) {
-      notify(`Could not embed ${failed.length === 1 ? 'this image' : `these ${failed.length} images`}: ${failed.join(', ')}`);
+      const label = (src: string) => (tooLarge.includes(src) ? `${src} (over 5 MB)` : src);
+      notify(`Could not embed ${failed.length === 1 ? 'this image' : `these ${failed.length} images`}: ${failed.map(label).join(', ')}`);
     } else if (source === before) {
       notify('There are no images to pack.');
     } else {

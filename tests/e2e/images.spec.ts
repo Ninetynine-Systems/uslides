@@ -126,3 +126,33 @@ test('Pack images embeds a reachable web image and names the unreachable one', a
   expect(source).toContain('![bad](https://broken.test/nope.png)');
   await expect(page.locator('.cm-image-chip')).toHaveCount(1);
 });
+
+test('Pack images is one undo step, separate from the typing before it', async ({ page }) => {
+  await page.route('https://images.test/ok.png', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'image/png',
+      body: Buffer.concat([Buffer.from(TINY_PNG, 'base64'), Buffer.alloc(600)]),
+    }),
+  );
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  await toEnd(page);
+  await page.keyboard.type('\n\n![good](https://images.test/ok.png)\n');
+  await page.getByRole('button', { name: 'Pack images' }).click(); // right after typing
+  await expect(page.locator('.cm-image-chip')).toHaveCount(1);
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.locator('.cm-image-chip')).toHaveCount(0);
+  expect(await getSource(page)).toContain('![good](https://images.test/ok.png)');
+});
+
+test('pasting an image replaces the selected text', async ({ page }) => {
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  await toEnd(page);
+  await page.keyboard.type('\nreplace-me');
+  await page.keyboard.press('Shift+Home');
+  await pasteImage(page, TINY_PNG);
+  await expect.poll(() => getSource(page)).toContain('![image](data:image/png;base64,');
+  expect(await getSource(page)).not.toContain('replace-me');
+});

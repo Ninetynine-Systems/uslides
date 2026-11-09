@@ -11,7 +11,7 @@ export const BAD_TYPE_NOTICE = 'Only PNG, JPEG, GIF, WebP, SVG and AVIF images c
 const isImage = (f: File) => f.type.startsWith('image/');
 
 /** Inserts `![image](data:…)` at `pos`, on its own line. */
-async function insertImages(view: EditorView, files: File[], pos: number, onNotice: (text: string) => void) {
+async function insertImages(view: EditorView, files: File[], pos: number, end: number, onNotice: (text: string) => void) {
   const uris: string[] = [];
   for (const file of files) {
     if (file.size > MAX_EMBED_BYTES) {
@@ -23,13 +23,14 @@ async function insertImages(view: EditorView, files: File[], pos: number, onNoti
     }
   }
   if (uris.length === 0 || !view.dom.isConnected) return;
-  pos = Math.min(pos, view.state.doc.length); // the text may have changed while the file was read
-  const line = view.state.doc.lineAt(pos);
-  const before = pos === line.from ? '' : '\n';
-  const after = pos === line.to ? '' : '\n';
+  const len = view.state.doc.length; // the text may have changed while the file was read
+  pos = Math.min(pos, len);
+  end = Math.min(Math.max(end, pos), len);
+  const before = pos === view.state.doc.lineAt(pos).from ? '' : '\n';
+  const after = end === view.state.doc.lineAt(end).to ? '' : '\n';
   const insert = before + uris.map((u) => `![image](${u})`).join('\n') + after;
   view.dispatch({
-    changes: { from: pos, insert },
+    changes: { from: pos, to: end, insert },
     selection: { anchor: pos + insert.length - after.length },
     scrollIntoView: true,
     userEvent: 'input.paste',
@@ -46,7 +47,7 @@ export function pasteImage(options: { onNotice(text: string): void }): Extension
       const files = [...(event.clipboardData?.files ?? [])].filter(isImage);
       if (files.length === 0) return false;
       event.preventDefault();
-      void insertImages(view, files, view.state.selection.main.head, options.onNotice);
+      void insertImages(view, files, view.state.selection.main.from, view.state.selection.main.to, options.onNotice);
       return true;
     },
     drop(event, view) {
@@ -56,7 +57,7 @@ export function pasteImage(options: { onNotice(text: string): void }): Extension
       event.preventDefault();
       markImageDrop(event);
       const pos = view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.head;
-      void insertImages(view, all, pos, options.onNotice);
+      void insertImages(view, all, pos, pos, options.onNotice);
       return true;
     },
   });

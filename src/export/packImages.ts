@@ -46,21 +46,33 @@ function isPackable(src: string): boolean {
   return !/^[a-z][a-z0-9+.-]*:/i.test(src) && !src.startsWith('//');
 }
 
+/** Replaces inline code spans (`like this`) with spaces of the same length, so offsets stay valid. */
+function maskInlineCode(line: string): string {
+  return line.replace(/(`+)(.+?)(?<!`)\1(?!`)/g, (m) => ' '.repeat(m.length));
+}
+
+export const MAX_PACK_BYTES = 5 * 1024 * 1024;
+export const MAX_PACK_FETCHES = 4;
+
 /**
  * Rewrites every web or relative image source in the Markdown to a `data:` URI, so the deck is one
- * self-contained file. Images in code fences, existing `data:` images and other schemes are left alone.
- * An image that cannot be fetched, or is not a type the renderer allows, keeps its text and is listed in `failed`.
+ * self-contained file. Images in code fences or inline code, existing `data:` images and other schemes are left alone.
+ * An image that cannot be fetched, is not a type the renderer allows, or is over `maxBytes` keeps its text and is
+ * listed in `failed`; the ones that were too large are also in `tooLarge`. At most `concurrency` fetches run at once.
  */
 export async function packImages(
   source: string,
   fetchImage: (src: string) => Promise<Blob | null>,
-): Promise<{ source: string; failed: string[] }> {
+  options: { maxBytes?: number; concurrency?: number } = {},
+): Promise<{ source: string; failed: string[]; tooLarge: string[] }> {
+  const maxBytes = options.maxBytes ?? MAX_PACK_BYTES;
+  const concurrency = Math.max(1, options.concurrency ?? MAX_PACK_FETCHES);
   const lines = source.split('\n');
   const fenced = fencedLines(lines);
   const found: Array<{ line: number; start: number; end: number; src: string }> = [];
   lines.forEach((text, line) => {
     if (fenced[line]) return;
-    for (const m of text.matchAll(IMAGE)) {
+    for (const m of maskInlineCode(text).matchAll(IMAGE)) {
       let src = m[2]!;
       if (src.startsWith('<')) src = src.slice(1, -1);
       if (!isPackable(src)) continue;
@@ -69,39 +81,34 @@ export async function packImages(
     }
   });
 
-  const results = new Map<string, Promise<string | null>>();
-  const load = (src: string): Promise<string | null> => {
-    let p = results.get(src);
-    if (!p) {
-      p = (async () => {
-        try {
-          const blob = await fetchImage(src);
-          if (!blob || !isEmbeddableType(blob.type)) return null;
-          return await blobToDataUri(blob);
-        } catch {
-          return null;
-        }
-      })();
-      results.set(src, p);
+  // One result per distinct src, fetched by a small pool of workers.
+  const srcs = [...new Set(found.map((f) => f.src))];
+  const results = new Map<string, string | 'large' | null>();
+  let next = 0;
+  const worker = async () => {
+    while (next < srcs.length) {
+      const src = srcs[next++]!;
+      try {
+        const blob = await fetchImage(src);
+        if (!blob || !isEmbeddableType(blob.type)) results.set(src, null);
+        else if (blob.size > maxBytes) results.set(src, 'large');
+        else results.set(src, await blobToDataUri(blob));
+      } catch {
+        results.set(src, null);
+      }
     }
-    return p;
   };
+  await Promise.all(Array.from({ length: Math.min(concurrency, srcs.length) }, worker));
 
-  const failed: string[] = [];
-  const uris = await Promise.all(found.map((f) => load(f.src)));
+  const failed = srcs.filter((src) => results.get(src) === null || results.get(src) === 'large');
+  const tooLarge = srcs.filter((src) => results.get(src) === 'large');
   // Replace right to left within each line so earlier offsets stay valid.
   for (let i = found.length - 1; i >= 0; i--) {
     const f = found[i]!;
-    const uri = uris[i];
-    if (uri === null || uri === undefined) {
-      if (!failed.includes(f.src)) failed.unshift(f.src);
-      continue;
-    }
+    const uri = results.get(f.src);
+    if (uri === null || uri === 'large' || uri === undefined) continue;
     const text = lines[f.line]!;
     lines[f.line] = text.slice(0, f.start) + uri + text.slice(f.end);
   }
-  // `failed` was built back to front; keep it in document order.
-  const order = new Map(found.map((f, i) => [f.src, i] as const));
-  failed.sort((a, b) => order.get(a)! - order.get(b)!);
-  return { source: lines.join('\n'), failed };
+  return { source: lines.join('\n'), failed, tooLarge };
 }

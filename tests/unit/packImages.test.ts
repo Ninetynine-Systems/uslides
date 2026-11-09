@@ -66,6 +66,54 @@ describe('packImages', () => {
   });
 });
 
+describe('packImages limits', () => {
+  it('leaves inline code alone and does not fetch it', async () => {
+    const calls: string[] = [];
+    const source = 'Write `![x](a.png)` like this, or ``![y](b.png)`` too. ![real](c.png)';
+    const out = await packImages(source, async (src) => {
+      calls.push(src);
+      return png();
+    });
+    expect(calls).toEqual(['c.png']);
+    expect(out.source).toContain('`![x](a.png)`');
+    expect(out.source).toContain('``![y](b.png)``');
+    expect(out.source).toContain('![real](data:image/png;base64,');
+  });
+
+  it('counts an image over the size limit as failed and too large', async () => {
+    const big = new Blob([new Uint8Array(101)], { type: 'image/png' });
+    const out = await packImages('![a](big.png) ![b](ok.png)', async (src) => (src === 'big.png' ? big : png()), {
+      maxBytes: 100,
+    });
+    expect(out.source).toContain('![a](big.png)');
+    expect(out.source).toContain('![b](data:image/png;base64,');
+    expect(out.failed).toEqual(['big.png']);
+    expect(out.tooLarge).toEqual(['big.png']);
+  });
+
+  it('allows an image exactly at the limit, and uses 5 MB by default', async () => {
+    const exact = new Blob([new Uint8Array(100)], { type: 'image/png' });
+    expect((await packImages('![a](a.png)', async () => exact, { maxBytes: 100 })).failed).toEqual([]);
+    const over = new Blob([new Uint8Array(5 * 1024 * 1024 + 1)], { type: 'image/png' });
+    expect((await packImages('![a](a.png)', async () => over)).tooLarge).toEqual(['a.png']);
+  });
+
+  it('runs at most 4 fetches at once by default', async () => {
+    let active = 0;
+    let peak = 0;
+    const source = Array.from({ length: 12 }, (_, i) => `![i](p${i}.png)`).join('\n');
+    const out = await packImages(source, async () => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise((r) => setTimeout(r, 5));
+      active -= 1;
+      return png();
+    });
+    expect(out.failed).toEqual([]);
+    expect(peak).toBe(4);
+  });
+});
+
 describe('dataUriKb', () => {
   it('is the decoded size in KB, rounded', () => {
     const payload = 'A'.repeat(4096); // 3072 bytes

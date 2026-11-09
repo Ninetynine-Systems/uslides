@@ -1,7 +1,7 @@
 import { useEffect, useImperativeHandle, useRef, type Ref } from 'react';
 import { Annotation, EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, isolateHistory } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { setDiagnostics, type Diagnostic } from '@codemirror/lint';
 import type { Warning } from '../core/types';
@@ -111,6 +111,8 @@ export function Editor({ value, onChange, warnings = [], extensions = [], ref }:
       v.dispatch({
         changes: { from, to: old.length - tail, insert: text.slice(from, text.length - tail) },
         userEvent: 'input',
+        // Its own undo step, even right after typing.
+        annotations: isolateHistory.of('full'),
       });
     },
   }));
