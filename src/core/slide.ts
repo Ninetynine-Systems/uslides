@@ -28,6 +28,8 @@ export type Slide = {
   color?: string;
   /** Markdown outside any box. Boxes, the slide comment and notes are removed. */
   loose: string;
+  /** Source ranges for each non-blank run of Markdown outside boxes. */
+  looseRanges: SourceRange[];
   boxes: Box[];
   notes: string[];
   range: SourceRange;
@@ -181,6 +183,7 @@ export function parseSlide(
     index,
     grid: settings.grid,
     loose: '',
+    looseRanges: [],
     boxes: [],
     notes: [],
     range: raw.range,
@@ -261,5 +264,19 @@ export function parseSlide(
   slide.loose = trimBlankEnds(loose)
     .map((l) => l.text ?? '')
     .join('\n');
+
+  let run: Line[] = [];
+  const finishRun = () => {
+    if (run.some((line) => line.text?.trim() !== '')) {
+      slide.looseRanges.push({ from: run[0]!.range.from, to: run[run.length - 1]!.range.to });
+    }
+    run = [];
+  };
+  for (const line of loose) {
+    const previous = run[run.length - 1];
+    if (previous && previous.range.to + 1 !== line.range.from) finishRun();
+    run.push(line);
+  }
+  finishRun();
   return { slide, warnings };
 }

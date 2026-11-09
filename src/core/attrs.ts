@@ -1,8 +1,15 @@
 import type { Grid, Span } from './types';
 
-/** Parses `key=value` and `key="quoted value"` pairs separated by whitespace. */
-export function parseAttrs(text: string): { attrs: Record<string, string>; errors: string[] } {
-  const attrs: Record<string, string> = {};
+export type ScannedAttr = {
+  key: string;
+  from: number;
+  to: number;
+  valueFrom: number;
+  valueTo: number;
+};
+
+function readAttrs(text: string): { scanned: ScannedAttr[]; errors: string[] } {
+  const scanned: ScannedAttr[] = [];
   const errors: string[] = [];
   let i = 0;
   const n = text.length;
@@ -12,15 +19,16 @@ export function parseAttrs(text: string): { attrs: Record<string, string>; error
     while (i < n && isSpace(text.charAt(i))) i++;
     if (i >= n) break;
 
-    const keyStart = i;
+    const from = i;
     while (i < n && text.charAt(i) !== '=' && !isSpace(text.charAt(i))) i++;
-    const key = text.slice(keyStart, i);
+    const key = text.slice(from, i);
 
     if (i >= n || text.charAt(i) !== '=') {
       errors.push(`Attribute "${key}" has no value`);
       continue;
     }
     i++; // skip '='
+    const valueFrom = i;
 
     if (text.charAt(i) === '"') {
       const close = text.indexOf('"', i + 1);
@@ -28,13 +36,27 @@ export function parseAttrs(text: string): { attrs: Record<string, string>; error
         errors.push(`Unterminated quote for attribute "${key}"`);
         break;
       }
-      attrs[key] = text.slice(i + 1, close);
       i = close + 1;
     } else {
-      const valStart = i;
       while (i < n && !isSpace(text.charAt(i))) i++;
-      attrs[key] = text.slice(valStart, i);
     }
+    scanned.push({ key, from, to: i, valueFrom, valueTo: i });
+  }
+  return { scanned, errors };
+}
+
+/** Finds valid attributes and their offsets in `text`. Quoted value offsets include the quotes. */
+export function scanAttrs(text: string): ScannedAttr[] {
+  return readAttrs(text).scanned;
+}
+
+/** Parses `key=value` and `key="quoted value"` pairs separated by whitespace. */
+export function parseAttrs(text: string): { attrs: Record<string, string>; errors: string[] } {
+  const attrs: Record<string, string> = {};
+  const { scanned, errors } = readAttrs(text);
+  for (const attr of scanned) {
+    const value = text.slice(attr.valueFrom, attr.valueTo);
+    attrs[attr.key] = value.startsWith('"') ? value.slice(1, -1) : value;
   }
   return { attrs, errors };
 }

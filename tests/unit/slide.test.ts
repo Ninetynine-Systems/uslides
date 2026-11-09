@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parseDeck } from '../../src/core/parse';
 import { parseSettings } from '../../src/core/settings';
 import { splitSlides } from '../../src/core/split';
 import { parseSlide } from '../../src/core/slide';
@@ -89,6 +90,12 @@ describe('malformed slide comment', () => {
 });
 
 describe('boxes', () => {
+  it('records each free-flowing piece between boxes', () => {
+    const src = '# Title\n\n::: box\nx\n:::\n\nMiddle\n\n::: box\ny\n:::\n';
+    const d = parseDeck(src);
+    expect(d.slides[0]!.looseRanges.map((r) => src.slice(r.from, r.to).trim())).toEqual(['# Title', 'Middle']);
+  });
+
   it('parses attributes, markdown and content range', () => {
     const src = '::: box col=1-7 row=2-6 bg=#1e3a8a color=white\n## T\n:::\n';
     const { slide, warnings } = slideOf(src);
