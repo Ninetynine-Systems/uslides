@@ -106,3 +106,18 @@ describe('images', () => {
     await expect(putImage(d.id, '/a.png', png('x'))).rejects.toThrow()
   })
 })
+
+describe('connection recovery', () => {
+  it('retries opening the database after a failed open', async () => {
+    // A newer database version makes the first open fail with a VersionError.
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open('uslides', 2);
+      req.onsuccess = () => { req.result.close(); resolve(); };
+      req.onerror = () => reject(req.error);
+    });
+    await expect(listDecks()).rejects.toThrow();
+    // Swap in an empty factory. The next call must open again, not reuse the failure.
+    globalThis.indexedDB = new IDBFactory();
+    await expect(listDecks()).resolves.toEqual([]);
+  });
+});

@@ -25,20 +25,40 @@ interface UslidesDB extends DBSchema {
 let dbPromise: Promise<IDBPDatabase<UslidesDB>> | undefined;
 
 function db(): Promise<IDBPDatabase<UslidesDB>> {
-  dbPromise ??= openDB<UslidesDB>('uslides', 1, {
-    upgrade(d) {
-      d.createObjectStore('decks', { keyPath: 'id' });
-      const images = d.createObjectStore('images', { keyPath: ['deckId', 'path'] });
-      images.createIndex('deckId', 'deckId');
-    },
-  });
+  if (!dbPromise) {
+    const opening = openDB<UslidesDB>('uslides', 1, {
+      upgrade(d) {
+        d.createObjectStore('decks', { keyPath: 'id' });
+        const images = d.createObjectStore('images', { keyPath: ['deckId', 'path'] });
+        images.createIndex('deckId', 'deckId');
+      },
+      // Another tab wants to upgrade or delete the database: let go so it can.
+      blocking() {
+        forget(opening);
+      },
+      // The browser closed the connection (for example, storage was cleared).
+      terminated() {
+        forget(opening);
+      },
+    });
+    // A failed open must not be cached, or every later save would fail until reload.
+    opening.catch(() => forget(opening));
+    dbPromise = opening;
+  }
   return dbPromise;
+}
+
+/** Drops the cached connection so the next call opens a fresh one. Closes it if it was open. */
+function forget(opening: Promise<IDBPDatabase<UslidesDB>>): void {
+  if (dbPromise === opening) dbPromise = undefined;
+  opening.then((d) => d.close(), () => {});
 }
 
 /** Test only: closes the cached connection so a fresh database can be used. */
 export async function _resetForTests(): Promise<void> {
-  if (dbPromise) (await dbPromise).close();
+  const opening = dbPromise;
   dbPromise = undefined;
+  (await opening?.catch(() => undefined))?.close();
 }
 
 /** Strips a leading "./", collapses repeated "/", rejects ".." and absolute paths. */

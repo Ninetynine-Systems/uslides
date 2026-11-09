@@ -6,7 +6,7 @@ const fixture = (name: string) =>
   readFileSync(`tests/fixtures/${name}`, "utf8");
 const fontSize = (page: import("@playwright/test").Page) =>
   page.evaluate(() =>
-    parseFloat(getComputedStyle(document.querySelector(".us-box")!).fontSize),
+    parseFloat(getComputedStyle(document.querySelector("#us-test .us-box")!).fontSize),
   );
 
 test("the test hook is absent without ?test", async ({ page }) => {
@@ -32,7 +32,7 @@ test.describe("with the test hook", () => {
     const base = await page.evaluate(() => {
       window.__uslides!.render("::: box col=1 row=1\nshort\n:::");
       return parseFloat(
-        getComputedStyle(document.querySelector(".us-box")!).fontSize,
+        getComputedStyle(document.querySelector("#us-test .us-box")!).fontSize,
       );
     });
     const results = await page.evaluate((m) => window.__uslides!.render(m), md);
@@ -47,7 +47,7 @@ test.describe("with the test hook", () => {
     const results = await page.evaluate((m) => window.__uslides!.render(m), md);
     expect(results[0]).toEqual([{ boxIndex: 0, overflow: false }]);
     const scale = await page.evaluate(() =>
-      (document.querySelector(".us-box") as HTMLElement).style.getPropertyValue(
+      (document.querySelector("#us-test .us-box") as HTMLElement).style.getPropertyValue(
         "--us-scale",
       ),
     );
@@ -64,7 +64,7 @@ test.describe("with the test hook", () => {
     const results = await page.evaluate((m) => window.__uslides!.render(m), md);
     expect(results[0]).toEqual([{ boxIndex: 0, overflow: true }]);
     const size = await page.evaluate(() =>
-      parseFloat(getComputedStyle(document.querySelector(".us-box")!).fontSize),
+      parseFloat(getComputedStyle(document.querySelector("#us-test .us-box")!).fontSize),
     );
     expect(size).toBeGreaterThanOrEqual(MIN_FONT_PX);
     expect(size).toBeLessThan(32);
@@ -90,7 +90,7 @@ test.describe("with the test hook", () => {
       fixture("boxes.md"),
     );
     const g = await page.evaluate(() => {
-      const stage = document.querySelectorAll(".us-stage")[1] as HTMLElement;
+      const stage = document.querySelectorAll("#us-test .us-stage")[1] as HTMLElement;
       const s = stage.getBoundingClientRect();
       return [...stage.querySelectorAll<HTMLElement>(".us-box")].map((b) => {
         const r = b.getBoundingClientRect();
@@ -146,11 +146,11 @@ test.describe("with the test hook", () => {
       fixture("boxes.md"),
     );
     await page.waitForFunction(() =>
-      [...document.querySelectorAll(".us-stage img")].every(
+      [...document.querySelectorAll("#us-test .us-stage img")].every(
         (i) => (i as HTMLImageElement).complete,
       ),
     );
-    const stage = page.locator(".us-stage").nth(1);
+    const stage = page.locator("#us-test .us-stage").nth(1);
     await expect(stage).toHaveScreenshot("boxes-slide2.png", {
       maxDiffPixelRatio: 0.02,
     });

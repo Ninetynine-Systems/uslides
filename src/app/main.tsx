@@ -7,7 +7,7 @@ import { App } from './App';
 
 declare global {
   interface Window {
-    __uslides?: { render(md: string): FitResult[][] };
+    __uslides?: { render(md: string): FitResult[][]; getSource(): string };
   }
 }
 
@@ -17,6 +17,7 @@ if (new URLSearchParams(location.search).has('test')) {
   container.id = 'us-test';
   document.body.append(container);
   window.__uslides = {
+    getSource: () => '',
     render(md) {
       container.replaceChildren();
       const deck = parseDeck(md);
