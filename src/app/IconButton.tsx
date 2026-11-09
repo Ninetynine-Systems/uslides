@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, ComponentType } from 'react';
 type IconProps = { size?: number; 'aria-hidden'?: boolean };
 
 type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'type'> & {
-  /** What the button does. Screen readers read it, and it shows as a tooltip on hover. */
+  /** What the button does. Screen readers read it, and it shows as a tooltip on hover and keyboard focus. */
   label: string;
   icon: ComponentType<IconProps>;
 };
@@ -14,7 +14,7 @@ export function IconButton({ label, icon: Icon, className, ...rest }: Props) {
     <button
       type="button"
       aria-label={label}
-      title={label}
+      data-tip={label}
       className={className ? `icon-btn ${className}` : 'icon-btn'}
       {...rest}
     >

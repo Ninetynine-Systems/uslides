@@ -118,6 +118,41 @@ button.danger { color: var(--danger); }
 /* Icon-only buttons. The label lives in aria-label and the tooltip. */
 .icon-btn { display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; }
 .icon-btn svg { display: block; }
+
+/* Tooltips for icon buttons, drawn by the app so they show quickly and in every browser.
+   They appear on mouse hover (after a short pause) and on keyboard focus, and hide while the
+   button's own menu is open. */
+.icon-btn { position: relative; }
+.icon-btn::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--text);
+  color: var(--panel);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.1s;
+}
+@media (hover: hover) {
+  .icon-btn:hover::after { opacity: 1; visibility: visible; transition-delay: 0.3s; }
+}
+.icon-btn:focus-visible::after { opacity: 1; visibility: visible; }
+.icon-btn[aria-haspopup][aria-expanded='true']::after { display: none; }
+/* The deck-list toggle sits at the left edge, so its tooltip lines up with the button's left side. */
+.toolbar > .icon-btn::after { left: 0; transform: none; }
+/* The toolbar's buttons sit at the right edge, so their tooltips line up with the button's right side
+   instead of running off the screen. */
+.toolbar-actions .icon-btn::after { left: auto; right: 0; transform: none; }
+/* Notices sit at the bottom of the screen, so their tooltip goes above. */
+.notice .icon-btn::after { top: auto; bottom: calc(100% + 6px); }
 .notice .icon-btn { width: 26px; height: 26px; }
 /* Menu items keep their text next to the icon, so the options can be told apart. */
 .menu-item { display: flex; align-items: center; gap: 8px; text-align: left; }
