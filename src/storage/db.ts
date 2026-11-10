@@ -7,6 +7,7 @@ export type DeckRecord = {
   createdAt: number;
   updatedAt: number;
   revision: number;
+  deletedAt?: number;
   privacy?: 'allowed' | 'blocked';
   file?: FileSystemFileHandle;
   folder?: FileSystemDirectoryHandle;
@@ -76,12 +77,14 @@ export function normalizePath(path: string): string {
 export async function listDecks(): Promise<Array<{ id: string; name: string; updatedAt: number }>> {
   const all = await (await db()).getAll('decks');
   return all
+    .filter((d) => d.deletedAt === undefined)
     .map((d) => ({ id: d.id, name: deckName(d.source), updatedAt: d.updatedAt }))
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 export async function getDeck(id: string): Promise<DeckRecord | undefined> {
-  return (await db()).get('decks', id);
+  const deck = await (await db()).get('decks', id);
+  return deck?.deletedAt === undefined ? deck : undefined;
 }
 
 export async function createDeck(source: string, extra: Partial<DeckRecord> = {}): Promise<DeckRecord> {
@@ -196,6 +199,44 @@ export async function duplicateDeck(id: string): Promise<DeckRecord> {
   return copy;
 }
 
+export async function markDeckDeleted(id: string, now = Date.now()): Promise<void> {
+  const tx = (await db()).transaction('decks', 'readwrite');
+  const current = await tx.store.get(id);
+  if (current) await tx.store.put({ ...current, deletedAt: now });
+  await tx.done;
+}
+
+export async function restoreDeck(id: string): Promise<DeckRecord | undefined> {
+  const tx = (await db()).transaction('decks', 'readwrite');
+  const current = await tx.store.get(id);
+  if (!current) {
+    await tx.done;
+    return undefined;
+  }
+  const restored = { ...current };
+  delete restored.deletedAt;
+  await tx.store.put(restored);
+  await tx.done;
+  return restored;
+}
+
+export async function purgeDeletedDecks(olderThanMs: number, now = Date.now()): Promise<number> {
+  const tx = (await db()).transaction(['decks', 'images'], 'readwrite');
+  const decks = await tx.objectStore('decks').getAll();
+  const expired = decks.filter(
+    (deck) => deck.deletedAt !== undefined && deck.deletedAt <= now - olderThanMs,
+  );
+  for (const deck of expired) {
+    await tx.objectStore('decks').delete(deck.id);
+    const images = await tx.objectStore('images').index('deckId').getAll(deck.id);
+    for (const image of images) {
+      await tx.objectStore('images').delete([image.deckId, image.path]);
+    }
+  }
+  await tx.done;
+  return expired.length;
+}
+
 export async function deleteDeck(id: string): Promise<void> {
   const tx = (await db()).transaction(['decks', 'images'], 'readwrite');
   await tx.objectStore('decks').delete(id);
@@ -217,7 +258,7 @@ export async function getImages(deckId: string): Promise<Map<string, Blob>> {
 }
 
 export async function getAllDecks(): Promise<DeckRecord[]> {
-  return (await db()).getAll('decks');
+  return (await (await db()).getAll('decks')).filter((d) => d.deletedAt === undefined);
 }
 
 export type NewDeck = {

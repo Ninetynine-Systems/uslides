@@ -1,9 +1,10 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, test } from 'vitest'
 import {
-  _resetForTests, createDeck, deleteDeck, duplicateDeck, getDeck, getImages,
-  listDecks, putImage, renameDeck, saveDeck, setDeckPrivacy, updateDeckMeta,
+  _resetForTests, createDeck, deleteDeck, duplicateDeck, getAllDecks, getDeck,
+  getImages, listDecks, markDeckDeleted, purgeDeletedDecks, putImage, renameDeck,
+  restoreDeck, saveDeck, setDeckPrivacy, updateDeckMeta,
 } from '../../src/storage/db'
 
 beforeEach(async () => {
@@ -14,6 +15,44 @@ beforeEach(async () => {
 const png = (s: string) => new Blob([s], { type: 'image/png' })
 
 describe('decks', () => {
+  test('a deck marked deleted is hidden but not removed', async () => {
+    const deck = await createDeck('# A');
+    await putImage(deck.id, 'a.png', new Blob(['x'], { type: 'image/png' }));
+    await markDeckDeleted(deck.id, 1000);
+    expect(await listDecks()).toEqual([]);
+    expect(await getAllDecks()).toEqual([]);
+    expect(await getDeck(deck.id)).toBeUndefined();
+    expect((await getImages(deck.id)).size).toBe(1);
+  });
+
+  test('restoreDeck brings it back unchanged', async () => {
+    const deck = await createDeck('# A');
+    await markDeckDeleted(deck.id, 1000);
+    const back = await restoreDeck(deck.id);
+    expect(back).toEqual(deck); // no deletedAt key, same revision and updatedAt
+    expect((await listDecks()).map((d) => d.id)).toEqual([deck.id]);
+  });
+
+  test('restoreDeck returns undefined once the deck is gone', async () => {
+    const deck = await createDeck('# A');
+    await deleteDeck(deck.id);
+    expect(await restoreDeck(deck.id)).toBeUndefined();
+  });
+
+  test('purgeDeletedDecks removes only decks deleted long enough ago', async () => {
+    const old = await createDeck('# Old');
+    const fresh = await createDeck('# Fresh');
+    const kept = await createDeck('# Kept');
+    await putImage(old.id, 'a.png', new Blob(['x'], { type: 'image/png' }));
+    await markDeckDeleted(old.id, 0);
+    await markDeckDeleted(fresh.id, 95_000);
+    expect(await purgeDeletedDecks(60_000, 100_000)).toBe(1);
+    expect((await getImages(old.id)).size).toBe(0);
+    expect(await restoreDeck(old.id)).toBeUndefined();
+    expect((await restoreDeck(fresh.id))?.id).toBe(fresh.id);
+    expect((await listDecks()).map((d) => d.id).sort()).toEqual([fresh.id, kept.id].sort());
+  });
+
   it('create then get round-trips the source', async () => {
     const d = await createDeck('# Hello')
     expect(d.revision).toBe(1)

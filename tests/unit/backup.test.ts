@@ -2,7 +2,10 @@ import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { exportBackup, importBackup } from '../../src/storage/backup'
-import { _resetForTests, addDecksWithImages, createDeck, getDeck, getImages, listDecks, putImage } from '../../src/storage/db'
+import {
+  _resetForTests, addDecksWithImages, createDeck, getDeck, getImages, listDecks,
+  markDeckDeleted, putImage,
+} from '../../src/storage/db'
 
 beforeEach(async () => {
   await _resetForTests()
@@ -12,6 +15,15 @@ beforeEach(async () => {
 const bytesOf = async (b: Blob) => [...new Uint8Array(await b.arrayBuffer())]
 
 describe('backup', () => {
+  it('leaves out deleted decks', async () => {
+    const deleted = await createDeck('# Deleted')
+    await createDeck('# Surviving')
+    await markDeckDeleted(deleted.id, 1000)
+    const backup = JSON.parse(await (await exportBackup()).text())
+    expect(backup.decks).toHaveLength(1)
+    expect(backup.decks[0].source).toBe('# Surviving')
+  })
+
   it('round-trips sources and images', async () => {
     const a = await createDeck('# Alpha')
     await putImage(a.id, 'img/dot.png', new Blob([new Uint8Array([0, 1, 2, 250, 255])], { type: 'image/png' }))
