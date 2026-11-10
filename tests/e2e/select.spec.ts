@@ -190,6 +190,34 @@ test('the editable slide is a named group and announces box selection', async ({
   await expect(page.locator('.us-selection-status')).toHaveText('');
 });
 
+test('Enter and Space on an editable frame select its slide without Space scrolling', async ({ page }) => {
+  const source = '# One\n---\n# Two\n';
+  for (const [key, marker] of [['Enter', '@'], ['Space', '%']] as const) {
+    await page.goto(`/?test#md=${encodeURIComponent(source)}`);
+    await expect(page.locator('.slide-frame .us-stage')).toHaveCount(2);
+    await expect(editor(page)).toBeVisible();
+    await editor(page).focus();
+    await page.keyboard.press('ControlOrMeta+Home');
+    const frame = page.locator('.slide-frame').nth(1);
+    await frame.focus();
+    const scrollBefore = await page.evaluate(() => ({
+      page: window.scrollY,
+      preview: document.querySelector('.preview-scroll')?.scrollTop ?? 0,
+    }));
+
+    await page.keyboard.press(key);
+
+    expect(await page.evaluate(() => ({
+      page: window.scrollY,
+      preview: document.querySelector('.preview-scroll')?.scrollTop ?? 0,
+    }))).toEqual(scrollBefore);
+    await editor(page).focus();
+    await page.keyboard.insertText(marker);
+    const updated = await getSource(page);
+    expect(updated.indexOf(marker)).toBeGreaterThan(updated.indexOf('---'));
+  }
+});
+
 test('floating bar controls can be used with the keyboard', async ({ page }) => {
   await openDeck(page, '# A\n\n::: box col=1-6 row=1-3\nLeft\n:::\n');
   await clickBox(page);

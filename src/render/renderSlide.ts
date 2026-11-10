@@ -46,40 +46,6 @@ function fillLoose(el: HTMLElement, slide: Slide, opts: RenderOptions): void {
     if (pre) pre.dataset.line = code.dataset.line;
     delete code.dataset.line;
   }
-  if (!opts.markLines) return;
-  for (const paragraph of el.querySelectorAll<HTMLElement>('p[data-line]')) {
-    const firstLine = Number(paragraph.dataset.line);
-    if (!Number.isInteger(firstLine) || !paragraph.textContent?.includes('\n')) continue;
-    const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
-    const nodes: Text[] = [];
-    while (walker.nextNode()) nodes.push(walker.currentNode as Text);
-    let line = firstLine;
-    for (const node of nodes) {
-      const parts = node.data.split('\n');
-      if (parts.length === 1) continue;
-      const fragment = document.createDocumentFragment();
-      for (const [index, part] of parts.entries()) {
-        const marked = document.createElement('span');
-        marked.dataset.line = String(line);
-        marked.textContent = part;
-        fragment.append(marked);
-        if (index < parts.length - 1) {
-          fragment.append('\n');
-          line++;
-        }
-      }
-      node.replaceWith(fragment);
-    }
-  }
-  for (const list of el.querySelectorAll<HTMLElement>('ul[data-line], ol[data-line]')) {
-    let line = Number(list.dataset.line);
-    const sourceLines = slide.loose.split('\n');
-    for (const item of list.querySelectorAll<HTMLElement>(':scope > li')) {
-      while (line < sourceLines.length && !/^\s*(?:[-+*]|\d+[.)])\s+/.test(sourceLines[line]!)) line++;
-      item.dataset.line = String(line);
-      line++;
-    }
-  }
 }
 
 function mayUseFont(name: string, blockExternal: boolean | undefined): boolean {

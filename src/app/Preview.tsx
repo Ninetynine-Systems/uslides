@@ -132,8 +132,7 @@ function SlideCard(props: {
         aria-label={`Slide ${slide.index + 1}`}
         onClick={editable ? undefined : onSelect}
         onKeyDown={(e) => {
-          if (editable) return;
-          if (e.target !== e.currentTarget) return;
+          if (e.target !== e.currentTarget || e.defaultPrevented) return;
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             onSelect();

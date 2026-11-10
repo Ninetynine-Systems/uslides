@@ -61,6 +61,23 @@ test('five immediate keys including Enter reach a box that already has text', as
   await expect(typingArea(page).locator('.cm-line')).toHaveText(['ab', 'cdStart']);
 });
 
+test('a key reaches the right box after the cached parse becomes stale', async ({ page }) => {
+  const source = 'Before\n\n::: box col=1-6\nStart\n:::\n';
+  await openDeck(page, source);
+  await page.locator('.us-box[data-box="0"]').dblclick();
+  await expect(typingArea(page)).toHaveText('Start');
+
+  await editor(page).focus();
+  await page.keyboard.press('ControlOrMeta+Home');
+  await page.keyboard.insertText('Shifted\n');
+  await typingArea(page).focus();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.insertText('!');
+
+  await expect.poll(() => getSource(page)).toBe(`Shifted\n${source.replace('Start', 'Start!')}`);
+  await expect(typingArea(page)).toHaveText('Start!');
+});
+
 test('keys wait for a slow typing-area chunk and replay in order', async ({ page }) => {
   let releaseChunk = () => {};
   const chunkBlocked = new Promise<void>((resolve) => {
@@ -81,6 +98,59 @@ test('keys wait for a slow typing-area chunk and replay in order', async ({ page
 
   await expect.poll(() => getSource(page)).toBe('::: box col=1-6\na\ncStart\n:::\n');
   await expect(typingArea(page).locator('.cm-line')).toHaveText(['a', 'cStart']);
+});
+
+test('editing keys wait for the typing area and never edit the selected box', async ({ page }) => {
+  let releaseChunk = () => {};
+  const chunkBlocked = new Promise<void>((resolve) => {
+    releaseChunk = resolve;
+  });
+  await page.route('**/assets/TypingArea-*.js', async (route) => {
+    await chunkBlocked;
+    await route.continue();
+  });
+  const source = '::: box col=1-6 row=1-3\n  item\n:::\n';
+  await openDeck(page, source);
+  await page.locator('.us-box[data-box="0"]').dblclick();
+
+  await page.locator('.slide-frame').dispatchEvent('keydown', { key: 'd', ctrlKey: true });
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Delete');
+  await page.locator('.slide-frame').dispatchEvent('keydown', { key: '@', altKey: true });
+  await page.locator('.slide-frame').dispatchEvent('keydown', { key: 'Dead' });
+  await page.locator('.slide-frame').dispatchEvent('keydown', { key: 'Process' });
+  await page.locator('.slide-frame').dispatchEvent('keydown', { key: 'x', isComposing: true });
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('z');
+  const beforeReady = await getSource(page);
+  releaseChunk();
+
+  expect(beforeReady).toBe(source);
+  await expect.poll(() => getSource(page)).toBe('::: box col=1-6 row=1-3\n  @\n  ztem\n:::\n');
+  await expect(page.locator('.us-box')).toHaveCount(1);
+  await expect(typingArea(page).locator('.cm-line')).toHaveText(['  @', '  ztem']);
+});
+
+test('Escape before the typing area is ready stops typing but keeps the selection', async ({ page }) => {
+  let releaseChunk = () => {};
+  const chunkBlocked = new Promise<void>((resolve) => {
+    releaseChunk = resolve;
+  });
+  await page.route('**/assets/TypingArea-*.js', async (route) => {
+    await chunkBlocked;
+    await route.continue();
+  });
+  const source = '::: box col=1-6 row=1-3\nStart\n:::\n';
+  await openDeck(page, source);
+  await page.locator('.us-box[data-box="0"]').dblclick();
+
+  await page.keyboard.press('Escape');
+  releaseChunk();
+
+  await expect(typingArea(page)).toHaveCount(0);
+  await expect(page.locator('.us-selection[data-box="0"]')).toBeVisible();
+  expect(await getSource(page)).toBe(source);
 });
 
 test('Ctrl/Cmd+Z in the typing area undoes a burst of typing, not one letter', async ({ page }) => {

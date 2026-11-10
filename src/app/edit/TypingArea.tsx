@@ -1,10 +1,16 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { Annotation, EditorState } from '@codemirror/state';
-import { EditorView, keymap, type ViewUpdate } from '@codemirror/view';
-import { defaultKeymap, deleteCharBackward, insertNewline } from '@codemirror/commands';
+import { EditorView, keymap, runScopeHandlers, type ViewUpdate } from '@codemirror/view';
+import { defaultKeymap } from '@codemirror/commands';
 import type { Edit } from '../../core/edit';
 
 const externalChange = Annotation.define<boolean>();
+
+export type QueuedTypingKey = {
+  key: string;
+  altKey: boolean;
+  shiftKey: boolean;
+};
 
 export type TypingAreaProps = {
   rect: DOMRect;
@@ -14,7 +20,7 @@ export type TypingAreaProps = {
   onUndo(): void;
   onRedo(): void;
   onReady(ready: boolean): void;
-  takeQueuedInput(): string[];
+  takeQueuedInput(): QueuedTypingKey[];
   onDone(): void;
 };
 
@@ -36,13 +42,10 @@ function changedText(update: ViewUpdate, from: number): Edit {
   };
 }
 
-function replayKey(editor: EditorView, key: string): void {
-  if (key === 'Enter') {
-    insertNewline(editor);
-    return;
-  }
-  if (key === 'Backspace') {
-    deleteCharBackward(editor);
+function replayKey(editor: EditorView, queued: QueuedTypingKey): void {
+  const { key } = queued;
+  if (key.length !== 1) {
+    runScopeHandlers(editor, new KeyboardEvent('keydown', queued), 'editor');
     return;
   }
   const selection = editor.state.selection.main;

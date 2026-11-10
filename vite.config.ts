@@ -3,7 +3,6 @@ import react from '@vitejs/plugin-react';
 import type { Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vitest/config';
-import { isDeckFontFile, isDeckFontStylesheet } from './src/fonts/cache.js';
 
 /** Publishes the agent skill file at /SKILL.md, so agents can fetch it from the site. */
 function skillFile(): Plugin {
@@ -62,7 +61,8 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: ({ url }) => isDeckFontStylesheet(url),
+            // Workbox copies this function into sw.js, so the whole rule must stay inline.
+            urlPattern: ({ url }) => url.hostname === 'fonts.googleapis.com' && !url.searchParams.has('text'),
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'uslides-font-css',
@@ -70,7 +70,8 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: ({ url }) => isDeckFontFile(url),
+            // Full deck fonts use /s/. Text-only picker previews use /l/ and do not belong here.
+            urlPattern: ({ url }) => url.hostname === 'fonts.gstatic.com' && url.pathname.startsWith('/s/'),
             handler: 'CacheFirst',
             options: {
               cacheName: 'uslides-fonts',

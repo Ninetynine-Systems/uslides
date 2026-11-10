@@ -135,6 +135,30 @@ test('typing 50 characters in a box stays fast with a 3 MB image in the deck', a
   expect(ms).toBeLessThan(2500);
 });
 
+test('typing after a leading blank line stays fast with a 3 MB image in the deck', async ({ page }) => {
+  const source = '::: box col=1-6 row=1-3\nx\n:::\n';
+  await page.goto(`/?test#md=${encodeURIComponent(source)}`);
+  await expect(page.locator('.slide-frame .us-stage')).toHaveCount(1);
+  await toEnd(page);
+  await pasteImage(page, TINY_PNG, 'image/png', 3 * 1024 * 1024);
+  await expect(page.locator('.cm-image-chip')).toHaveText(/3\d{3} KB/);
+  await expect(page.locator('.us-stage img[src^="data:image/png"]')).toHaveCount(1);
+
+  await page.locator('.us-box[data-box="0"]').getByText('x', { exact: true }).dblclick();
+  const area = page.getByRole('textbox', { name: 'Markdown on slide' });
+  await expect(area).toBeFocused();
+  await page.keyboard.press('ControlOrMeta+Home');
+  await page.keyboard.press('Enter');
+  const inserted = 'z'.repeat(50);
+  const started = Date.now();
+  await page.keyboard.type(inserted);
+  await expect.poll(() => getSource(page).then((text) => text.includes(`\n\n${inserted}x\n:::`))).toBe(true);
+  const ms = Date.now() - started;
+
+  console.log(`typing 50 chars after a leading blank line with a 3 MB image took ${ms} ms`);
+  expect(ms).toBeLessThan(2500);
+});
+
 test('Pack images embeds a reachable web image and names the unreachable one', async ({ page }) => {
   await page.route('https://images.test/ok.png', (route) =>
     route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.concat([Buffer.from(TINY_PNG, 'base64'), Buffer.alloc(600)]) }),

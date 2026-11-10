@@ -11,6 +11,21 @@ function render(src: string, opts?: Parameters<typeof renderSlide>[2]) {
   return renderSlide(deck.slides[0]!, deck.settings, opts);
 }
 
+/** Follows the same rendered-line mapping that a loose-text double-click uses. */
+function sourcePieceForText(source: string, text: string): number | undefined {
+  const deck = parseDeck(source);
+  const slide = deck.slides[0]!;
+  const stage = renderSlide(slide, deck.settings, { markLines: true });
+  const marked = [...stage.querySelectorAll<HTMLElement>('.us-loose [data-line]')]
+    .filter((element) => element.textContent?.trim() === text)
+    .at(-1);
+  const line = Number(marked?.dataset.line);
+  const offset = Number.isInteger(line) ? slide.looseLines[line] : undefined;
+  if (offset === undefined) return undefined;
+  const piece = slide.looseRanges.findIndex((range) => range.from <= offset && offset < range.to);
+  return piece < 0 ? undefined : piece;
+}
+
 describe('renderSlide', () => {
   it('builds a themed stage with a grid', () => {
     const stage = render('# Hi');
@@ -122,5 +137,13 @@ describe('renderSlide', () => {
     const loose = render('```ts\nconst n = 1;\n```', { markLines: true }).querySelector('.us-loose')!;
     expect(loose.querySelector('pre')!.dataset.line).toBe('0');
     expect(loose.querySelector('pre > code')!.getAttribute('data-line')).toBeNull();
+  });
+
+  it.each([
+    ['- a\n  - a1\n\n::: box col=1-6\nx\n:::\n\n- b', 'b'],
+    ['one `co\nde` two\nthree\n::: box col=1-6\nx\n:::\nfour', 'four'],
+    ['- a\n::: box col=1-6\nx\n:::\nTail', 'Tail'],
+  ])('maps rendered %s text after a box to the last loose source piece', (source, text) => {
+    expect(sourcePieceForText(source, text)).toBe(1);
   });
 });

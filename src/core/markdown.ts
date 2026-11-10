@@ -14,6 +14,10 @@ interface RenderEnv {
   resolveImage?: (src: string) => string | undefined;
   sourceLines?: boolean;
   blockExternal?: boolean;
+  /** Source lines after real Markdown line-break tokens, filled only by the marking pass. */
+  captureBreakLines?: number[];
+  captureBreakFrom?: number;
+  captureBreakLine?: number;
 }
 
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
@@ -72,6 +76,19 @@ md.validateLink = () => true;
 md.linkify.set({ fuzzyEmail: false });
 md.block.ruler.before('html_block', 'comment_block', commentBlock, { alt: ['paragraph', 'reference', 'blockquote'] });
 md.inline.ruler.before('html_inline', 'comment_inline', commentInline);
+md.inline.ruler.before('newline', 'us_capture_break_lines', (state: StateInline, silent: boolean) => {
+  const lines = (state.env as RenderEnv).captureBreakLines;
+  if (silent || !lines || state.src.charCodeAt(state.pos) !== 0x0a) return false;
+  const env = state.env as RenderEnv;
+  let nextLine = env.captureBreakLine ?? 0;
+  for (let i = env.captureBreakFrom ?? 0; i <= state.pos; i++) {
+    if (state.src.charCodeAt(i) === 0x0a) nextLine++;
+  }
+  env.captureBreakFrom = state.pos + 1;
+  env.captureBreakLine = nextLine;
+  lines.push(nextLine);
+  return false; // markdown-it's own newline rule still creates the softbreak or hardbreak token.
+});
 
 // Mark links with a disallowed href so their tags are skipped; add target/rel to the rest.
 md.core.ruler.push('us_links', (state: StateCore) => {
@@ -99,12 +116,38 @@ md.core.ruler.push('us_links', (state: StateCore) => {
 md.core.ruler.push('us_source_lines', (state: StateCore) => {
   if (!(state.env as RenderEnv).sourceLines) return true;
   for (const token of state.tokens) {
-    if (token.block && token.level === 0 && token.nesting !== -1 && token.map) {
+    if (token.block && token.nesting !== -1 && token.map) {
       token.attrSet('data-line', String(token.map[0]));
+    }
+    if (token.type !== 'inline' || !token.children || !token.map) continue;
+    if (!token.children.some((child) => child.type === 'softbreak' || child.type === 'hardbreak')) continue;
+    const breakLines: number[] = [];
+    md.inline.parse(token.content, md, { ...state.env, captureBreakLines: breakLines }, []);
+    let line = token.map[0];
+    let breakIndex = 0;
+    for (const child of token.children) {
+      if (child.type === 'softbreak' || child.type === 'hardbreak') {
+        line = token.map[0] + (breakLines[breakIndex++] ?? 1);
+        continue;
+      }
+      if (child.type === 'text' || child.type === 'code_inline') {
+        child.meta = { ...(child.meta ?? {}), sourceLine: line };
+      }
     }
   }
   return true;
 });
+
+for (const rule of ['text', 'code_inline'] as const) {
+  const original = md.renderer.rules[rule];
+  md.renderer.rules[rule] = (tokens, idx, options, env, self) => {
+    const token = tokens[idx];
+    const rendered = original ? original(tokens, idx, options, env, self) : self.renderToken(tokens, idx, options);
+    const line = token?.meta?.sourceLine;
+    if (!(env as RenderEnv).sourceLines || typeof line !== 'number') return rendered;
+    return `<span data-line="${line}">${rendered}</span>`;
+  };
+}
 
 for (const rule of ['link_open', 'link_close'] as const) {
   const original = md.renderer.rules[rule];

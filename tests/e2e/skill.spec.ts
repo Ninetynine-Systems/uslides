@@ -6,6 +6,43 @@ const skill = readFileSync(`${SKILL_DIR}/SKILL.md`, 'utf8');
 const exampleFiles = readdirSync(`${SKILL_DIR}/examples`).filter((f) => f.endsWith('.md'));
 const example = (file: string) => readFileSync(`${SKILL_DIR}/examples/${file}`, 'utf8');
 
+type RuntimePattern = (input: {
+  request?: { destination: string };
+  sameOrigin?: boolean;
+  url?: URL;
+}) => boolean;
+
+/** Reads one generated Workbox predicate without giving it access to Vite's module scope. */
+function runtimePattern(sw: string, cacheName: string): RuntimePattern {
+  const cacheAt = sw.indexOf(`cacheName:"${cacheName}"`);
+  if (cacheAt === -1) throw new Error(`Missing ${cacheName} runtime cache`);
+  const marker = '.registerRoute(';
+  const routeAt = sw.lastIndexOf(marker, cacheAt);
+  if (routeAt === -1) throw new Error(`Missing ${cacheName} route`);
+  const start = routeAt + marker.length;
+  const depths = { round: 0, square: 0, curly: 0 };
+  let quote = '';
+  for (let i = start; i < cacheAt; i++) {
+    const char = sw[i]!;
+    if (quote !== '') {
+      if (char === quote && sw[i - 1] !== '\\') quote = '';
+      continue;
+    }
+    if (char === '"' || char === "'" || char === '`') quote = char;
+    else if (char === '(') depths.round++;
+    else if (char === ')') depths.round--;
+    else if (char === '[') depths.square++;
+    else if (char === ']') depths.square--;
+    else if (char === '{') depths.curly++;
+    else if (char === '}') depths.curly--;
+    else if (char === ',' && depths.round === 0 && depths.square === 0 && depths.curly === 0) {
+      const source = sw.slice(start, i);
+      return new Function(`return (${source})`)() as RuntimePattern;
+    }
+  }
+  throw new Error(`Could not read ${cacheName} route predicate`);
+}
+
 for (const file of exampleFiles) {
   test(`examples/${file} renders with no box overflowing`, async ({ page }) => {
     // boxes.md uses ./chart.png, which sits next to it in the examples folder.
@@ -42,6 +79,20 @@ test('the service worker precaches SKILL.md and llms.txt', () => {
   const sw = readFileSync('dist/sw.js', 'utf8');
   expect(sw).toContain('url:"SKILL.md"');
   expect(sw).toContain('url:"llms.txt"');
+});
+
+test('the built service worker has self-contained runtime cache predicates', () => {
+  const sw = readFileSync('dist/sw.js', 'utf8');
+  const fontCss = runtimePattern(sw, 'uslides-font-css');
+  const fontFile = runtimePattern(sw, 'uslides-fonts');
+  const image = runtimePattern(sw, 'uslides-images');
+
+  expect(fontCss({ url: new URL('https://fonts.googleapis.com/css2?family=Lora') })).toBe(true);
+  expect(fontCss({ url: new URL('https://fonts.googleapis.com/css2?family=Lora&text=Lora') })).toBe(false);
+  expect(fontFile({ url: new URL('https://fonts.gstatic.com/s/lora/v37/lora.woff2') })).toBe(true);
+  expect(fontFile({ url: new URL('https://fonts.gstatic.com/l/font?kit=preview') })).toBe(false);
+  expect(image({ request: { destination: 'image' }, sameOrigin: false })).toBe(true);
+  expect(image({ request: { destination: 'image' }, sameOrigin: true })).toBe(false);
 });
 
 test('the #z= snippet in SKILL.md makes a link that opens the deck', async ({ page }) => {

@@ -206,22 +206,28 @@ export function App() {
   }, []);
   // fitSlide's results for each slide in the preview, so text cut off on a slide becomes an editor warning.
   const [fits, setFits] = useState<ReadonlyMap<string, FitResult[]>>(() => new Map());
+  const fitKeys = useMemo(() => {
+    const deck = current.deck;
+    return new Map(deck?.slides.map((slide) => [slide, fitKey(deck, slide)] as const) ?? []);
+  }, [current.deck]);
   const onFit = useCallback((slide: Slide, results: FitResult[]) => {
-    if (!current.deck) return;
-    setFits((prev) => new Map(prev).set(fitKey(current.deck!, slide), results));
-  }, [current.deck]);
+    const key = fitKeys.get(slide);
+    if (!key) return;
+    setFits((prev) => new Map(prev).set(key, results));
+  }, [fitKeys]);
   useEffect(() => {
-    const valid = new Set(current.deck?.slides.map((slide) => fitKey(current.deck!, slide)) ?? []);
+    const valid = new Set(fitKeys.values());
     setFits((prev) => new Map([...prev].filter(([key]) => valid.has(key))));
-  }, [current.deck]);
+  }, [fitKeys]);
   const currentFits = useMemo(() => {
     const bySlide = new Map<Slide, FitResult[]>();
     for (const slide of current.deck?.slides ?? []) {
-      const results = fits.get(fitKey(current.deck!, slide));
+      const key = fitKeys.get(slide);
+      const results = key ? fits.get(key) : undefined;
       if (results) bySlide.set(slide, results);
     }
     return bySlide;
-  }, [current.deck, fits]);
+  }, [current.deck, fitKeys, fits]);
   useEffect(() => {
     let active = true;
     void loadCatalogOnce().then(
