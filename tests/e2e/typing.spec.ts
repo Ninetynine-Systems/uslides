@@ -153,6 +153,26 @@ test('Escape before the typing area is ready stops typing but keeps the selectio
   expect(await getSource(page)).toBe(source);
 });
 
+test('typing stops when its loose source piece no longer renders an element', async ({ page }) => {
+  const source = '[ref]: https://example.com';
+  await openDeck(page, 'Visible text');
+  await page.locator('.us-loose').getByText('Visible text', { exact: true }).dblclick();
+  await expect(typingArea(page)).toBeFocused();
+
+  await editor(page).focus();
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.insertText(source);
+  await expect.poll(() => getSource(page)).toBe(source);
+  await expect(page.locator('.us-loose [data-line]')).toHaveCount(0);
+  await expect(typingArea(page)).toHaveCount(0);
+
+  const frame = page.locator('.slide-frame');
+  await frame.focus();
+  await page.keyboard.press('Space');
+
+  await expect(editor(page)).toBeFocused();
+});
+
 test('Ctrl/Cmd+Z in the typing area undoes a burst of typing, not one letter', async ({ page }) => {
   await openDeck(page, '::: box col=1-6\nx\n:::\n');
   await page.locator('.us-box[data-box="0"]').dblclick();
@@ -238,6 +258,28 @@ test('a list split by a box maps each rendered list to its source piece', async 
   await page.keyboard.insertText('!');
 
   await expect.poll(() => getSource(page)).toBe(source.replace('- Tail', '- Tail!'));
+});
+
+test('typing a nested list covers the parent and child lines', async ({ page }) => {
+  await openDeck(page, '- Parent\n  - Child');
+  const parent = page.locator('.us-loose li[data-line="0"]');
+  const child = page.locator('.us-loose').getByText('Child', { exact: true });
+  const parentRect = await parent.evaluate((item) => {
+    const text = [...item.childNodes].find((node) => node.textContent?.includes('Parent'));
+    if (!text) throw new Error('Parent text is not rendered');
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    return range.getBoundingClientRect().toJSON();
+  });
+
+  await page.mouse.dblclick(parentRect.x + parentRect.width / 2, parentRect.y + parentRect.height / 2);
+
+  const childRect = await child.boundingBox();
+  const areaRect = await page.locator('.us-typing-area').boundingBox();
+  expect(childRect).not.toBeNull();
+  expect(areaRect).not.toBeNull();
+  expect(areaRect!.y).toBeLessThanOrEqual(parentRect.y + 1);
+  expect(areaRect!.y + areaRect!.height).toBeGreaterThanOrEqual(childRect!.y + childRect!.height - 1);
 });
 
 test('a new box from Add box goes straight into typing', async ({ page }) => {

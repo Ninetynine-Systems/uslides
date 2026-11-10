@@ -76,17 +76,31 @@ md.validateLink = () => true;
 md.linkify.set({ fuzzyEmail: false });
 md.block.ruler.before('html_block', 'comment_block', commentBlock, { alt: ['paragraph', 'reference', 'blockquote'] });
 md.inline.ruler.before('html_inline', 'comment_inline', commentInline);
+
+function recordBreakLine(state: StateInline, breakAt: number): void {
+  const env = state.env as RenderEnv;
+  const lines = env.captureBreakLines;
+  if (!lines) return;
+  let nextLine = env.captureBreakLine ?? 0;
+  for (let i = env.captureBreakFrom ?? 0; i <= breakAt; i++) {
+    if (state.src.charCodeAt(i) === 0x0a) nextLine++;
+  }
+  env.captureBreakFrom = breakAt + 1;
+  env.captureBreakLine = nextLine;
+  lines.push(nextLine);
+}
+
+md.inline.ruler.before('escape', 'us_capture_escaped_break_lines', (state: StateInline, silent: boolean) => {
+  const isBackslashBreak = state.src.charCodeAt(state.pos) === 0x5c && state.src.charCodeAt(state.pos + 1) === 0x0a;
+  if (!silent && (state.env as RenderEnv).captureBreakLines && isBackslashBreak) {
+    recordBreakLine(state, state.pos + 1);
+  }
+  return false; // markdown-it's escape rule still creates the hardbreak token.
+});
 md.inline.ruler.before('newline', 'us_capture_break_lines', (state: StateInline, silent: boolean) => {
   const lines = (state.env as RenderEnv).captureBreakLines;
   if (silent || !lines || state.src.charCodeAt(state.pos) !== 0x0a) return false;
-  const env = state.env as RenderEnv;
-  let nextLine = env.captureBreakLine ?? 0;
-  for (let i = env.captureBreakFrom ?? 0; i <= state.pos; i++) {
-    if (state.src.charCodeAt(i) === 0x0a) nextLine++;
-  }
-  env.captureBreakFrom = state.pos + 1;
-  env.captureBreakLine = nextLine;
-  lines.push(nextLine);
+  recordBreakLine(state, state.pos);
   return false; // markdown-it's own newline rule still creates the softbreak or hardbreak token.
 });
 

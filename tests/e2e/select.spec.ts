@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const editor = (page: Page) => page.getByRole('textbox', { name: 'Deck source' });
+const typingArea = (page: Page) => page.getByRole('textbox', { name: 'Markdown on slide' });
 const getSource = (page: Page) => page.evaluate(() => window.__uslides!.getSource());
 
 async function openDeck(page: Page, source: string) {
@@ -216,6 +217,19 @@ test('Enter and Space on an editable frame select its slide without Space scroll
     const updated = await getSource(page);
     expect(updated.indexOf(marker)).toBeGreaterThan(updated.indexOf('---'));
   }
+});
+
+test('Space keeps a selected box focused and Enter starts typing', async ({ page }) => {
+  await openDeck(page, '::: box col=1-6 row=1-3\nWrite here\n:::\n');
+  const frame = page.locator('.slide-frame');
+  await clickBox(page);
+
+  await page.keyboard.press('Space');
+
+  await expect(frame).toBeFocused();
+  await expect(page.locator('.us-selection[data-box="0"]')).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(typingArea(page)).toBeFocused();
 });
 
 test('floating bar controls can be used with the keyboard', async ({ page }) => {

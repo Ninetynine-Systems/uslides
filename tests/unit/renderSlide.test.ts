@@ -140,10 +140,12 @@ describe('renderSlide', () => {
   });
 
   it.each([
-    ['- a\n  - a1\n\n::: box col=1-6\nx\n:::\n\n- b', 'b'],
-    ['one `co\nde` two\nthree\n::: box col=1-6\nx\n:::\nfour', 'four'],
-    ['- a\n::: box col=1-6\nx\n:::\nTail', 'Tail'],
-  ])('maps rendered %s text after a box to the last loose source piece', (source, text) => {
-    expect(sourcePieceForText(source, text)).toBe(1);
+    ['- a\n  - a1\n\n::: box col=1-6\nx\n:::\n\n- b', 'b', 1],
+    ['one `co\nde` two\nthree\n::: box col=1-6\nx\n:::\nfour', 'four', 1],
+    ['- a\n::: box col=1-6\nx\n:::\nTail', 'Tail', 1],
+    ['a\\\nb\nc\n::: box col=1-6\nx\n:::\nd', 'c', 0],
+    ['a\\\nb\nc\n::: box col=1-6\nx\n:::\nd', 'd', 1],
+  ])('maps rendered text in %s to its loose source piece', (source, text, piece) => {
+    expect(sourcePieceForText(source, text)).toBe(piece);
   });
 });

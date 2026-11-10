@@ -159,12 +159,15 @@ function loosePieceElements(stage: HTMLElement, slide: Slide, pieceIndex: number
   const loose = stage.querySelector<HTMLElement>(':scope > .us-loose');
   if (!loose) return [];
   return [...loose.querySelectorAll<HTMLElement>('[data-line]')].filter((element) => {
-    const line = Number((element as HTMLElement).dataset.line);
-    return (
-      Number.isInteger(line) &&
-      loosePieceForLine(slide, line) === pieceIndex &&
-      element.querySelector('[data-line]') === null
-    );
+    const line = Number(element.dataset.line);
+    if (!Number.isInteger(line) || loosePieceForLine(slide, line) !== pieceIndex) return false;
+    let parent = element.parentElement?.closest<HTMLElement>('[data-line]');
+    while (parent && loose.contains(parent)) {
+      const parentLine = Number(parent.dataset.line);
+      if (Number.isInteger(parentLine) && loosePieceForLine(slide, parentLine) === pieceIndex) return false;
+      parent = parent.parentElement?.closest<HTMLElement>('[data-line]');
+    }
+    return true;
   });
 }
 
@@ -343,9 +346,14 @@ export function Overlay({
       anchor = stage.querySelector<HTMLElement>(`:scope > .us-box[data-box="${typing.index}"]`)?.getBoundingClientRect();
     } else {
       anchor = boundsOf(loosePieceElements(stage, slide, typing.index));
+      if (!anchor) {
+        setTypingRect(null);
+        storeTyping(null);
+        return;
+      }
     }
     setTypingRect(anchor ? localRect(anchor, bounds) : null);
-  }, [frame, selected, slide, stage, typing]);
+  }, [frame, selected, slide, stage, storeTyping, typing]);
 
   useEffect(() => {
     updateGeometry();
@@ -786,6 +794,9 @@ export function Overlay({
         event.stopPropagation();
         setSelected(null);
         lastPoint.current = null;
+      } else if (event.key === ' ') {
+        event.preventDefault();
+        event.stopPropagation();
       } else if (event.key === 'Enter') {
         event.preventDefault();
         event.stopPropagation();
