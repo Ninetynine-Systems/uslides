@@ -66,18 +66,9 @@ test('new, rename, duplicate, delete', async ({ page }) => {
   await expect(items).toHaveCount(3);
   await expect(items.filter({ hasText: 'Quarterly plan' })).toHaveCount(2);
 
-  let message = '';
-  page.once('dialog', (d) => {
-    message = d.message();
-    void d.dismiss();
-  });
-  await moreMenu(page, 'Delete deck');
-  await expect.poll(() => message).toContain('Delete');
-  await expect(items).toHaveCount(3);
-
-  page.once('dialog', (d) => void d.accept());
   await moreMenu(page, 'Delete deck');
   await expect(items).toHaveCount(2);
+  await expect(page.getByText('Deleted "Quarterly plan".', { exact: true })).toBeVisible();
 });
 
 test('warnings show in editor', async ({ page }) => {
@@ -226,7 +217,6 @@ test('a link to a deck that does not exist shows another deck', async ({ page })
   await expect(items).toHaveCount(2);
   await items.filter({ hasText: 'Welcome to uslides' }).getByRole('button').click();
   await expect.poll(() => page.url()).toContain(idA);
-  page.once('dialog', (d) => void d.accept());
   await moreMenu(page, 'Delete deck');
   await expect(items).toHaveCount(1);
 

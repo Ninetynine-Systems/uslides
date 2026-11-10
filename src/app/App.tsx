@@ -12,7 +12,8 @@ import { baseType, packImages } from '../export/packImages';
 import { importFiles, importFromFolder, NO_MARKDOWN, openFolder, readDrop } from '../files/importFiles';
 import { LONG_LINK_CHARS, makeShareLink, readShareHash, ShareLinkError } from '../share/link';
 import {
-  createDeck, deleteDeck, duplicateDeck, getImages, listDecks, renameDeck, setDeckPrivacy,
+  createDeck, deleteDeck, duplicateDeck, getImages, listDecks, markDeckDeleted,
+  purgeDeletedDecks, renameDeck, restoreDeck, setDeckPrivacy,
 } from '../storage/db';
 import { DeckList, type DeckSummary } from './DeckList';
 import type { EditorHandle } from './Editor';
@@ -114,8 +115,15 @@ export const IMAGES_NOTICE = 'Images stored in this browser are not included in 
 type Boot = { id: string; damaged?: string };
 
 let boot: Promise<Boot> | undefined;
+let deletedCleanup: Promise<void> | undefined;
 let pwaStarted = false;
 let catalogLoad: Promise<void> | undefined;
+
+/** Removes deletions left unfinished by an older page without stopping start-up if storage fails. */
+function cleanupDeletedDecks(): Promise<void> {
+  deletedCleanup ??= purgeDeletedDecks(60_000).then(() => undefined, () => undefined);
+  return deletedCleanup;
+}
 
 /** Starts the catalog import once, including under React's development checks. */
 function loadCatalogOnce(): Promise<void> {
@@ -189,7 +197,7 @@ export function App() {
   }, []);
 
   const current = useDeck(deckId, { onNotice: notify, onChanged: refreshList });
-  const { flush, flushParse, discard, adopt, patchRecord } = current;
+  const { flush, flushParse, discard, adopt, patchRecord, announceListChange } = current;
   const ready = current.record?.id === deckId;
   const blockExternal = ready && isBlocked(
     current.record?.privacy,
@@ -324,7 +332,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    void pickInitialDeck().then((first) => {
+    void cleanupDeletedDecks().then(() => pickInitialDeck()).then((first) => {
       openDeck(first.id);
       refreshList();
       if (first.damaged) {
@@ -744,15 +752,38 @@ export function App() {
 
   const remove = async () => {
     if (!deckId || !ready) return;
-    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
     const id = deckId;
+    const deletedName = name;
     // Do the steps that can fail first: until the switch below, the deck must still be saveable.
     const next = (await listDecks()).find((d) => d.id !== id);
     const nextId = next ? next.id : (await createDeck(NEW_DECK)).id;
     discard();
     openDeck(nextId); // switch first so the deck being deleted is not saved again
-    await deleteDeck(id);
+    await markDeckDeleted(id);
     refreshList();
+    announceListChange();
+
+    let undone = false;
+    let noticeId = 0;
+    const undo = async () => {
+      undone = true;
+      await flush();
+      const restored = await restoreDeck(id);
+      if (!restored) {
+        notify('That deck could not be restored.');
+        return;
+      }
+      openDeck(id);
+      refreshList();
+      announceListChange();
+      dismiss(noticeId);
+    };
+    noticeId = notify(`Deleted "${deletedName}".`, {
+      action: { label: 'Undo', run: () => void undo().catch(reportError) },
+      onDismiss: () => {
+        if (!undone) void deleteDeck(id).catch(reportError);
+      },
+    });
   };
 
   /** Copies a `#z=` link to the clipboard. Returns the link when the clipboard refused, so the user can copy it by hand. */

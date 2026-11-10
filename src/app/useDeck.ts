@@ -7,6 +7,8 @@ export const PARSE_DELAY_MS = 150;
 export const CONFLICT_NOTICE = 'This deck changed in another tab';
 
 type Saved = { type: 'saved'; id: string; revision: number };
+type ListChanged = { type: 'list' };
+type DeckMessage = Saved | ListChanged;
 
 /** Everything the saver needs for one open deck. A new one is made each time the open deck changes. */
 type Session = {
@@ -57,6 +59,8 @@ export type UseDeck = {
   applyExternal(text: string): Promise<void>;
   /** Updates fields of the current record that are not content (file links and sync fields). */
   patchRecord(id: string, patch: Partial<DeckRecord>): void;
+  /** Tells other tabs to refresh their deck lists. */
+  announceListChange(): void;
 };
 
 export function useDeck(id: string | undefined, options: Options): UseDeck {
@@ -159,8 +163,12 @@ export function useDeck(id: string | undefined, options: Options): UseDeck {
     if (typeof BroadcastChannel === 'undefined') return;
     const ch = new BroadcastChannel('uslides');
     channel.current = ch;
-    ch.onmessage = (e: MessageEvent<Saved>) => {
+    ch.onmessage = (e: MessageEvent<DeckMessage>) => {
       const msg = e.data;
+      if (msg?.type === 'list') {
+        opts.current.onChanged();
+        return;
+      }
       if (msg?.type !== 'saved') return;
       opts.current.onChanged();
       const s = session.current;
@@ -268,7 +276,28 @@ export function useDeck(id: string | undefined, options: Options): UseDeck {
     setRecord((r) => (r && r.id === rid ? { ...r, ...patch } : r));
   }, []);
 
+  const announceListChange = useCallback(() => {
+    const message: ListChanged = { type: 'list' };
+    channel.current?.postMessage(message);
+  }, []);
+
   useEffect(() => () => clearTimeout(parseTimer.current), []);
 
-  return { record, source, deck, warnings: deck?.warnings ?? [], images, conflict, setSource, flush, flushParse, discard, adopt, getSaved, applyExternal, patchRecord };
+  return {
+    record,
+    source,
+    deck,
+    warnings: deck?.warnings ?? [],
+    images,
+    conflict,
+    setSource,
+    flush,
+    flushParse,
+    discard,
+    adopt,
+    getSaved,
+    applyExternal,
+    patchRecord,
+    announceListChange,
+  };
 }

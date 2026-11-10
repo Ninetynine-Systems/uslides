@@ -18,7 +18,7 @@ let nextId = 1;
 /** Holds the list of transient messages. `notify` adds one; it goes away on its own or when dismissed. */
 export function useNotices(): {
   notices: Notice[];
-  notify(text: string, options?: NoticeOptions): void;
+  notify(text: string, options?: NoticeOptions): number;
   dismiss(id: number): void;
 } {
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -36,6 +36,7 @@ export function useNotices(): {
       const id = nextId++;
       setNotices((n) => [...n, { id, text, ...options }]);
       if (!options.sticky) setTimeout(() => dismiss(id), 8000);
+      return id;
     },
     [dismiss],
   );
