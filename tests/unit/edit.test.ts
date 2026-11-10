@@ -185,6 +185,14 @@ describe('deck font source edits', () => {
     );
   });
 
+  it('replaces only the font value and keeps a trailing YAML comment', () => {
+    const source = '---\nfont: Lora # c\ntheme: dark\n---\n\n# A\n';
+
+    expect(apply(source, setDeckFont(source, 'Open Sans').changes)).toBe(
+      '---\nfont: Open Sans # c\ntheme: dark\n---\n\n# A\n',
+    );
+  });
+
   it('removes an existing font line', () => {
     const source = '---\ntitle: A deck\nfont: Inter\ntheme: dark\n---\n\n# A\n';
 

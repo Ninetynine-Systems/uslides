@@ -19,6 +19,7 @@ import {
   subscribeCatalog,
   type Group,
 } from '../fonts/catalog';
+import { setCssFamilyName } from '../fonts/css';
 import { IconButton } from './IconButton';
 
 export type FontPickerProps = {
@@ -44,6 +45,10 @@ const GROUPS: { value: '' | Group; label: string }[] = [
 function previewUrl(name: string): string {
   const family = encodeURIComponent(name).replace(/%20/g, '+');
   return `https://fonts.googleapis.com/css2?family=${family}&text=${encodeURIComponent(name)}`;
+}
+
+function previewFamily(name: string): string {
+  return `uslides-preview-${name}`;
 }
 
 function FontOption(props: {
@@ -82,7 +87,7 @@ function FontOption(props: {
   const style: CSSProperties = {
     top: index * ROW_HEIGHT,
     height: ROW_HEIGHT,
-    fontFamily: name && previews ? `"${name}", var(--us-font)` : undefined,
+    fontFamily: name && previews ? `"${previewFamily(name)}", var(--us-font)` : undefined,
   };
   return (
     <button
@@ -107,7 +112,8 @@ export function FontPicker({ value, blocked, onPick, onClose }: FontPickerProps)
   const listId = useId();
   const search = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  const previewLinks = useRef(new Map<string, HTMLLinkElement>());
+  const previewStyles = useRef(new Map<string, HTMLStyleElement | null>());
+  const previewsActive = useRef(true);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const catalogVersion = useSyncExternalStore(subscribeCatalog, getCatalogVersion, getCatalogVersion);
@@ -127,16 +133,21 @@ export function FontPicker({ value, blocked, onPick, onClose }: FontPickerProps)
   const activeIndex = Math.min(active, count - 1);
 
   const requestPreview = useCallback((name: string) => {
-    if (previewLinks.current.has(name)) return;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = previewUrl(name);
-    link.dataset.uslidesFontPreview = name;
-    previewLinks.current.set(name, link);
-    document.head.append(link);
+    if (previewStyles.current.has(name)) return;
+    previewStyles.current.set(name, null);
+    void fetch(previewUrl(name), { mode: 'cors' }).then(async (response) => {
+      if (!response.ok) throw new Error('Font preview request failed');
+      const style = document.createElement('style');
+      style.dataset.uslidesFontPreview = name;
+      style.textContent = setCssFamilyName(await response.text(), previewFamily(name));
+      if (!previewsActive.current) return;
+      previewStyles.current.set(name, style);
+      document.head.append(style);
+    }).catch(() => undefined);
   }, []);
 
   useEffect(() => {
+    previewsActive.current = true;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
     let mounted = true;
     void loadCatalog().catch(() => {
@@ -152,9 +163,10 @@ export function FontPicker({ value, blocked, onPick, onClose }: FontPickerProps)
     document.addEventListener('keydown', closeOnEscape, true);
     return () => {
       mounted = false;
+      previewsActive.current = false;
       document.removeEventListener('keydown', closeOnEscape, true);
-      for (const link of previewLinks.current.values()) link.remove();
-      previewLinks.current.clear();
+      for (const style of previewStyles.current.values()) style?.remove();
+      previewStyles.current.clear();
       previousFocus?.focus();
     };
   }, []);

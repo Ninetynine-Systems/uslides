@@ -48,7 +48,7 @@ describe('notes', () => {
   it('reads a note that spans several lines', () => {
     const { slide } = slideOf('# A\n<!-- note: line one\nline two -->\nB');
     expect(slide.notes).toEqual(['line one\nline two']);
-    expect(slide.loose).toBe('# A\n\nB');
+    expect(slide.loose).toBe('# A\nB');
   });
 
   it('does not read notes inside code fences', () => {
@@ -99,8 +99,23 @@ describe('boxes', () => {
   it('maps every rendered loose line back to its source line', () => {
     const src = 'Intro\n::: box\nx\n:::\nTail';
     const slide = parseDeck(src).slides[0]!;
-    expect(slide.loose).toBe('Intro\n\nTail');
-    expect(slide.looseLines).toEqual([0, src.indexOf('::: box'), src.indexOf('Tail')]);
+    expect(slide.loose).toBe('Intro\nTail');
+    expect(slide.looseLines).toEqual([0, src.indexOf('Tail')]);
+  });
+
+  it('keeps note gaps joined and splits editable ranges only at boxes', () => {
+    const src = 'Line one\n<!-- note: hidden -->\nLine two\n::: box\nx\n:::\nTail';
+    const slide = parseDeck(src).slides[0]!;
+    expect(slide.loose).toBe('Line one\nLine two\nTail');
+    expect(slide.looseLines).toEqual([
+      src.indexOf('Line one'),
+      src.indexOf('Line two'),
+      src.indexOf('Tail'),
+    ]);
+    expect(slide.looseRanges).toEqual([
+      { from: src.indexOf('Line one'), to: src.indexOf('Line two') + 'Line two'.length },
+      { from: src.indexOf('Tail'), to: src.length },
+    ]);
   });
 
   it('parses attributes, markdown and content range', () => {
@@ -166,7 +181,7 @@ describe('boxes', () => {
   it('keeps file order and puts outside text in loose', () => {
     const { slide } = slideOf('before\n::: box\nA\n:::\nmiddle\n::: box\nB\n:::\nafter');
     expect(slide.boxes.map((b) => b.markdown)).toEqual(['A', 'B']);
-    expect(slide.loose).toBe('before\n\nmiddle\n\nafter');
+    expect(slide.loose).toBe('before\nmiddle\nafter');
   });
 
   it('clamps positions outside the grid with a warning', () => {

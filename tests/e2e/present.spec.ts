@@ -137,7 +137,7 @@ test('Ctrl/Cmd+Enter in the editor presents the slide with the cursor', async ({
   await page.goto('/?test');
   await expect(page.locator('.us-stage')).toHaveCount(4);
   await expect(page.getByRole('textbox', { name: 'Deck source' })).toBeVisible();
-  await page.getByRole('button', { name: 'Slide 3' }).click(); // moves the cursor into slide 3
+  await page.getByRole('group', { name: 'Slide 3' }).click(); // moves the cursor into slide 3
   await page.keyboard.press('ControlOrMeta+Enter');
   await expect(present(page)).toBeVisible();
   await expect(shown(page)).toContainText('Left box');

@@ -38,6 +38,39 @@ describe('font loading', () => {
     await act(async () => root.unmount());
   });
 
+  it('reports loading only when a deck family finished', async () => {
+    await loadCatalog();
+    const listeners = new Set<EventListenerOrEventListenerObject>();
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: {
+        addEventListener: (_type: string, listener: EventListenerOrEventListenerObject) => listeners.add(listener),
+        removeEventListener: (_type: string, listener: EventListenerOrEventListenerObject) => listeners.delete(listener),
+      },
+    });
+    const versions: number[] = [];
+    const root = createRoot(document.createElement('div'));
+    const deck = parseDeck('::: box font=Lora\nHello\n:::\n');
+    const FontLoader = () => {
+      versions.push(useDeckFonts(deck, false));
+      return null;
+    };
+    const dispatch = (family: string) => {
+      const event = { fontfaces: [{ family }] } as unknown as Event;
+      for (const listener of listeners) {
+        if (typeof listener === 'function') listener(event);
+        else listener.handleEvent(event);
+      }
+    };
+
+    await act(async () => root.render(createElement(FontLoader)));
+    await act(async () => dispatch('Other Font'));
+    expect(versions.at(-1)).toBe(0);
+    await act(async () => dispatch('"lOrA"'));
+    expect(versions.at(-1)).toBe(1);
+    await act(async () => root.unmount());
+  });
+
   it('fontCssUrl requests a family with one upright weight', () => {
     const family: Family = {
       name: 'Example Sans',

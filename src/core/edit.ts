@@ -8,6 +8,24 @@ import type { Grid, Span } from './types';
 export type Edit = { from: number; to: number; insert: string };
 export type EditResult = { changes: Edit[]; select?: number };
 
+function settingValueRange(source: string, range: { from: number; to: number }): { from: number; to: number } {
+  const line = source.slice(range.from, range.to);
+  const colon = line.indexOf(':');
+  let from = colon + 1;
+  while (/\s/.test(line.charAt(from))) from++;
+  let to = line.length;
+  const quote = line.charAt(from);
+  if (quote === '"' || quote === "'") {
+    const closing = line.indexOf(quote, from + 1);
+    if (closing !== -1) to = closing + 1;
+  } else {
+    const comment = /\s+#/.exec(line.slice(from));
+    if (comment) to = from + comment.index;
+    while (to > from && /\s/.test(line.charAt(to - 1))) to--;
+  }
+  return { from: range.from + from, to: range.from + to };
+}
+
 /** Sets `font:` in the settings block, creating or removing the line as needed. */
 export function setDeckFont(source: string, name: string | null): EditResult {
   const parsed = parseSettings(source);
@@ -34,7 +52,10 @@ export function setDeckFont(source: string, name: string | null): EditResult {
   if (parsed.settings.font?.toLowerCase() === name.toLowerCase()) return { changes: [] };
 
   const line = `font: ${name}`;
-  if (range) return { changes: [{ from: range.from, to: range.to, insert: line }] };
+  if (range) {
+    const value = settingValueRange(source, range);
+    return { changes: [{ from: value.from, to: value.to, insert: name }] };
+  }
   if (parsed.bodyStart > 0) {
     return { changes: [{ from: 4, to: 4, insert: `${line}\n` }] };
   }

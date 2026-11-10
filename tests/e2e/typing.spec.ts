@@ -29,11 +29,58 @@ test('Enter on a selected box starts typing; Esc or a click outside stops', asyn
   await expect(typingArea(page)).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(typingArea(page)).toHaveCount(0);
+  await expect(page.locator('.us-selection')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.us-selection')).toHaveCount(0);
 
   await page.locator('.us-box[data-box="0"]').dblclick();
   await expect(typingArea(page)).toBeFocused();
   await editor(page).click();
   await expect(typingArea(page)).toHaveCount(0);
+});
+
+test('rapid typing in an empty box never drops a key while the parsed deck catches up', async ({ page }) => {
+  await openDeck(page, '::: box col=1-6\n:::\n');
+  await page.locator('.us-box[data-box="0"]').dblclick();
+
+  await page.keyboard.type('abc');
+
+  await expect.poll(() => getSource(page)).toBe('::: box col=1-6\nabc\n:::\n');
+  await expect(typingArea(page)).toHaveText('abc');
+});
+
+test('five immediate keys including Enter reach a box that already has text', async ({ page }) => {
+  await openDeck(page, '::: box col=1-6\nStart\n:::\n');
+  await page.locator('.us-box[data-box="0"]').dblclick();
+
+  await page.keyboard.type('ab');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('cd');
+
+  await expect.poll(() => getSource(page)).toBe('::: box col=1-6\nab\ncdStart\n:::\n');
+  await expect(typingArea(page).locator('.cm-line')).toHaveText(['ab', 'cdStart']);
+});
+
+test('keys wait for a slow typing-area chunk and replay in order', async ({ page }) => {
+  let releaseChunk = () => {};
+  const chunkBlocked = new Promise<void>((resolve) => {
+    releaseChunk = resolve;
+  });
+  await page.route('**/assets/TypingArea-*.js', async (route) => {
+    await chunkBlocked;
+    await route.continue();
+  });
+  await openDeck(page, '::: box col=1-6\nStart\n:::\n');
+  await page.locator('.us-box[data-box="0"]').dblclick();
+
+  await page.keyboard.type('ab');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('c');
+  releaseChunk();
+
+  await expect.poll(() => getSource(page)).toBe('::: box col=1-6\na\ncStart\n:::\n');
+  await expect(typingArea(page).locator('.cm-line')).toHaveText(['a', 'cStart']);
 });
 
 test('Ctrl/Cmd+Z in the typing area undoes a burst of typing, not one letter', async ({ page }) => {
@@ -62,7 +109,9 @@ test('double-clicking free-flowing text edits only that piece', async ({ page })
   const source = '# Top\n\n::: box\nx\n:::\n\nBottom\n';
   await openDeck(page, source);
 
-  await page.locator('.us-loose').getByText('Bottom', { exact: true }).dblclick();
+  const bottom = await page.locator('.us-loose').getByText('Bottom', { exact: true }).boundingBox();
+  expect(bottom).not.toBeNull();
+  await page.mouse.dblclick(bottom!.x + bottom!.width / 2, bottom!.y + bottom!.height / 2);
 
   await expect(typingArea(page)).toHaveText('Bottom');
   await page.keyboard.press('ControlOrMeta+End');

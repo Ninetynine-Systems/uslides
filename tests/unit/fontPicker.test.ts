@@ -56,7 +56,7 @@ describe('FontPicker', () => {
     catalog.version = 1;
     catalog.rejects = false;
     catalog.listeners.clear();
-    document.head.querySelectorAll('link[data-uslides-font-preview]').forEach((link) => link.remove());
+    document.head.querySelectorAll('[data-uslides-font-preview]').forEach((element) => element.remove());
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -110,5 +110,50 @@ describe('FontPicker', () => {
       .find((option) => option.textContent === 'Theme font')!;
     await act(async () => theme.click());
     expect(onPick).toHaveBeenCalledWith(null);
+  });
+
+  it('uses an isolated family for each preview and requests it once', async () => {
+    catalog.families = [family('Alpha')];
+    const fetchPreview = vi.fn(async () => new Response(
+      "@font-face { font-family: 'Alpha'; src: url(https://fonts.gstatic.com/l/font?kit=preview); }",
+    ));
+    vi.stubGlobal('fetch', fetchPreview);
+
+    await act(async () => root.render(createElement(FontPicker, {
+      value: 'Alpha',
+      blocked: false,
+      onPick: vi.fn(),
+      onClose: vi.fn(),
+    })));
+    await vi.waitFor(() => expect(document.head.querySelector('style[data-uslides-font-preview="Alpha"]')).not.toBeNull());
+    await act(async () => root.render(createElement(FontPicker, {
+      value: 'Alpha',
+      blocked: false,
+      onPick: vi.fn(),
+      onClose: vi.fn(),
+    })));
+
+    expect(fetchPreview).toHaveBeenCalledTimes(1);
+    expect(fetchPreview).toHaveBeenCalledWith(expect.stringContaining('&text=Alpha'), { mode: 'cors' });
+    expect(document.head.querySelector('style[data-uslides-font-preview="Alpha"]')!.textContent)
+      .toContain("font-family: 'uslides-preview-Alpha'");
+    const alpha = [...container.querySelectorAll<HTMLElement>('[role="option"]')]
+      .find((option) => option.textContent === 'Alpha')!;
+    expect(alpha.style.fontFamily).toContain('uslides-preview-Alpha');
+  });
+
+  it('does not request blocked previews until Show previews is used', async () => {
+    catalog.families = [family('Alpha')];
+    const fetchPreview = vi.fn(async () => new Response("@font-face { font-family: 'Alpha'; }"));
+    vi.stubGlobal('fetch', fetchPreview);
+    await act(async () => root.render(createElement(FontPicker, {
+      blocked: true,
+      onPick: vi.fn(),
+      onClose: vi.fn(),
+    })));
+    expect(fetchPreview).not.toHaveBeenCalled();
+
+    await act(async () => container.querySelector<HTMLButtonElement>('.us-font-preview-choice button')!.click());
+    await vi.waitFor(() => expect(fetchPreview).toHaveBeenCalledTimes(1));
   });
 });

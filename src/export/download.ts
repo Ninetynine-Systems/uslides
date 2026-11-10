@@ -93,7 +93,7 @@ export async function exportHtml(
 ): Promise<ExportResult> {
   const [packed, fonts, player] = await Promise.all([
     packImages(source, fetchImage),
-    embedFonts(deckFonts(parseDeck(source)), fetchText, fetchBytes),
+    embedFonts(deckFonts(parseDeck(source), findFamily), fetchText, fetchBytes),
     fetchPlayer(),
   ]);
   const html = buildHtml(packed.source, deckName(packed.source), player, fonts.css);
@@ -133,7 +133,7 @@ export async function printDeck(
   resolveImage: (src: string) => string | undefined = () => undefined,
   opts: { blockExternal?: boolean } = {},
 ): Promise<void> {
-  if (!opts.blockExternal) await waitForFonts(deckFonts(deck).filter((name) => findFamily(name) !== undefined));
+  if (!opts.blockExternal) await waitForFonts(deckFonts(deck, findFamily).filter((name) => findFamily(name) !== undefined));
   const size = STAGE[deck.settings.aspect];
   const page = document.createElement('style');
   page.textContent = `@page { size: ${size.w}px ${size.h}px; margin: 0 }`;

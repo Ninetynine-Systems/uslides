@@ -281,34 +281,25 @@ export function parseSlide(
     close(null);
   }
 
-  const pieces: Line[][] = [];
+  const content = trimBlankEnds(loose);
   let run: Line[] = [];
   const finishRun = () => {
     if (run.some((line) => line.text?.trim() !== '')) {
       slide.looseRanges.push({ from: run[0]!.range.from, to: run[run.length - 1]!.range.to });
-      pieces.push(trimBlankEnds(run));
     }
     run = [];
   };
-  for (const line of loose) {
+  for (const line of content) {
     const previous = run[run.length - 1];
-    if (previous && previous.range.to + 1 !== line.range.from) finishRun();
+    const boxBetween = previous && slide.boxes.some(
+      (box) => previous.range.to < box.range.from && box.range.to < line.range.from,
+    );
+    if (boxBetween) finishRun();
     run.push(line);
   }
   finishRun();
 
-  const rendered: string[] = [];
-  for (const [index, piece] of pieces.entries()) {
-    if (index > 0) {
-      const previous = pieces[index - 1]!.at(-1)!;
-      rendered.push('');
-      slide.looseLines.push(previous.range.to + 1);
-    }
-    for (const line of piece) {
-      rendered.push(line.text ?? '');
-      slide.looseLines.push(line.range.from);
-    }
-  }
-  slide.loose = rendered.join('\n');
+  slide.loose = content.map((line) => line.text ?? '').join('\n');
+  slide.looseLines = content.map((line) => line.range.from);
   return { slide, warnings };
 }

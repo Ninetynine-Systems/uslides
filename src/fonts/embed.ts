@@ -1,4 +1,5 @@
 import { findFamily, loadCatalog, type Family } from './catalog';
+import { setCssFamilyName } from './css';
 import { fontCssUrl } from './load';
 
 export type EmbeddedFonts = { css: string; failed: string[] };
@@ -24,17 +25,6 @@ function wantedFaces(css: string): string[] {
     .map((face) => face.css);
 }
 
-function cssFamilyName(name: string): string {
-  return name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-}
-
-function setFamilyName(css: string, family: Family): string {
-  return css.replace(
-    /font-family\s*:\s*(?:'[^']*'|"[^"]*"|[^;]+)\s*;/i,
-    `font-family: '${cssFamilyName(family.name)}';`,
-  );
-}
-
 function base64(bytes: Uint8Array): string {
   let binary = '';
   const chunkSize = 0x8000;
@@ -52,10 +42,21 @@ async function embedFamily(
   try {
     const stylesheet = await fetchText(fontCssUrl(family));
     if (stylesheet === null) return null;
-    const faces = wantedFaces(stylesheet).map((face) => setFamilyName(face, family));
+    const faces = wantedFaces(stylesheet)
+      .filter((face) => !face.includes('<'))
+      .map((face) => setCssFamilyName(face, family.name));
     if (faces.length === 0) return null;
-    const urls = [...new Set(faces.flatMap((face) => [...face.matchAll(FONT_URL)].map((match) => match[2]!)))];
-    if (urls.length === 0) return null;
+    const faceUrls = faces.map((face) => [...face.matchAll(FONT_URL)].map((match) => match[2]!));
+    if (faceUrls.some((urls) => urls.length === 0)) return null;
+    const urls = [...new Set(faceUrls.flat())];
+    const trusted = urls.every((url) => {
+      try {
+        return new URL(url).origin === 'https://fonts.gstatic.com';
+      } catch {
+        return false;
+      }
+    });
+    if (!trusted) return null;
     const files = new Map<string, string>();
     const loaded = await Promise.all(urls.map(async (url) => {
       const blob = await fetchBytes(url);

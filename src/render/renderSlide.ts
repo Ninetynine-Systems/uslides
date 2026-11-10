@@ -39,42 +39,47 @@ function fill(el: HTMLElement, markdown: string, opts: RenderOptions, sourceLine
   if (isImageOnly(el)) el.classList.add('us-image-only');
 }
 
-/** Renders source-disconnected loose pieces separately so Markdown blocks never join across a box. */
 function fillLoose(el: HTMLElement, slide: Slide, opts: RenderOptions): void {
-  const lines = slide.loose.split('\n');
-  let piece: { index: number; firstLine: number; lines: string[] } | undefined;
-  const finish = () => {
-    if (!piece) return;
-    const template = document.createElement('template');
-    template.innerHTML = renderMarkdown(piece.lines.join('\n'), {
-      resolveImage: opts.resolveImage,
-      sourceLines: opts.markLines,
-      blockExternal: opts.blockExternal,
-    });
-    if (opts.markLines) {
-      for (const marked of template.content.querySelectorAll<HTMLElement>('[data-line]')) {
-        marked.dataset.line = String(piece.firstLine + Number(marked.dataset.line));
-      }
-    }
-    el.append(template.content);
-    piece = undefined;
-  };
-
-  for (const [line, text] of lines.entries()) {
-    const offset = slide.looseLines[line];
-    const index = offset === undefined
-      ? -1
-      : slide.looseRanges.findIndex((range) => range.from <= offset && offset < range.to);
-    if (index < 0) {
-      finish();
-      continue;
-    }
-    if (piece && piece.index !== index) finish();
-    piece ??= { index, firstLine: line, lines: [] };
-    piece.lines.push(text);
+  fill(el, slide.loose, opts, opts.markLines);
+  for (const code of el.querySelectorAll<HTMLElement>('pre > code[data-line]')) {
+    const pre = code.parentElement;
+    if (pre) pre.dataset.line = code.dataset.line;
+    delete code.dataset.line;
   }
-  finish();
-  if (isImageOnly(el)) el.classList.add('us-image-only');
+  if (!opts.markLines) return;
+  for (const paragraph of el.querySelectorAll<HTMLElement>('p[data-line]')) {
+    const firstLine = Number(paragraph.dataset.line);
+    if (!Number.isInteger(firstLine) || !paragraph.textContent?.includes('\n')) continue;
+    const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
+    const nodes: Text[] = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode as Text);
+    let line = firstLine;
+    for (const node of nodes) {
+      const parts = node.data.split('\n');
+      if (parts.length === 1) continue;
+      const fragment = document.createDocumentFragment();
+      for (const [index, part] of parts.entries()) {
+        const marked = document.createElement('span');
+        marked.dataset.line = String(line);
+        marked.textContent = part;
+        fragment.append(marked);
+        if (index < parts.length - 1) {
+          fragment.append('\n');
+          line++;
+        }
+      }
+      node.replaceWith(fragment);
+    }
+  }
+  for (const list of el.querySelectorAll<HTMLElement>('ul[data-line], ol[data-line]')) {
+    let line = Number(list.dataset.line);
+    const sourceLines = slide.loose.split('\n');
+    for (const item of list.querySelectorAll<HTMLElement>(':scope > li')) {
+      while (line < sourceLines.length && !/^\s*(?:[-+*]|\d+[.)])\s+/.test(sourceLines[line]!)) line++;
+      item.dataset.line = String(line);
+      line++;
+    }
+  }
 }
 
 function mayUseFont(name: string, blockExternal: boolean | undefined): boolean {

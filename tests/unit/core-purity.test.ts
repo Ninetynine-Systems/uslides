@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const coreDir = join(__dirname, '../../src/core');
-const forbidden = ["from 'react'", '/render/', '/app/', 'window.', 'document.'];
+const forbidden = ["from 'react'", '/render/', '/app/', '/fonts/', 'window.', 'document.'];
 
 describe('src/core purity', () => {
   const files = readdirSync(coreDir, { recursive: true, withFileTypes: true })

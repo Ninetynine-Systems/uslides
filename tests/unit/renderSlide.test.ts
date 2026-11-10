@@ -104,4 +104,23 @@ describe('renderSlide', () => {
     expect(marked.querySelector('.us-box [data-line]')).toBeNull();
     expect(render(source).querySelector('[data-line]')).toBeNull();
   });
+
+  it('keeps a paragraph joined across a speaker note', () => {
+    const loose = render('Line one\n<!-- note: hidden -->\nLine two').querySelector('.us-loose')!;
+    expect(loose.querySelectorAll('p')).toHaveLength(1);
+    expect(loose.querySelector('p')!.textContent).toBe('Line one\nLine two');
+  });
+
+  it('resolves a reference whose definition is after a box', () => {
+    const source = '[Read more][details]\n\n::: box\nBox\n:::\n\n[details]: https://example.com';
+    const link = render(source).querySelector<HTMLAnchorElement>('.us-loose a');
+    expect(link?.textContent).toBe('Read more');
+    expect(link?.href).toBe('https://example.com/');
+  });
+
+  it('puts a fenced code source line on pre instead of code', () => {
+    const loose = render('```ts\nconst n = 1;\n```', { markLines: true }).querySelector('.us-loose')!;
+    expect(loose.querySelector('pre')!.dataset.line).toBe('0');
+    expect(loose.querySelector('pre > code')!.getAttribute('data-line')).toBeNull();
+  });
 });

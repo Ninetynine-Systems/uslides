@@ -25,7 +25,7 @@ export function Present({ deck, images, blockExternal, slide, onGo, onExit }: Pr
   const frame = useRef<HTMLDivElement>(null);
   const urls = useImageUrls(images);
   const fontVersion = useDeckFonts(deck, blockExternal);
-  const fontNames = deckFonts(deck).filter((name) => findFamily(name) !== undefined);
+  const fontNames = deckFonts(deck, findFamily).filter((name) => findFamily(name) !== undefined);
   const fontKey = fontNames.map((name) => name.toLowerCase()).join('\n');
   const [fontsReady, setFontsReady] = useState(blockExternal);
   const count = deck.slides.length;

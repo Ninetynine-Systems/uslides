@@ -44,6 +44,46 @@ test('dragging a box moves it by whole cells and is one undo step', async ({ pag
   await expect.poll(() => getSource(page)).toBe(source);
 });
 
+test('the preview frame handles undo and both redo shortcuts without a selection', async ({ page }) => {
+  const source = '# A\n\n::: box col=1-6 row=1-2\nMove me\n:::\n';
+  await openDeck(page, source);
+  const box = await page.locator('.us-box[data-box="0"]').boundingBox();
+  const stage = await page.locator('.us-stage').boundingBox();
+  if (!box || !stage) throw new Error('The box is not visible');
+  const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await drag(page, from, { x: from.x + stage.width / 12, y: from.y });
+  const moved = await getSource(page);
+  expect(moved).toContain('col=2-7 row=1-2');
+  await page.keyboard.press('Escape');
+
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(() => getSource(page)).toBe(source);
+  await page.keyboard.press('ControlOrMeta+Shift+z');
+  await expect.poll(() => getSource(page)).toBe(moved);
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(() => getSource(page)).toBe(source);
+  await page.keyboard.press('ControlOrMeta+y');
+  await expect.poll(() => getSource(page)).toBe(moved);
+});
+
+test('a keyboard move stopped by the grid adds no undo step', async ({ page }) => {
+  const source = '# A\n\n::: box col=9-12 row=4-6\nAt the edge\n:::\n';
+  const edited = `${source}Unrelated edit\n`;
+  await openDeck(page, source);
+  await editor(page).focus();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.insertText('Unrelated edit\n');
+  await expect.poll(() => getSource(page)).toBe(edited);
+  const box = await page.locator('.us-box[data-box="0"]').boundingBox();
+  if (!box) throw new Error('The box is not visible');
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(() => getSource(page)).toBe(edited);
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(() => getSource(page)).toBe(source);
+});
+
 test('dragging the bottom-right handle resizes it', async ({ page }) => {
   await openDeck(page, '# A\n\n::: box col=1-3 row=1-2\nResize me\n:::\n');
   const box = await page.locator('.us-box[data-box="0"]').boundingBox();

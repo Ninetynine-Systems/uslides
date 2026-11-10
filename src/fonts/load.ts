@@ -75,13 +75,22 @@ export function useDeckFonts(deck: Deck | undefined, blocked: boolean): number {
   const [version, setVersion] = useState(0);
   const catalogVersion = useSyncExternalStore(subscribeCatalog, getCatalogVersion, getCatalogVersion);
   const families = useMemo(() => {
-    const names = deck ? deckFonts(deck) : [];
+    const names = deck ? deckFonts(deck, findFamily) : [];
     return names.map((name) => findFamily(name)).filter((family): family is Family => family !== undefined);
   }, [deck, catalogVersion]);
 
   useEffect(() => {
     const fonts = document.fonts;
-    const loaded = () => setVersion((current) => current + 1);
+    const wanted = new Set(families.map((family) => family.name.toLowerCase()));
+    const loaded = (event: Event) => {
+      const fontfaces = (event as Event & { fontfaces?: Iterable<{ family: string }> }).fontfaces;
+      if (!fontfaces) return;
+      const includesDeckFamily = [...fontfaces].some((face) => {
+        const family = face.family.trim().replace(/^(['"])(.*)\1$/, '$2').toLowerCase();
+        return wanted.has(family);
+      });
+      if (includesDeckFamily) setVersion((current) => current + 1);
+    };
     fonts?.addEventListener('loadingdone', loaded);
     if (!blocked) for (const family of families) addFontLink(family);
     return () => fonts?.removeEventListener('loadingdone', loaded);

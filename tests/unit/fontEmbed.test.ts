@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadCatalog } from '../../src/fonts/catalog';
 import { embedFonts } from '../../src/fonts/embed';
 
@@ -84,5 +84,37 @@ describe('embedFonts', () => {
     expect(result.failed).toEqual([]);
     expect(result.css.match(/@font-face/g)).toHaveLength(2);
     expect(result.css.match(/data:font\/woff2;base64,BAUG/g)).toHaveLength(2);
+  });
+
+  it('drops a face containing markup without fetching its file', async () => {
+    const byteUrls: string[] = [];
+    const css = `
+/* latin */
+@font-face { font-family: 'Lora'; src: url('https://fonts.gstatic.com/good.woff2') format('woff2'); }
+/* latin */
+@font-face { font-family: '<bad>'; src: url('https://fonts.gstatic.com/bad.woff2') format('woff2'); }
+`;
+    const result = await embedFonts(
+      ['Lora'],
+      async () => css,
+      async (url) => {
+        byteUrls.push(url);
+        return new Blob([new Uint8Array([1])]);
+      },
+    );
+
+    expect(result.failed).toEqual([]);
+    expect(byteUrls).toEqual(['https://fonts.gstatic.com/good.woff2']);
+    expect(result.css).not.toContain('<bad>');
+    expect(result.css).not.toContain('https://');
+  });
+
+  it('fails a family with any font file outside fonts.gstatic.com', async () => {
+    const fetchBytes = vi.fn(async () => new Blob([new Uint8Array([1])]));
+    const css = "@font-face { font-family: 'Lora'; src: url('https://evil.example/font.woff2'); }";
+
+    await expect(embedFonts(['Lora'], async () => css, fetchBytes))
+      .resolves.toEqual({ css: '', failed: ['Lora'] });
+    expect(fetchBytes).not.toHaveBeenCalled();
   });
 });

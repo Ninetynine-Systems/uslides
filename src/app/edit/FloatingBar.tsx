@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   AlignCenter,
   AlignCenterHorizontal,
@@ -36,6 +36,14 @@ function ColourControl(props: {
   const { kind, theme, open, onOpen, onSet } = props;
   const fill = kind === 'fill';
   const label = fill ? 'Fill colour' : 'Text colour';
+  const custom = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const input = custom.current;
+    if (!input || !open) return;
+    const changed = () => onSet(input.value.toLowerCase());
+    input.addEventListener('change', changed);
+    return () => input.removeEventListener('change', changed);
+  }, [onSet, open]);
   return (
     <div className="us-colour-control">
       <IconButton
@@ -64,9 +72,9 @@ function ColourControl(props: {
           <label className="us-custom-colour">
             Custom
             <input
+              ref={custom}
               type="color"
               aria-label={`Custom ${label.toLowerCase()}`}
-              onChange={(event) => onSet(event.currentTarget.value.toLowerCase())}
             />
           </label>
         </div>
@@ -150,12 +158,12 @@ export function FloatingBar({
       />
       {fontSlot}
       <div className="us-bar-group" role="group" aria-label="Horizontal alignment">
-        <IconButton label="Left" icon={AlignLeft} aria-pressed={box.align === 'left'} onClick={() => onSet({ align: 'left' })} />
+        <IconButton label="Left" icon={AlignLeft} aria-pressed={box.align === 'left'} onClick={() => onSet({ align: null })} />
         <IconButton label="Centre" icon={AlignCenter} aria-pressed={box.align === 'center'} onClick={() => onSet({ align: 'center' })} />
         <IconButton label="Right" icon={AlignRight} aria-pressed={box.align === 'right'} onClick={() => onSet({ align: 'right' })} />
       </div>
       <div className="us-bar-group" role="group" aria-label="Vertical alignment">
-        <IconButton label="Top" icon={AlignStartHorizontal} aria-pressed={box.valign === 'top'} onClick={() => onSet({ valign: 'top' })} />
+        <IconButton label="Top" icon={AlignStartHorizontal} aria-pressed={box.valign === 'top'} onClick={() => onSet({ valign: null })} />
         <IconButton label="Middle" icon={AlignCenterHorizontal} aria-pressed={box.valign === 'middle'} onClick={() => onSet({ valign: 'middle' })} />
         <IconButton label="Bottom" icon={AlignEndHorizontal} aria-pressed={box.valign === 'bottom'} onClick={() => onSet({ valign: 'bottom' })} />
       </div>

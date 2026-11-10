@@ -1,10 +1,9 @@
 import type { Token } from 'markdown-it';
-import { findFamily } from '../fonts/catalog';
 import { parseMarkdownTokens } from './markdown';
 import type { Deck } from './parse';
 
 type FontMatch = boolean | { name: string } | undefined;
-type FontLookup = (name: string) => FontMatch;
+export type FontLookup = (name: string) => FontMatch;
 
 function addImageHosts(markdown: string, hosts: Set<string>): void {
   const visit = (tokens: Token[]) => {
@@ -34,11 +33,12 @@ function fontNames(deck: Deck): string[] {
 }
 
 /** Font names used by the deck, once each; catalog-known names use catalog spelling. */
-export function deckFonts(deck: Deck): string[] {
+export function deckFonts(deck: Deck, lookup: FontLookup): string[] {
   const found: string[] = [];
   const seen = new Set<string>();
   for (const name of fontNames(deck)) {
-    const canonical = findFamily(name)?.name ?? name;
+    const match = lookup(name);
+    const canonical = typeof match === 'object' ? match.name : name;
     const key = canonical.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
@@ -48,13 +48,13 @@ export function deckFonts(deck: Deck): string[] {
 }
 
 /** Sorted website names used by web images and catalog-known fonts in the rendered deck. */
-export function externalHosts(deck: Deck, isKnownFont: FontLookup = findFamily): string[] {
+export function externalHosts(deck: Deck, isKnownFont: FontLookup): string[] {
   const hosts = new Set<string>();
   for (const slide of deck.slides) {
     addImageHosts(slide.loose, hosts);
     for (const box of slide.boxes) addImageHosts(box.markdown, hosts);
   }
-  if (deckFonts(deck).some((name) => Boolean(isKnownFont(name)))) {
+  if (deckFonts(deck, isKnownFont).some((name) => Boolean(isKnownFont(name)))) {
     hosts.add('fonts.googleapis.com');
     hosts.add('fonts.gstatic.com');
   }

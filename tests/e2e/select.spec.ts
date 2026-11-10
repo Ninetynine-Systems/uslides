@@ -61,6 +61,29 @@ test('None removes the attribute', async ({ page }) => {
   await expect.poll(() => getSource(page)).toBe('# A\n\n::: box col=1-6 row=1-3\nLeft\n:::\n');
 });
 
+test('a custom colour is applied on change and is one undo step', async ({ page }) => {
+  const source = '# A\n\n::: box col=1-6 row=1-3\nLeft\n:::\n';
+  await openDeck(page, source);
+  await clickBox(page);
+  await page.getByRole('button', { name: 'Fill colour' }).click();
+  const custom = page.getByLabel('Custom fill colour');
+
+  await custom.evaluate((input) => {
+    const colour = input as HTMLInputElement;
+    colour.value = '#112233';
+    colour.dispatchEvent(new Event('input', { bubbles: true }));
+    colour.value = '#445566';
+    colour.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  expect(await getSource(page)).toBe(source);
+  await custom.dispatchEvent('change');
+  await expect.poll(() => getSource(page)).toContain('bg=#445566');
+
+  await page.locator('.slide-frame').focus();
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(() => getSource(page)).toBe(source);
+});
+
 test('align and valign buttons write align= and valign=', async ({ page }) => {
   await openDeck(page, '# A\n\n::: box col=1-6 row=1-3\nLeft\n:::\n');
   await clickBox(page);
@@ -70,6 +93,16 @@ test('align and valign buttons write align= and valign=', async ({ page }) => {
   await page.getByRole('button', { name: 'Bottom' }).click();
 
   await expect.poll(() => getSource(page)).toContain('align=center valign=bottom');
+});
+
+test('Left and Top remove the default alignment attributes', async ({ page }) => {
+  await openDeck(page, '# A\n\n::: box col=1-6 row=1-3 align=center valign=bottom\nLeft\n:::\n');
+  await clickBox(page);
+
+  await page.getByRole('button', { name: 'Left' }).click();
+  await page.getByRole('button', { name: 'Top' }).click();
+
+  await expect.poll(() => getSource(page)).toBe('# A\n\n::: box col=1-6 row=1-3\nLeft\n:::\n');
 });
 
 test('Bring to front, Send to back, Duplicate and Delete change the blocks', async ({ page }) => {
@@ -142,6 +175,19 @@ test('no selection on a narrow screen', async ({ page }) => {
   await clickBox(page);
 
   await expect(page.locator('.us-selection')).toHaveCount(0);
+  await expect(page.locator('.slide-frame')).toHaveAttribute('role', 'button');
+});
+
+test('the editable slide is a named group and announces box selection', async ({ page }) => {
+  await openDeck(page, '# A\n\n::: box col=1-6 row=1-3\nLeft\n:::\n');
+  const frame = page.locator('.slide-frame');
+  await expect(frame).toHaveAttribute('role', 'group');
+  await expect(frame).toHaveAccessibleName('Slide 1');
+
+  await clickBox(page);
+  await expect(page.locator('.us-selection-status')).toHaveText('Box 1 selected');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.us-selection-status')).toHaveText('');
 });
 
 test('floating bar controls can be used with the keyboard', async ({ page }) => {

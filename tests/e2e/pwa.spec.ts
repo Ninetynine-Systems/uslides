@@ -21,6 +21,23 @@ async function serviceWorkerActive(page: Page) {
   });
 }
 
+async function savedSource(page: Page): Promise<string | undefined> {
+  return page.evaluate(() => new Promise<string | undefined>((resolve, reject) => {
+    const match = /^#\/deck\/([^/]+)/.exec(location.hash);
+    if (!match) return resolve(undefined);
+    const opening = indexedDB.open('uslides');
+    opening.onerror = () => reject(opening.error);
+    opening.onsuccess = () => {
+      const database = opening.result;
+      const transaction = database.transaction('decks', 'readonly');
+      const request = transaction.objectStore('decks').get(decodeURIComponent(match[1]!));
+      request.onsuccess = () => resolve((request.result as { source?: string } | undefined)?.source);
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => database.close();
+    };
+  }));
+}
+
 const editor = (page: Page) => page.getByRole('textbox', { name: 'Deck source' });
 
 async function openMenu(page: Page) {
@@ -74,7 +91,7 @@ test('a web image seen once online still shows offline', async ({ page, context 
     await expect
       .poll(() => page.evaluate(async () => (await (await caches.open('uslides-images')).keys()).length))
       .toBeGreaterThan(0);
-    await page.waitForTimeout(700); // let the edited in-app deck finish its normal autosave
+    await expect.poll(() => savedSource(page)).toBe(md);
   } finally {
     await close(images);
   }

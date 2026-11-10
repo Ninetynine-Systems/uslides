@@ -67,6 +67,19 @@ function savedPreviewView(): PreviewView {
   }
 }
 
+/** A fit result stays valid while this slide's source and the settings that affect its layout stay the same. */
+function fitKey(deck: Deck, slide: Slide): string {
+  return JSON.stringify([
+    slide.index,
+    deck.source.slice(slide.range.from, slide.range.to),
+    deck.settings.font ?? '',
+    deck.settings.grid.cols,
+    deck.settings.grid.rows,
+    deck.settings.aspect,
+    deck.settings.theme,
+  ]);
+}
+
 // Read once at app start. Decks cannot turn this test-only edit channel on themselves.
 const E2E_EDIT = (() => {
   try {
@@ -176,7 +189,7 @@ export function App() {
   }, []);
 
   const current = useDeck(deckId, { onNotice: notify, onChanged: refreshList });
-  const { flush, flushParse, discard, adopt } = current;
+  const { flush, flushParse, discard, adopt, patchRecord } = current;
   const ready = current.record?.id === deckId;
   const blockExternal = ready && isBlocked(
     current.record?.privacy,
@@ -184,22 +197,31 @@ export function App() {
     deckId !== undefined && allowedOnce.has(deckId),
   );
   const hosts = useMemo(
-    () => (ready && current.deck ? externalHosts(current.deck) : []),
-    [ready, current.deck, catalogLoaded],
+    () => (blockExternal && ready && current.deck ? externalHosts(current.deck, findFamily) : []),
+    [blockExternal, ready, current.deck, catalogLoaded],
   );
   const changeAskFirst = useCallback((on: boolean) => {
     writeAskFirst(on);
     setAskFirst(on);
   }, []);
   // fitSlide's results for each slide in the preview, so text cut off on a slide becomes an editor warning.
-  const [fits, setFits] = useState<ReadonlyMap<Slide, FitResult[]>>(() => new Map());
+  const [fits, setFits] = useState<ReadonlyMap<string, FitResult[]>>(() => new Map());
   const onFit = useCallback((slide: Slide, results: FitResult[]) => {
-    setFits((prev) => new Map(prev).set(slide, results));
-  }, []);
-  useEffect(() => {
-    // Forget slides from older parses. The preview has already re-measured the current ones.
-    setFits((prev) => new Map([...prev].filter(([s]) => current.deck?.slides.includes(s))));
+    if (!current.deck) return;
+    setFits((prev) => new Map(prev).set(fitKey(current.deck!, slide), results));
   }, [current.deck]);
+  useEffect(() => {
+    const valid = new Set(current.deck?.slides.map((slide) => fitKey(current.deck!, slide)) ?? []);
+    setFits((prev) => new Map([...prev].filter(([key]) => valid.has(key))));
+  }, [current.deck]);
+  const currentFits = useMemo(() => {
+    const bySlide = new Map<Slide, FitResult[]>();
+    for (const slide of current.deck?.slides ?? []) {
+      const results = fits.get(fitKey(current.deck!, slide));
+      if (results) bySlide.set(slide, results);
+    }
+    return bySlide;
+  }, [current.deck, fits]);
   useEffect(() => {
     let active = true;
     void loadCatalogOnce().then(
@@ -216,11 +238,11 @@ export function App() {
     () => (current.deck
       ? [
           ...current.warnings,
-          ...cutOffWarnings(current.deck, fits),
+          ...cutOffWarnings(current.deck, currentFits),
           ...(catalogLoaded ? fontWarnings(current.deck, findFamily) : []),
         ]
       : current.warnings),
-    [catalogLoaded, current.deck, current.warnings, fits],
+    [catalogLoaded, current.deck, current.warnings, currentFits],
   );
   const deckRef = useRef(current.deck);
   deckRef.current = current.deck;
@@ -532,10 +554,10 @@ export function App() {
   const alwaysAllow = useCallback(() => {
     if (!deckId || !ready) return;
     void (async () => {
-      await flush();
-      adopt(await setDeckPrivacy(deckId, 'allowed'));
+      const rec = await setDeckPrivacy(deckId, 'allowed');
+      patchRecord(rec.id, { privacy: rec.privacy });
     })().catch(reportError);
-  }, [adopt, deckId, flush, ready, reportError]);
+  }, [deckId, patchRecord, ready, reportError]);
 
   const openFile = () => {
     if (!supportsFileLink()) {

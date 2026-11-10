@@ -1,5 +1,5 @@
 import {
-  lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType,
+  lazy, useCallback, useEffect, useMemo, useRef, useState, type ComponentType,
 } from 'react';
 import { ChevronLeft, ChevronRight, Rows3, Square, SquarePlus } from 'lucide-react';
 import { insertBox, type EditResult } from '../core/edit';
@@ -15,8 +15,15 @@ import { Overlay, type SelectionRequest } from './edit/Overlay';
 import type { TypingAreaProps } from './edit/TypingArea';
 import { IconButton } from './IconButton';
 
-// Keep CodeMirror in the editor chunk. Narrow screens never request this component.
-const TypingArea = lazy(() => import('./edit/TypingArea').then((m) => ({ default: m.TypingArea })));
+let typingAreaLoad: Promise<typeof import('./edit/TypingArea')> | undefined;
+
+/** Keep CodeMirror out of the phone bundle, but start its request as soon as editing is available. */
+function loadTypingArea(): Promise<typeof import('./edit/TypingArea')> {
+  typingAreaLoad ??= import('./edit/TypingArea');
+  return typingAreaLoad;
+}
+
+const TypingArea = lazy(() => loadTypingArea().then((m) => ({ default: m.TypingArea })));
 
 export type PreviewView = 'all' | 'one';
 
@@ -120,11 +127,12 @@ function SlideCard(props: {
         className="slide-frame"
         ref={frame}
         style={{ aspectRatio: `${w} / ${h}` }}
-        role="button"
+        role={editable ? 'group' : 'button'}
         tabIndex={0}
         aria-label={`Slide ${slide.index + 1}`}
         onClick={editable ? undefined : onSelect}
         onKeyDown={(e) => {
+          if (editable) return;
           if (e.target !== e.currentTarget) return;
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
@@ -133,26 +141,24 @@ function SlideCard(props: {
         }}
       >
         {editable && stage && (
-          <Suspense fallback={null}>
-            <Overlay
-              stage={stage}
-              slide={slide}
-              grid={slide.grid}
-              theme={deck.settings.theme}
-              blocked={blockExternal}
-              onEdit={onEdit}
-              onMoveCursor={onMoveCursor}
-              getDeck={getDeck}
-              getSource={getSource}
-              onUndo={onUndo}
-              onRedo={onRedo}
-              TypingArea={TypingArea as ComponentType<TypingAreaProps>}
-              onSelectSlide={onSelect}
-              active={active}
-              selectionRequest={props.selectionRequest}
-              onSelectionRequestHandled={props.onSelectionRequestHandled}
-            />
-          </Suspense>
+          <Overlay
+            stage={stage}
+            slide={slide}
+            grid={slide.grid}
+            theme={deck.settings.theme}
+            blocked={blockExternal}
+            onEdit={onEdit}
+            onMoveCursor={onMoveCursor}
+            getDeck={getDeck}
+            getSource={getSource}
+            onUndo={onUndo}
+            onRedo={onRedo}
+            TypingArea={TypingArea as ComponentType<TypingAreaProps>}
+            onSelectSlide={onSelect}
+            active={active}
+            selectionRequest={props.selectionRequest}
+            onSelectionRequestHandled={props.onSelectionRequestHandled}
+          />
         )}
       </div>
       <figcaption>{slide.index + 1}</figcaption>
@@ -169,6 +175,9 @@ export function Preview({
   deck, images, blockExternal, showGrid, onShowGridChange, view, onViewChange, currentSlide, onEdit, onMoveCursor,
   getDeck, getSource, onUndo, onRedo, editable, onSelectSlide, onFit,
 }: Props) {
+  useEffect(() => {
+    if (editable) void loadTypingArea();
+  }, [editable]);
   const urls = useImageUrls(images);
   const fontVersion = useDeckFonts(deck, blockExternal);
   const slideCount = deck?.slides.length ?? 0;

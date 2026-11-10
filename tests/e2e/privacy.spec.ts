@@ -77,6 +77,50 @@ test('Always allow for this deck survives a reload', async ({ page }) => {
   await expect(page.getByText(BANNER_TEXT)).toHaveCount(0);
 });
 
+test('Always allow does not replace typing made while the privacy choice is saved', async ({ page }) => {
+  await routeImage(page);
+  await openShared(page);
+  await page.evaluate(() => {
+    const state = window as typeof window & {
+      __privacyHoldReady?: boolean;
+      __privacyHoldRelease?: boolean;
+    };
+    state.__privacyHoldReady = false;
+    state.__privacyHoldRelease = false;
+    const opening = indexedDB.open('uslides');
+    opening.onsuccess = () => {
+      const database = opening.result;
+      const transaction = database.transaction('decks', 'readwrite');
+      const store = transaction.objectStore('decks');
+      const keepAlive = () => {
+        const request = store.get('__privacy-hold__');
+        request.onsuccess = () => {
+          if (!state.__privacyHoldRelease) keepAlive();
+        };
+      };
+      transaction.oncomplete = () => database.close();
+      keepAlive();
+      state.__privacyHoldReady = true;
+    };
+  });
+  await expect.poll(() => page.evaluate(() => (
+    window as typeof window & { __privacyHoldReady?: boolean }
+  ).__privacyHoldReady)).toBe(true);
+
+  await page.getByRole('button', { name: 'Always allow for this deck' }).click();
+  const sourceEditor = page.getByRole('textbox', { name: 'Deck source' });
+  await sourceEditor.click();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.insertText('\nkept while allowing');
+  expect(await page.evaluate(() => window.__uslides!.getSource())).toContain('kept while allowing');
+  await page.evaluate(() => {
+    (window as typeof window & { __privacyHoldRelease?: boolean }).__privacyHoldRelease = true;
+  });
+
+  await expect(page.getByText(BANNER_TEXT)).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.__uslides!.getSource())).toContain('kept while allowing');
+});
+
 test('a deck with no web images never shows the banner', async ({ page }) => {
   await openShared(page, '# Private deck\n\nNo outside images.\n');
   await expect(page.getByText(/This deck wants to load images and fonts/)).toHaveCount(0);

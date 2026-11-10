@@ -1,7 +1,7 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { Annotation, EditorState } from '@codemirror/state';
 import { EditorView, keymap, type ViewUpdate } from '@codemirror/view';
-import { defaultKeymap } from '@codemirror/commands';
+import { defaultKeymap, deleteCharBackward, insertNewline } from '@codemirror/commands';
 import type { Edit } from '../../core/edit';
 
 const externalChange = Annotation.define<boolean>();
@@ -13,6 +13,8 @@ export type TypingAreaProps = {
   onChange(edit: Edit): void;
   onUndo(): void;
   onRedo(): void;
+  onReady(ready: boolean): void;
+  takeQueuedInput(): string[];
   onDone(): void;
 };
 
@@ -34,7 +36,26 @@ function changedText(update: ViewUpdate, from: number): Edit {
   };
 }
 
-export function TypingArea({ rect, text, from, onChange, onUndo, onRedo, onDone }: TypingAreaProps) {
+function replayKey(editor: EditorView, key: string): void {
+  if (key === 'Enter') {
+    insertNewline(editor);
+    return;
+  }
+  if (key === 'Backspace') {
+    deleteCharBackward(editor);
+    return;
+  }
+  const selection = editor.state.selection.main;
+  editor.dispatch({
+    changes: { from: selection.from, to: selection.to, insert: key },
+    selection: { anchor: selection.from + key.length },
+    userEvent: 'input.type',
+  });
+}
+
+export function TypingArea({
+  rect, text, from, onChange, onUndo, onRedo, onReady, takeQueuedInput, onDone,
+}: TypingAreaProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | undefined>(undefined);
   const initialText = useRef(text);
@@ -48,6 +69,10 @@ export function TypingArea({ rect, text, from, onChange, onUndo, onRedo, onDone 
   onRedoRef.current = onRedo;
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+  const takeQueuedInputRef = useRef(takeQueuedInput);
+  takeQueuedInputRef.current = takeQueuedInput;
 
   useEffect(() => {
     const editor = new EditorView({
@@ -61,7 +86,11 @@ export function TypingArea({ rect, text, from, onChange, onUndo, onRedo, onDone 
             { key: 'Mod-z', run: () => (onUndoRef.current(), true) },
             { key: 'Mod-Shift-z', run: () => (onRedoRef.current(), true) },
             { key: 'Mod-y', run: () => (onRedoRef.current(), true) },
-            { key: 'Escape', run: () => (onDoneRef.current(), true) },
+            {
+              key: 'Escape',
+              run: () => (onDoneRef.current(), true),
+              stopPropagation: true,
+            },
             ...defaultKeymap,
           ]),
           EditorView.updateListener.of((update) => {
@@ -74,7 +103,10 @@ export function TypingArea({ rect, text, from, onChange, onUndo, onRedo, onDone 
     });
     view.current = editor;
     editor.focus();
+    for (const key of takeQueuedInputRef.current()) replayKey(editor, key);
+    onReadyRef.current(true);
     return () => {
+      onReadyRef.current(false);
       editor.destroy();
       view.current = undefined;
     };
