@@ -59,6 +59,7 @@ button.danger { color: var(--danger); }
   white-space: nowrap;
 }
 .toolbar-name-button:hover { border-color: var(--line); background: var(--bg); }
+.toolbar-name-button:focus-visible { outline-offset: -2px; }
 .toolbar-name-input { width: 100%; min-width: 0; padding: 3px 5px; font: inherit; font-weight: inherit; }
 .toolbar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 

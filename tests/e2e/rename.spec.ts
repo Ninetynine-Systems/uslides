@@ -66,3 +66,32 @@ test('F2 opens the field with the whole name selected', async ({ page }) => {
   await page.keyboard.type('X');
   await expect(input).toHaveValue('X');
 });
+
+test('keyboard focus ring stays visible inside the deck name heading', async ({ page }) => {
+  const nameButton = page.getByRole('button', { name: `Rename deck: ${originalName}` });
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(nameButton).toBeFocused();
+
+  const focusRing = await nameButton.evaluate((button) => {
+    const heading = button.closest('h1');
+    if (!heading) throw new Error('Deck name button is not inside an h1');
+
+    const style = getComputedStyle(button);
+    const buttonRect = button.getBoundingClientRect();
+    const headingRect = heading.getBoundingClientRect();
+    const expansion = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+
+    return {
+      outlineStyle: style.outlineStyle,
+      fitsInsideHeading:
+        buttonRect.left - expansion >= headingRect.left
+        && buttonRect.top - expansion >= headingRect.top
+        && buttonRect.right + expansion <= headingRect.right
+        && buttonRect.bottom + expansion <= headingRect.bottom,
+    };
+  });
+
+  expect(focusRing.outlineStyle).toBe('solid');
+  expect(focusRing.fitsInsideHeading).toBe(true);
+});
