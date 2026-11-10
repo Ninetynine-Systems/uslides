@@ -85,10 +85,22 @@ export function TypingArea({
         extensions: [
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ 'aria-label': 'Markdown on slide' }),
+          EditorView.domEventHandlers({
+            keydown(event) {
+              if (event.altKey || !(event.ctrlKey || event.metaKey)) return false;
+              const key = event.key.toLowerCase();
+              if (key === 'z' && !event.shiftKey) {
+                onUndoRef.current();
+                return true;
+              }
+              if ((key === 'z' && event.shiftKey) || (key === 'y' && !event.shiftKey)) {
+                onRedoRef.current();
+                return true;
+              }
+              return false;
+            },
+          }),
           keymap.of([
-            { key: 'Mod-z', run: () => (onUndoRef.current(), true) },
-            { key: 'Mod-Shift-z', run: () => (onRedoRef.current(), true) },
-            { key: 'Mod-y', run: () => (onRedoRef.current(), true) },
             {
               key: 'Escape',
               run: () => (onDoneRef.current(), true),

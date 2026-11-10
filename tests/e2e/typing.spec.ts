@@ -195,6 +195,54 @@ test('Ctrl/Cmd+Z in the typing area undoes a burst of typing, not one letter', a
   await expect.poll(() => getSource(page)).toContain('\nxabc\n:::');
 });
 
+test('Windows and Linux undo and redo keys work in every editing surface', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'platform', { value: 'Linux x86_64' });
+  });
+  await openDeck(page, '::: box col=1-6\nx\n:::\n');
+  expect(await page.evaluate(() => navigator.platform)).toBe('Linux x86_64');
+  await page.locator('.us-box[data-box="0"]').dblclick();
+  await expect(typingArea(page)).toBeFocused();
+  await page.keyboard.press('Control+End');
+
+  await page.keyboard.type('abc');
+  await expect.poll(() => getSource(page)).toContain('\nxabc\n:::');
+  await page.keyboard.press('Control+z');
+  await expect(typingArea(page)).toHaveText('x');
+
+  await page.keyboard.press('Control+y');
+  await expect(typingArea(page)).toHaveText('xabc');
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+Shift+z');
+  await expect(typingArea(page)).toHaveText('xabc');
+  await expect.poll(() => getSource(page)).toContain('\nxabc\n:::');
+
+  await openDeck(page, '::: box col=1-6\nx\n:::\n');
+  await editor(page).click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type('abc');
+  await expect.poll(() => getSource(page)).toContain('\nx\n:::\nabc');
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => getSource(page)).toBe('::: box col=1-6\nx\n:::\n');
+  await page.keyboard.press('Control+y');
+  await expect.poll(() => getSource(page)).toContain('\nx\n:::\nabc');
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+Shift+z');
+  await expect.poll(() => getSource(page)).toContain('\nx\n:::\nabc');
+
+  await openDeck(page, '::: box col=1-6 row=1-3\nx\n:::\n');
+  await page.locator('.us-box[data-box="0"]').click();
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(() => getSource(page)).toContain('col=2-7');
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => getSource(page)).toContain('col=1-6');
+  await page.keyboard.press('Control+y');
+  await expect.poll(() => getSource(page)).toContain('col=2-7');
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+Shift+z');
+  await expect.poll(() => getSource(page)).toContain('col=2-7');
+});
+
 test('double-clicking free-flowing text edits only that piece', async ({ page }) => {
   const source = '# Top\n\n::: box\nx\n:::\n\nBottom\n';
   await openDeck(page, source);
