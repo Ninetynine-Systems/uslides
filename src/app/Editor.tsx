@@ -1,11 +1,15 @@
 import { useEffect, useImperativeHandle, useRef, type Ref } from 'react';
 import { Annotation, EditorState } from '@codemirror/state';
-import { EditorView, keymap } from '@codemirror/view';
 import {
-  defaultKeymap, history, historyKeymap, isolateHistory, redo as redoCommand, undo as undoCommand,
+  EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers,
+} from '@codemirror/view';
+import {
+  defaultKeymap, history, historyKeymap, indentWithTab, isolateHistory, redo as redoCommand, undo as undoCommand,
 } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
+import { bracketMatching, indentUnit } from '@codemirror/language';
 import { setDiagnostics, type Diagnostic } from '@codemirror/lint';
+import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/search';
 import type { EditResult } from '../core/edit';
 import type { Warning } from '../core/types';
 import { dataUriFold } from './editor/dataUriFold';
@@ -63,7 +67,14 @@ export function Editor({ value, onChange, onCursorChange, warnings = [], onNotic
         doc: initial.current,
         extensions: [
           history(),
-          keymap.of([...defaultKeymap, ...historyKeymap]),
+          lineNumbers(),
+          highlightActiveLine(),
+          highlightActiveLineGutter(),
+          indentUnit.of('  '),
+          bracketMatching(),
+          highlightSelectionMatches(),
+          search(),
+          keymap.of([indentWithTab, ...searchKeymap, ...defaultKeymap, ...historyKeymap]),
           markdown(),
           EditorView.lineWrapping,
           dataUriFold(),

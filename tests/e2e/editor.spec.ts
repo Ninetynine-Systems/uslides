@@ -28,6 +28,59 @@ test('typing updates the preview', async ({ page }) => {
   await expect(page.locator('.us-stage')).toHaveCount(5);
 });
 
+test('the gutter shows the first and later line numbers', async ({ page }) => {
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  await setSource(page, '# First\nSecond\nThird\n');
+  const gutter = page.locator('.cm-lineNumbers');
+
+  await expect(gutter).toBeVisible();
+  await expect(gutter.locator('.cm-gutterElement').filter({ hasText: /^1$/ })).toBeVisible();
+  await expect(gutter.locator('.cm-gutterElement').filter({ hasText: /^3$/ })).toBeVisible();
+});
+
+test('Tab indents selected lines by two spaces and Shift+Tab removes them', async ({ page }) => {
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  await setSource(page, '# First\nSecond\n');
+  await editor(page).press('ControlOrMeta+Home');
+  await editor(page).press('Shift+End');
+
+  await editor(page).press('Tab');
+  await expect.poll(() => getSource(page)).toBe('  # First\nSecond\n');
+  await editor(page).press('Shift+Tab');
+
+  await expect.poll(() => getSource(page)).toBe('# First\nSecond\n');
+});
+
+test('Escape then Tab moves focus from the editor to the preview controls', async ({ page }) => {
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  await editor(page).focus();
+
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Tab');
+
+  await expect(page.getByRole('checkbox', { name: 'Grid lines' })).toBeFocused();
+});
+
+test('Cmd or Ctrl+F opens search and finds every copy', async ({ page }) => {
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  await setSource(page, '# Find needle\nAnother needle\n');
+  await editor(page).press('ControlOrMeta+f');
+  const find = page.getByRole('textbox', { name: 'Find' });
+
+  await expect(find).toBeVisible();
+  await find.pressSequentially('needle');
+  await find.press('Enter');
+  const result = page.locator('[aria-live="polite"]').filter({ hasText: /current match/ });
+  await expect(result).toContainText('on line 1');
+  await find.press('Enter');
+
+  await expect(result).toContainText('on line 2');
+});
+
 test('autosave survives reload', async ({ page }) => {
   await page.goto('/?test');
   await expect(page.locator('.us-stage')).toHaveCount(4);

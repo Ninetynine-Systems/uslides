@@ -86,6 +86,10 @@ button.danger { color: var(--danger); }
 .editor .cm-editor.cm-focused { outline: none; }
 .editor .cm-scroller { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; line-height: 1.5; }
 .editor .cm-content { padding: 12px 0; }
+.editor .cm-gutters { color: var(--muted); background: var(--panel); border-right-color: var(--line); }
+.editor .cm-activeLine,
+.editor .cm-activeLineGutter { background: color-mix(in srgb, var(--accent-soft) 50%, transparent); }
+.editor .cm-activeLineGutter { color: var(--text); }
 
 .preview { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: var(--backdrop); }
 .privacy-banner { padding: 12px; color: #451a03; background: #fffbeb; border-bottom: 1px solid #d97706; }
