@@ -101,6 +101,58 @@ describe('slide source edits', () => {
   it('creates the first slide in an empty deck', () => {
     expectSlideInserted('');
   });
+
+  it('closes an open backtick fence before inserting a slide', () => {
+    const source = '# A\n\n```js\ncode\n';
+    const before = parseDeck(source);
+    const result = insertSlideAfter(before.source, before.slides[0]);
+    const changed = apply(before.source, result);
+    const after = parseDeck(changed);
+
+    expect(before.slides).toHaveLength(1);
+    expect(after.slides).toHaveLength(2);
+    expect(after.slides[1]!.loose).toBe('# New slide');
+    expect(after.slides[0]!.loose).toContain('code');
+    expect(changed.slice(result.select, result.selectTo)).toBe('New slide');
+  });
+
+  it('closes an open tilde fence before inserting a slide', () => {
+    const source = '# A\n\n~~~js\ncode\n';
+    const before = parseDeck(source);
+    const result = insertSlideAfter(before.source, before.slides[0]);
+    const changed = apply(before.source, result);
+    const after = parseDeck(changed);
+
+    expect(before.slides).toHaveLength(1);
+    expect(after.slides).toHaveLength(2);
+    expect(after.slides[1]!.loose).toBe('# New slide');
+    expect(after.slides[0]!.loose).toContain('code');
+    expect(changed.slice(result.select, result.selectTo)).toBe('New slide');
+  });
+
+  it('keeps a separator inside an open four-backtick fence', () => {
+    const source = '# A\n\n````\ncode\n\n---\n\nmore\n';
+    const before = parseDeck(source);
+    const result = insertSlideAfter(before.source, before.slides[0]);
+    const changed = apply(before.source, result);
+    const after = parseDeck(changed);
+
+    expect(before.slides).toHaveLength(1);
+    expect(after.slides).toHaveLength(2);
+    expect(after.slides[1]!.loose).toBe('# New slide');
+    expect(after.slides[0]!.loose).toContain('---');
+    expect(after.slides[0]!.loose).toContain('more');
+    expect(changed.slice(result.select, result.selectTo)).toBe('New slide');
+  });
+
+  it('does not add a fence line after a closed fence', () => {
+    const source = '# A\n\n```\ncode\n```\n';
+    const before = parseDeck(source);
+    const result = insertSlideAfter(before.source, before.slides[0]);
+    const changed = apply(before.source, result);
+
+    expect(changed).toBe('# A\n\n```\ncode\n```\n\n---\n\n# New slide\n');
+  });
 });
 
 describe('box source edits', () => {

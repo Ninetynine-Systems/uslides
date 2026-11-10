@@ -1,4 +1,5 @@
 import { parseAttrs, scanAttrs } from './attrs';
+import { unclosedFence } from './fences';
 import { isValidFontName } from './fontName';
 import { duplicateSpan } from './layout';
 import { parseSettings, settingRange } from './settings';
@@ -140,9 +141,14 @@ function beforeBlock(text: string): string {
 
 /** Inserts a new titled slide after `slide`, or creates the first slide in an empty deck. */
 export function insertSlideAfter(source: string, slide: Slide | undefined): EditResult {
+  // The non-last-slide case relies on sourceEnd pointing at the start of the next --- line.
   const at = slide?.sourceEnd ?? source.length;
   const slideText = slide ? source.slice(slide.range.from, at) : source;
-  const beforeTitle = `${beforeBlock(slideText)}---\n\n# `;
+  const fence = slide ? unclosedFence(slideText.split('\n')) : undefined;
+  const closeFence = fence
+    ? `${slideText.endsWith('\n') ? '' : '\n'}${fence.char.repeat(fence.len)}\n`
+    : '';
+  const beforeTitle = `${closeFence}${beforeBlock(slideText + closeFence)}---\n\n# `;
   const insert = `${beforeTitle}New slide${at === source.length ? '\n' : '\n\n'}`;
   const select = at + beforeTitle.length;
   return {
