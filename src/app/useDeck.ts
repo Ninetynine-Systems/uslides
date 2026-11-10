@@ -51,8 +51,8 @@ export type UseDeck = {
   flushParse(): Deck | undefined;
   /** Drops any pending edit without saving it (used just before the deck is deleted). */
   discard(): void;
-  /** Takes a record that was written elsewhere (for example by rename) as the current one. */
-  adopt(record: DeckRecord): void;
+  /** Takes a record written elsewhere, keeping newer editor text and updating it when requested. */
+  adopt(record: DeckRecord, updateLatest?: (source: string) => string): void;
   /** The text as last stored, and the text now in the editor, for the open deck. Undefined until the deck has loaded. */
   getSaved(): { id: string; source: string; latest: string } | undefined;
   /** Replaces the editor text with text that came from outside (a file on disk) and stores it. */
@@ -241,12 +241,19 @@ export function useDeck(id: string | undefined, options: Options): UseDeck {
   }, []);
 
   const adopt = useCallback(
-    (rec: DeckRecord) => {
+    (rec: DeckRecord, updateLatest?: (source: string) => string) => {
       const s = session.current;
       if (!s || s.id !== rec.id) return;
+      const changedAfterSave = s.latest !== s.saved;
       s.revision = rec.revision;
-      s.saved = s.latest = rec.source;
-      show(rec);
+      s.saved = rec.source;
+      if (changedAfterSave) {
+        s.latest = updateLatest?.(s.latest) ?? s.latest;
+        show({ ...rec, source: s.latest });
+      } else {
+        s.latest = rec.source;
+        show(rec);
+      }
       const message: Saved = { type: 'saved', id: rec.id, revision: rec.revision };
       channel.current?.postMessage(message);
     },

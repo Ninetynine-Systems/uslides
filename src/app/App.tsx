@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { setBoxAttrs, setDeckFont, type EditResult } from '../core/edit';
 import { externalHosts } from '../core/external';
 import type { Deck } from '../core/parse';
-import { deckName } from '../core/settings';
+import { deckName, setTitle } from '../core/settings';
 import type { Slide } from '../core/slide';
 import type { FitResult } from '../render/fit';
 import { cutOffWarnings } from './cutOff';
@@ -739,7 +739,7 @@ export function App() {
   const rename = async (title: string) => {
     if (!deckId || !ready) return;
     await flush();
-    adopt(await renameDeck(deckId, title));
+    adopt(await renameDeck(deckId, title), (source) => setTitle(source, title));
     refreshList();
   };
 

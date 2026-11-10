@@ -37,6 +37,26 @@ test('adding from the preview bar inserts after the shown slide', async ({ page 
   await expect(page.locator('.slide-card').nth(3)).toContainText('Left box');
 });
 
+test('adding a slide while renaming keeps both changes after reload', async ({ page }) => {
+  await openSample(page);
+  await page.getByRole('button', { name: /^Rename deck:/ }).click();
+  await page.getByRole('textbox', { name: 'Deck name' }).fill('Planning deck');
+  const addSlide = page.getByRole('button', { name: 'Add slide', exact: true });
+
+  await addSlide.evaluate((button) => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    if (!(button instanceof HTMLButtonElement)) throw new Error('Add slide is not a button');
+    button.click();
+  });
+
+  await expect(page.locator('h1.toolbar-name')).toHaveText('Planning deck');
+  await expect(page.getByText('5 slides', { exact: true })).toBeVisible();
+  await page.waitForTimeout(600);
+  await page.reload();
+  await expect(page.locator('h1.toolbar-name')).toHaveText('Planning deck');
+  await expect(page.getByText('5 slides', { exact: true })).toBeVisible();
+});
+
 test('one undo removes the inserted slide', async ({ page }) => {
   await openSample(page);
   await page.getByRole('button', { name: 'Add slide at the end', exact: true }).click();
