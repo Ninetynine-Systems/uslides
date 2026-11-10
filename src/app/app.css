@@ -349,8 +349,6 @@ button.danger { color: var(--danger); }
   .toolbar .share { position: static; }
   .toolbar .share-menu { left: 12px; right: 12px; min-width: 0; }
   .toolbar { position: relative; }
-  .label-btn { width: 34px; padding: 0; justify-content: center; }
-  .label-btn span { display: none; }
 }
 
 .present { position: fixed; inset: 0; z-index: 1000; background: #000; touch-action: none; }
@@ -378,6 +376,10 @@ button.danger { color: var(--danger); }
 .label-btn { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 11px; font-weight: 600; }
 .label-btn svg { flex: 0 0 auto; }
 .label-btn.primary { color: var(--accent-text); background: var(--accent); border-color: var(--accent); }
+@media (max-width: 767px) {
+  .label-btn { width: 34px; padding: 0; justify-content: center; }
+  .label-btn span { display: none; }
+}
 
 /* Tooltips for icon buttons, drawn by the app so they show quickly and in every browser.
    They appear on mouse hover (after a short pause) and on keyboard focus, and hide while the

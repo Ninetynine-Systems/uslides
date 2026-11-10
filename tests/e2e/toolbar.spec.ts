@@ -31,6 +31,8 @@ test('Share and Present show text on wide screens and keep accessible names on n
     await expect(button).toBeVisible();
     await expect(button.getByText(name, { exact: true })).toBeHidden();
   }
+  const present = toolbar(page).getByRole('button', { name: 'Present', exact: true });
+  expect(await present.evaluate((button) => getComputedStyle(button).paddingLeft)).toBe('0px');
 });
 
 test('More shows its actions in order with Delete separated', async ({ page }) => {
