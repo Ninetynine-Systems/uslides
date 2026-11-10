@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { moreMenu } from './helpers/app';
 
 // A real 1x1 PNG.
 const TINY_PNG =
@@ -168,7 +169,7 @@ test('Pack images embeds a reachable web image and names the unreachable one', a
   await expect(page.locator('.us-stage')).toHaveCount(4);
   await toEnd(page);
   await page.keyboard.type('\n\n![good](https://images.test/ok.png)\n\n![bad](https://broken.test/nope.png)\n');
-  await page.getByRole('button', { name: 'Pack images' }).click();
+  await moreMenu(page, 'Pack images');
   await expect(page.getByRole('status')).toContainText('https://broken.test/nope.png');
   const source = await getSource(page);
   expect(source).toContain('![good](data:image/png;base64,');
@@ -188,7 +189,7 @@ test('Pack images is one undo step, separate from the typing before it', async (
   await expect(page.locator('.us-stage')).toHaveCount(4);
   await toEnd(page);
   await page.keyboard.type('\n\n![good](https://images.test/ok.png)\n');
-  await page.getByRole('button', { name: 'Pack images' }).click(); // right after typing
+  await moreMenu(page, 'Pack images'); // right after typing
   await expect(page.locator('.cm-image-chip')).toHaveCount(1);
   await page.keyboard.press('ControlOrMeta+z');
   await expect(page.locator('.cm-image-chip')).toHaveCount(0);

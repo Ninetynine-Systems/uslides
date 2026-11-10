@@ -6,6 +6,7 @@
   --line: #e7e5e4;
   --accent: #2563eb;
   --accent-soft: #e0ecff;
+  --accent-text: #ffffff;
   --backdrop: #d6d3d1;
   --danger: #b91c1c;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -61,7 +62,7 @@ button.danger { color: var(--danger); }
 .toolbar-name-button:hover { border-color: var(--line); background: var(--bg); }
 .toolbar-name-button:focus-visible { outline-offset: -2px; }
 .toolbar-name-input { width: 100%; min-width: 0; padding: 3px 5px; font: inherit; font-weight: inherit; }
-.toolbar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.toolbar-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 
 .decks { grid-area: decks; overflow: auto; background: var(--panel); border-right: 1px solid var(--line); }
 .decks[hidden] { display: none; }
@@ -322,6 +323,8 @@ button.danger { color: var(--danger); }
   .toolbar .share { position: static; }
   .toolbar .share-menu { left: 12px; right: 12px; min-width: 0; }
   .toolbar { position: relative; }
+  .label-btn { width: 34px; padding: 0; justify-content: center; }
+  .label-btn span { display: none; }
 }
 
 .present { position: fixed; inset: 0; z-index: 1000; background: #000; touch-action: none; }
@@ -329,6 +332,7 @@ button.danger { color: var(--danger); }
 
 .share { position: relative; }
 .share-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; display: flex; flex-direction: column; gap: 8px; min-width: 220px; padding: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 2px 8px rgb(0 0 0 / 0.2); }
+.share-menu hr { width: 100%; margin: 0; border: 0; border-top: 1px solid var(--line); }
 .share-manual { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
 .share-manual input { width: 100%; font: inherit; }
 
@@ -345,6 +349,9 @@ button.danger { color: var(--danger); }
 /* Icon-only buttons. The label lives in aria-label and the tooltip. */
 .icon-btn { display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; }
 .icon-btn svg { display: block; }
+.label-btn { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 11px; font-weight: 600; }
+.label-btn svg { flex: 0 0 auto; }
+.label-btn.primary { color: var(--accent-text); background: var(--accent); border-color: var(--accent); }
 
 /* Tooltips for icon buttons, drawn by the app so they show quickly and in every browser.
    They appear on mouse hover (after a short pause) and on keyboard focus, and hide while the

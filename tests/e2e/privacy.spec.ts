@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { moreMenu } from './helpers/app';
 
 const TINY_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -182,7 +183,7 @@ test('an imported deck starts blocked; a duplicate of it is still blocked', asyn
   await expect(page.locator('.us-stage .us-blocked')).toHaveCount(1);
   expect(requests.count()).toBe(0);
 
-  await page.getByRole('button', { name: 'Duplicate' }).click();
+  await moreMenu(page, 'Duplicate deck');
   await expect(page.getByText(BANNER_TEXT)).toBeVisible();
   await expect(page.locator('.us-stage .us-blocked')).toHaveCount(1);
   expect(requests.count()).toBe(0);

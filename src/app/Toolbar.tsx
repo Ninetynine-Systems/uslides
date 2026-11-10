@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
-  Copy, Download, FileCode, FileText, FileUp, FolderOpen, ImageDown, Link, Link2, PanelLeftClose, PanelLeftOpen,
+  Copy, Download, Ellipsis, FileCode, FileText, FileUp, FolderOpen, ImageDown, Link, Link2, PanelLeftClose, PanelLeftOpen,
   Play, Printer, Share2, Trash2, TriangleAlert, Type,
 } from 'lucide-react';
-import { IconButton, MenuItem } from './IconButton';
+import { IconButton, LabelButton, MenuItem } from './IconButton';
 import { DeckName } from './DeckName';
+import { Menu, useOutsidePress } from './Menu';
 
 type Props = {
   listOpen: boolean;
@@ -36,8 +37,19 @@ type Props = {
 
 function LinkedBadge({ name, onUnlink }: { name: string; onUnlink(): void }) {
   const [open, setOpen] = useState(false);
+  const container = useRef<HTMLDivElement>(null);
+  const close = () => setOpen(false);
+  useOutsidePress(container, open, close);
   return (
-    <div className="linked" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
+    <div
+      ref={container}
+      className="linked"
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        close();
+        container.current?.querySelector('button')?.focus();
+      }}
+    >
       <button
         type="button"
         className="linked-btn"
@@ -56,7 +68,7 @@ function LinkedBadge({ name, onUnlink }: { name: string; onUnlink(): void }) {
             label="Unlink file"
             icon={Link2}
             onClick={() => {
-              setOpen(false);
+              close();
               onUnlink();
             }}
           />
@@ -69,10 +81,12 @@ function LinkedBadge({ name, onUnlink }: { name: string; onUnlink(): void }) {
 function ShareMenu({ onCopyLink }: { onCopyLink: Props['onCopyLink'] }) {
   const [open, setOpen] = useState(false);
   const [manual, setManual] = useState<string>();
+  const container = useRef<HTMLDivElement>(null);
   const close = () => {
     setOpen(false);
     setManual(undefined);
   };
+  useOutsidePress(container, open, close);
   const copy = () => {
     onCopyLink().then(
       (link) => (link === undefined ? close() : setManual(link)),
@@ -80,8 +94,16 @@ function ShareMenu({ onCopyLink }: { onCopyLink: Props['onCopyLink'] }) {
     );
   };
   return (
-    <div className="share" onKeyDown={(e) => e.key === 'Escape' && close()}>
-      <IconButton label="Share" icon={Share2} aria-haspopup="true" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))} />
+    <div
+      ref={container}
+      className="share"
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        close();
+        container.current?.querySelector('button')?.focus();
+      }}
+    >
+      <LabelButton label="Share" icon={Share2} aria-haspopup="true" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))} />
       {open && (
         <div className="share-menu">
           <MenuItem label="Copy link" icon={Link} onClick={copy} />
@@ -99,12 +121,23 @@ function ShareMenu({ onCopyLink }: { onCopyLink: Props['onCopyLink'] }) {
 
 function DownloadMenu({ onMarkdown, onHtml, onPrint }: { onMarkdown(): void; onHtml(): void; onPrint(): void }) {
   const [open, setOpen] = useState(false);
+  const container = useRef<HTMLDivElement>(null);
+  const close = () => setOpen(false);
+  useOutsidePress(container, open, close);
   const choose = (action: () => void) => () => {
-    setOpen(false);
+    close();
     action();
   };
   return (
-    <div className="share" onKeyDown={(e) => e.key === 'Escape' && setOpen(false)}>
+    <div
+      ref={container}
+      className="share"
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        close();
+        container.current?.querySelector('button')?.focus();
+      }}
+    >
       <IconButton label="Download" icon={Download} aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)} />
       {open && (
         <div className="share-menu">
@@ -145,12 +178,6 @@ export function Toolbar({
           </button>
         )}
         {link && <LinkedBadge name={link.name} onUnlink={onUnlink} />}
-        <IconButton label="Open" icon={FileUp} onClick={onOpen} />
-        {onOpenFolder && <IconButton label="Open folder" icon={FolderOpen} onClick={onOpenFolder} />}
-        <IconButton label="Present" icon={Play} onClick={onPresent} />
-        <IconButton label="Pack images" icon={ImageDown} onClick={onPackImages} />
-        <ShareMenu onCopyLink={onCopyLink} />
-        <DownloadMenu onMarkdown={onDownloadMarkdown} onHtml={onDownloadHtml} onPrint={onPrint} />
         <IconButton
           label="Deck font"
           icon={Type}
@@ -158,8 +185,23 @@ export function Toolbar({
           aria-expanded={deckFontOpen}
           onClick={onDeckFont}
         />
-        <IconButton label="Duplicate" icon={Copy} onClick={onDuplicate} />
-        <IconButton label="Delete" icon={Trash2} className="danger" onClick={onDelete} />
+        <DownloadMenu onMarkdown={onDownloadMarkdown} onHtml={onDownloadHtml} onPrint={onPrint} />
+        <ShareMenu onCopyLink={onCopyLink} />
+        <LabelButton label="Present" icon={Play} className="primary" onClick={onPresent} />
+        <Menu label="More" icon={Ellipsis}>
+          {(close) => (
+            <>
+              <MenuItem label="Open file" icon={FileUp} onClick={() => { close(); onOpen(); }} />
+              {onOpenFolder && (
+                <MenuItem label="Open folder" icon={FolderOpen} onClick={() => { close(); onOpenFolder(); }} />
+              )}
+              <MenuItem label="Pack images" icon={ImageDown} onClick={() => { close(); onPackImages(); }} />
+              <MenuItem label="Duplicate deck" icon={Copy} onClick={() => { close(); onDuplicate(); }} />
+              <hr />
+              <MenuItem label="Delete deck" icon={Trash2} className="danger" onClick={() => { close(); onDelete(); }} />
+            </>
+          )}
+        </Menu>
       </div>
     </header>
   );

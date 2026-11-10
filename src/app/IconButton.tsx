@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ComponentType } from 'react';
 
-type IconProps = { size?: number; 'aria-hidden'?: boolean };
+export type IconProps = { size?: number; 'aria-hidden'?: boolean };
 
 type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'type'> & {
   /** What the button does. Screen readers read it, and it shows as a tooltip on hover and keyboard focus. */
@@ -23,10 +23,25 @@ export function IconButton({ label, icon: Icon, className, ...rest }: Props) {
   );
 }
 
-/** An icon followed by text, for items inside a menu, where the text tells options apart. */
-export function MenuItem({ label, icon: Icon, ...rest }: Props) {
+/** A button that shows an icon and its label as text. */
+export function LabelButton({ label, icon: Icon, className, ...rest }: Props) {
   return (
-    <button type="button" className="menu-item" {...rest}>
+    <button
+      type="button"
+      aria-label={label}
+      className={className ? `label-btn ${className}` : 'label-btn'}
+      {...rest}
+    >
+      <Icon size={18} aria-hidden />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+/** An icon followed by text, for items inside a menu, where the text tells options apart. */
+export function MenuItem({ label, icon: Icon, className, ...rest }: Props) {
+  return (
+    <button type="button" className={className ? `menu-item ${className}` : 'menu-item'} {...rest}>
       <Icon size={16} aria-hidden />
       <span>{label}</span>
     </button>

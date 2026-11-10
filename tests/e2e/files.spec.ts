@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { installFakeFs, type FakeFs } from './fakes/fsAccess';
+import { moreMenu } from './helpers/app';
 
 declare global {
   interface Window {
@@ -23,7 +24,7 @@ async function openLinkedFile(page: Page, text = '# Hello from disk\n') {
     window.__fakeFs.createFile('f1', 'talk.md', t);
     window.__fakeFs.pickFile('f1');
   }, text);
-  await page.getByRole('button', { name: 'Open', exact: true }).click();
+  await moreMenu(page, 'Open file');
   await expect(badge(page)).toContainText('talk.md');
 }
 
@@ -93,7 +94,7 @@ test.describe('with the File System Access API', () => {
       window.__fakeFs.createFile('f1', 'talk.md', '# Hello from disk\n');
       window.__fakeFs.pickFile('f1');
     });
-    await page.getByRole('button', { name: 'Open', exact: true }).click();
+    await moreMenu(page, 'Open file');
     await expect(badge(page)).toContainText('talk.md');
     await expect(page.getByText('Edits stay in the app; allow writing to save them to the file')).toBeVisible();
     const allow = page.getByRole('button', { name: 'Allow writing to the file' });
@@ -123,7 +124,7 @@ test.describe('with the File System Access API', () => {
       window.__fakeFs.createFile('f1', 'talk.md', '# Hello from disk\n');
       window.__fakeFs.pickFile('f1');
     });
-    await page.getByRole('button', { name: 'Open', exact: true }).click();
+    await moreMenu(page, 'Open file');
     await expect(page.getByRole('button', { name: 'Allow writing to the file' })).toBeVisible();
     await editor(page).click();
     await page.keyboard.press('ControlOrMeta+End');
@@ -203,7 +204,7 @@ test.describe('with the File System Access API', () => {
       });
       window.__fakeFs.pickDir('d1');
     }, TINY_PNG);
-    await page.getByRole('button', { name: 'Open folder' }).click();
+    await moreMenu(page, 'Open folder');
     await expect(badge(page)).toContainText('talk.md');
     await expect(page.locator('.us-stage', { hasText: 'Folder deck' })).toHaveCount(1);
     await expect(page.locator('.us-stage img')).toHaveCount(1);
@@ -216,7 +217,7 @@ test.describe('with the File System Access API', () => {
       window.__fakeFs.createDir('d2', 'many', { 'a.md': '# Alpha deck\n', 'b.md': '# Beta deck\n' });
       window.__fakeFs.pickDir('d2');
     });
-    await page.getByRole('button', { name: 'Open folder' }).click();
+    await moreMenu(page, 'Open folder');
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByRole('button', { name: 'a.md' })).toBeVisible();
     await dialog.getByRole('button', { name: 'b.md' }).click();
@@ -230,7 +231,7 @@ test.describe('with the File System Access API', () => {
       window.__fakeFs.createDir('d3', 'empty', { 'notes.txt': 'hi' });
       window.__fakeFs.pickDir('d3');
     });
-    await page.getByRole('button', { name: 'Open folder' }).click();
+    await moreMenu(page, 'Open folder');
     await expect(page.getByText('No .md file in this folder')).toBeVisible();
   });
 
@@ -243,7 +244,7 @@ test.describe('with the File System Access API', () => {
       });
       window.__fakeFs.pickDir('d1');
     }, TINY_PNG);
-    await page.getByRole('button', { name: 'Open folder' }).click();
+    await moreMenu(page, 'Open folder');
     await expect(page.locator('.us-stage img')).toHaveCount(1);
     await page.evaluate(() => window.__fakeFs.setPermission('d1', 'prompt'));
     await page.reload();
@@ -299,7 +300,7 @@ test('without showOpenFilePicker, Open uses a file input and the deck is not lin
   await page.goto('/?test');
   await expect(page.locator('.us-stage')).toHaveCount(4);
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Open', exact: true }).click();
+  await moreMenu(page, 'Open file');
   await (await chooser).setFiles({
     name: 'plain.md',
     mimeType: 'text/markdown',

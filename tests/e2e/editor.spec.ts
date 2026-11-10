@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { renameDeck } from './helpers/app';
+import { moreMenu, renameDeck } from './helpers/app';
 
 const editor = (page: Page) => page.getByRole('textbox', { name: 'Deck source' });
 
@@ -62,7 +62,7 @@ test('new, rename, duplicate, delete', async ({ page }) => {
   await expect(items.first()).toContainText('Quarterly plan');
   await expect.poll(() => getSource(page)).toContain('title: Quarterly plan');
 
-  await page.getByRole('button', { name: 'Duplicate' }).click();
+  await moreMenu(page, 'Duplicate deck');
   await expect(items).toHaveCount(3);
   await expect(items.filter({ hasText: 'Quarterly plan' })).toHaveCount(2);
 
@@ -71,12 +71,12 @@ test('new, rename, duplicate, delete', async ({ page }) => {
     message = d.message();
     void d.dismiss();
   });
-  await page.getByRole('button', { name: 'Delete' }).click();
+  await moreMenu(page, 'Delete deck');
   await expect.poll(() => message).toContain('Delete');
   await expect(items).toHaveCount(3);
 
   page.once('dialog', (d) => void d.accept());
-  await page.getByRole('button', { name: 'Delete' }).click();
+  await moreMenu(page, 'Delete deck');
   await expect(items).toHaveCount(2);
 });
 
@@ -227,7 +227,7 @@ test('a link to a deck that does not exist shows another deck', async ({ page })
   await items.filter({ hasText: 'Welcome to uslides' }).getByRole('button').click();
   await expect.poll(() => page.url()).toContain(idA);
   page.once('dialog', (d) => void d.accept());
-  await page.getByRole('button', { name: 'Delete' }).click();
+  await moreMenu(page, 'Delete deck');
   await expect(items).toHaveCount(1);
 
   await page.evaluate((id) => {
@@ -237,6 +237,6 @@ test('a link to a deck that does not exist shows another deck', async ({ page })
   await expect.poll(() => getSource(page)).toBe('# Untitled\n');
   expect(page.url()).not.toContain(idA);
   // Toolbar actions still work.
-  await page.getByRole('button', { name: 'Duplicate' }).click();
+  await moreMenu(page, 'Duplicate deck');
   await expect(items).toHaveCount(2);
 });
