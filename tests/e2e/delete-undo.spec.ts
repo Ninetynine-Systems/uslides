@@ -116,6 +116,7 @@ test('the delete notice timer pauses on focus and restarts for eight seconds aft
   await page.clock.install();
   await page.goto('/?test');
   await expect(page.locator('.us-stage')).toHaveCount(4);
+  await page.clock.pauseAt(await page.evaluate(() => Date.now()));
   const deletedId = await currentDeckId(page);
 
   await moreMenu(page, 'Delete deck');
