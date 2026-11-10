@@ -12,6 +12,7 @@ import { renderSlide } from '../render/renderSlide';
 import { useDeckFonts } from '../fonts/load';
 import { BOX_CUT_OFF, SLIDE_CUT_OFF } from './cutOff';
 import { Overlay, type SelectionRequest } from './edit/Overlay';
+import { hintDone, markHintDone } from './edit/hint';
 import type { TypingAreaProps } from './edit/TypingArea';
 import { IconButton } from './IconButton';
 
@@ -86,6 +87,8 @@ function SlideCard(props: {
   onSelect(): void;
   selectionRequest?: SelectionRequest;
   onSelectionRequestHandled(id: number): void;
+  showHint: boolean;
+  onHintDone(): void;
   fontVersion: number;
   onFit?(slide: Slide, results: FitResult[]): void;
 }) {
@@ -157,6 +160,8 @@ function SlideCard(props: {
             active={active}
             selectionRequest={props.selectionRequest}
             onSelectionRequestHandled={props.onSelectionRequestHandled}
+            showHint={props.showHint}
+            onHintDone={props.onHintDone}
           />
         )}
       </div>
@@ -191,7 +196,14 @@ export function Preview({
   const [selectionRequest, setSelectionRequest] = useState<
     { slideIndex: number; request: SelectionRequest } | undefined
   >();
+  const [hintHidden, setHintHidden] = useState(hintDone);
+  const finishHint = useCallback(() => {
+    markHintDone();
+    setHintHidden(true);
+  }, []);
   const addBox = useCallback(() => {
+    markHintDone();
+    setHintHidden(true);
     onEdit((freshDeck) => {
       const slide = freshDeck.slides[shownIndex];
       if (!slide) return null;
@@ -272,6 +284,8 @@ export function Preview({
               onSelect={() => onSelectSlide(slide.index)}
               selectionRequest={selectionRequest?.slideIndex === slide.index ? selectionRequest.request : undefined}
               onSelectionRequestHandled={selectionRequestHandled}
+              showHint={!hintHidden}
+              onHintDone={finishHint}
               fontVersion={fontVersion}
               onFit={onFit}
             />
@@ -324,6 +338,8 @@ export function Preview({
                 onSelect={() => onSelectSlide(shownIndex)}
                 selectionRequest={selectionRequest?.slideIndex === shownIndex ? selectionRequest.request : undefined}
                 onSelectionRequestHandled={selectionRequestHandled}
+                showHint={!hintHidden}
+                onHintDone={finishHint}
                 fontVersion={fontVersion}
                 onFit={onFit}
               />

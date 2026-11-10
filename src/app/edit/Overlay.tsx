@@ -63,6 +63,8 @@ export type OverlayProps = {
   /** Selects a box that was inserted by a control outside this overlay. */
   selectionRequest?: SelectionRequest;
   onSelectionRequestHandled?(id: number): void;
+  showHint?: boolean;
+  onHintDone?(): void;
 };
 
 const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const;
@@ -213,6 +215,8 @@ export function Overlay({
   active = true,
   selectionRequest,
   onSelectionRequestHandled,
+  showHint = false,
+  onHintDone,
 }: OverlayProps) {
   const [selected, setSelected] = useState<number | null>(null);
   const [fontOpen, setFontOpen] = useState(false);
@@ -416,12 +420,13 @@ export function Overlay({
         return insertBox(deck.source, freshSlide, area.col, area.row);
       });
       if (next !== null) {
+        onHintDone?.();
         setSelected(next);
         setPendingTyping(next);
         lastPoint.current = null;
       }
     },
-    [onEdit, slide.index],
+    [onEdit, onHintDone, slide.index],
   );
 
   const setSpan = useCallback(
@@ -839,6 +844,11 @@ export function Overlay({
 
   return (
     <div className="us-edit-overlay">
+      {showHint && active && slide.boxes.length === 0 && (
+        <p className="us-hint" aria-hidden="true">
+          Drag on the slide to draw a box. Double-click text to edit it.
+        </p>
+      )}
       <div className="us-selection-status" aria-live="polite" aria-atomic="true">
         {selected === null ? '' : `Box ${selected + 1} selected`}
       </div>

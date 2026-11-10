@@ -131,6 +131,20 @@ button.danger { color: var(--danger); }
   border: 0;
 }
 .us-edit-overlay { position: absolute; inset: 0; z-index: 2000; pointer-events: none; }
+.us-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  width: calc(100% - 32px);
+  margin: 0;
+  transform: translateX(-50%);
+  color: #57534e;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
 .us-typing-area {
   position: absolute;
   z-index: 4;
