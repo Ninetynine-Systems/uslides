@@ -21,7 +21,7 @@ describe('splitSlides', () => {
     expect(split('a\n----\nb\n --- \nc').length).toBe(1);
   });
   it('handles empty body and trailing ---', () => {
-    expect(split('')).toEqual([{ text: '', range: { from: 0, to: 0 } }]);
+    expect(split('')).toEqual([{ text: '', range: { from: 0, to: 0 }, sourceEnd: 0 }]);
     expect(split('---\ntitle: T\n---\n')).toHaveLength(1);
     expect(split('# A\n---\n').map((x) => x.text.trim())).toEqual(['# A']);
   });

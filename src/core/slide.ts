@@ -39,6 +39,8 @@ export type Slide = {
   boxes: Box[];
   notes: string[];
   range: SourceRange;
+  /** Offset just before the next slide separator, or the end of the source. */
+  sourceEnd: number;
 };
 
 type Line = {
@@ -207,6 +209,7 @@ export function parseSlide(
     boxes: [],
     notes: [],
     range: raw.range,
+    sourceEnd: raw.sourceEnd,
   };
 
   const texts = raw.text.split('\n');

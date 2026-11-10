@@ -11,6 +11,16 @@ function slideOf(src: string, index = 0) {
   return parseSlide(raws[index]!, index, settings);
 }
 
+describe('slide source boundary', () => {
+  it('ends before the next separator or at the end of the source', () => {
+    const src = '# A\n\n<!-- note: say hi -->\n\n---\n\n# B\n';
+    const deck = parseDeck(src);
+
+    expect(deck.slides[0]!.sourceEnd).toBe(src.indexOf('---'));
+    expect(deck.slides[1]!.sourceEnd).toBe(src.length);
+  });
+});
+
 describe('slide comment', () => {
   it('reads grid, bg and color from the first non-blank line', () => {
     const { slide, warnings } = slideOf('\n<!-- slide grid=32x18 bg=#111111 color=white -->\n# Hi\n');

@@ -4,6 +4,7 @@ import {
   deleteBox,
   duplicateBox,
   insertBox,
+  insertSlideAfter,
   sendToBack,
   setBoxAttrs,
   setBoxSpan,
@@ -12,12 +13,44 @@ import {
   type EditResult,
 } from '../../src/core/edit';
 import { parseDeck, type Deck } from '../../src/core/parse';
-import type { Box } from '../../src/core/slide';
+import type { Box, Slide } from '../../src/core/slide';
 
-function apply(source: string, changes: Edit[]): string {
+function apply(source: string, result: EditResult): string;
+function apply(source: string, result: Edit[]): string;
+function apply(source: string, result: EditResult | Edit[]): string {
+  const changes = Array.isArray(result) ? result : result.changes;
   return [...changes]
     .sort((a, b) => b.from - a.from)
     .reduce((text, change) => text.slice(0, change.from) + change.insert + text.slice(change.to), source);
+}
+
+function renderedSlide(slide: Slide) {
+  return {
+    loose: slide.loose,
+    boxes: slide.boxes.map((item) => item.markdown),
+    notes: slide.notes,
+  };
+}
+
+function expectSlideInserted(source: string, targetIndex?: number) {
+  const before = parseDeck(source);
+  const target = targetIndex === undefined ? undefined : before.slides[targetIndex]!;
+  const result = insertSlideAfter(before.source, target);
+  const changed = apply(before.source, result);
+  const after = parseDeck(changed);
+  const insertedAt = target === undefined ? 0 : target.index + 1;
+  const previousSlides = target === undefined ? [] : before.slides;
+  const inserted = after.slides[insertedAt]!;
+
+  expect(after.slides).toHaveLength(previousSlides.length + 1);
+  expect(inserted.index).toBe(insertedAt);
+  expect(inserted.loose).toBe('# New slide');
+  expect(changed.slice(result.select, result.selectTo)).toBe('New slide');
+  expect(after.slides.filter((_, index) => index !== insertedAt).map(renderedSlide)).toEqual(
+    previousSlides.map(renderedSlide),
+  );
+
+  return { after, changed, result };
 }
 
 function box(deck: Deck): Box {
@@ -28,6 +61,47 @@ function run(source: string, edit: (deck: Deck) => EditResult): string {
   const deck = parseDeck(source);
   return apply(deck.source, edit(deck).changes);
 }
+
+describe('slide source edits', () => {
+  it('inserts after a middle slide', () => {
+    expectSlideInserted('# A\n\n---\n\n# B\n', 0);
+  });
+
+  it('inserts after the last slide with one final line break', () => {
+    const { changed } = expectSlideInserted('# A\n\n---\n\n# B\n', 1);
+
+    expect(changed.endsWith('# New slide\n')).toBe(true);
+    expect(changed.includes('\n\n\n')).toBe(false);
+  });
+
+  it('inserts after the last slide when the source has no final line break', () => {
+    expectSlideInserted('# A\n\n---\n\n# B', 1);
+  });
+
+  it('keeps a speaker note with its slide', () => {
+    const { after } = expectSlideInserted('# A\n\n<!-- note: say hi -->\n\n---\n\n# B\n', 0);
+
+    expect(after.slides[0]!.notes).toEqual(['say hi']);
+    expect(after.slides[1]!.notes).toEqual([]);
+  });
+
+  it('leaves the settings block unchanged', () => {
+    const source = '---\ntitle: T\n---\n\n# A\n';
+    const { changed } = expectSlideInserted(source, 0);
+
+    expect(changed.split('\n').slice(0, 5)).toEqual(source.split('\n').slice(0, 5));
+  });
+
+  it('keeps a box on the preceding slide', () => {
+    const { after } = expectSlideInserted('# A\n\n::: box col=1-6 row=2-6\nhi\n:::\n', 0);
+
+    expect(after.slides[0]!.boxes).toHaveLength(1);
+  });
+
+  it('creates the first slide in an empty deck', () => {
+    expectSlideInserted('');
+  });
+});
 
 describe('box source edits', () => {
   it('replaces an attribute value in place and keeps everything else', () => {

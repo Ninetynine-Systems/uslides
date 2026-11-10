@@ -114,9 +114,15 @@ export function Editor({ value, onChange, onCursorChange, warnings = [], onNotic
       if (effectiveChanges.length === 0 && result.select === undefined) return;
       const changes = v.state.changes(effectiveChanges);
       const select = result.select === undefined ? undefined : Math.min(Math.max(0, result.select), changes.newLength);
+      const selectTo = result.selectTo === undefined
+        ? undefined
+        : Math.min(Math.max(0, result.selectTo), changes.newLength);
       v.dispatch({
         changes,
-        ...(select === undefined ? {} : { selection: { anchor: select }, scrollIntoView: true }),
+        ...(select === undefined ? {} : {
+          selection: selectTo === undefined ? { anchor: select } : { anchor: select, head: selectTo },
+          scrollIntoView: true,
+        }),
         ...(opts?.userEvent === undefined ? {} : { userEvent: opts.userEvent }),
         annotations: opts?.userEvent?.startsWith('input.type') ? [] : isolateHistory.of('full'),
       });

@@ -1,7 +1,7 @@
 import { fencedLines } from './fences';
 import type { SourceRange } from './types';
 
-export type RawSlide = { text: string; range: SourceRange };
+export type RawSlide = { text: string; range: SourceRange; sourceEnd: number };
 
 /**
  * Splits the deck body into slides at lines that are exactly `---`,
@@ -23,7 +23,7 @@ export function splitSlides(src: string, bodyStart: number): RawSlide[] {
         slideStart = next;
       } else {
         const to = pos > slideStart ? pos - 1 : slideStart;
-        slides.push({ text: src.slice(slideStart, to), range: { from: slideStart, to } });
+        slides.push({ text: src.slice(slideStart, to), range: { from: slideStart, to }, sourceEnd: pos });
         slideStart = next;
       }
     }
@@ -31,7 +31,7 @@ export function splitSlides(src: string, bodyStart: number): RawSlide[] {
   }
 
   const from = Math.min(slideStart, src.length);
-  slides.push({ text: src.slice(from), range: { from, to: src.length } });
+  slides.push({ text: src.slice(from), range: { from, to: src.length }, sourceEnd: src.length });
 
   if (slides.length > 1 && slides[slides.length - 1]!.text.trim() === '') slides.pop();
   return slides;

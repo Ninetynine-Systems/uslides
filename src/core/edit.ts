@@ -6,7 +6,7 @@ import type { Box, Slide } from './slide';
 import type { Grid, Span } from './types';
 
 export type Edit = { from: number; to: number; insert: string };
-export type EditResult = { changes: Edit[]; select?: number };
+export type EditResult = { changes: Edit[]; select?: number; selectTo?: number };
 
 function settingValueRange(source: string, range: { from: number; to: number }): { from: number; to: number } {
   const line = source.slice(range.from, range.to);
@@ -136,6 +136,20 @@ function beforeBlock(text: string): string {
   if (text.endsWith('\n\n')) return '';
   if (text.endsWith('\n')) return '\n';
   return '\n\n';
+}
+
+/** Inserts a new titled slide after `slide`, or creates the first slide in an empty deck. */
+export function insertSlideAfter(source: string, slide: Slide | undefined): EditResult {
+  const at = slide?.sourceEnd ?? source.length;
+  const slideText = slide ? source.slice(slide.range.from, at) : source;
+  const beforeTitle = `${beforeBlock(slideText)}---\n\n# `;
+  const insert = `${beforeTitle}New slide${at === source.length ? '\n' : '\n\n'}`;
+  const select = at + beforeTitle.length;
+  return {
+    changes: [{ from: at, to: at, insert }],
+    select,
+    selectTo: select + 'New slide'.length,
+  };
 }
 
 export function insertBox(source: string, slide: Slide, col: Span, row: Span): EditResult {
