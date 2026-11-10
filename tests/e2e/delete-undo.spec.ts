@@ -134,6 +134,17 @@ test('Undo restores and opens the deck with its original text', async ({ page })
   await expect.poll(() => getSource(page)).toBe(original);
 });
 
+test('Undo restores text typed immediately before deleting', async ({ page }) => {
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+
+  await typeAtEnd(page, ' typed just before delete');
+  await moreMenu(page, 'Delete deck');
+  await deleteNotice(page, 'Welcome to uslides').getByRole('button', { name: 'Undo', exact: true }).click();
+
+  await expect.poll(() => getSource(page).then((source) => source.endsWith(' typed just before delete'))).toBe(true);
+});
+
 test('Undo saves work in the next deck and restores the deleted deck with its image', async ({ page }) => {
   const keptSource = '# Keep me\n\n![dot](dot.svg)\n';
   await page.goto('/?test');

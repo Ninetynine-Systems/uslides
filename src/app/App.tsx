@@ -757,6 +757,7 @@ export function App() {
     // Do the steps that can fail first: until the switch below, the deck must still be saveable.
     const next = (await listDecks()).find((d) => d.id !== id);
     const nextId = next ? next.id : (await createDeck(NEW_DECK)).id;
+    await flush();
     discard();
     openDeck(nextId); // switch first so the deck being deleted is not saved again
     await markDeckDeleted(id);
