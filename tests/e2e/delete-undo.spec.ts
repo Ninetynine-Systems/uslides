@@ -77,6 +77,47 @@ test('delete is instant and offers Undo', async ({ page }) => {
   await expect(deckItems(page).filter({ hasText: 'Welcome to uslides' })).toHaveCount(0);
 });
 
+test('keyboard delete moves focus to Undo and Enter restores the deck', async ({ page }) => {
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+
+  const more = page.getByRole('button', { name: 'More', exact: true });
+  await more.focus();
+  await page.keyboard.press('Enter');
+  const deleteDeck = page.getByRole('button', { name: 'Delete deck', exact: true });
+  await deleteDeck.focus();
+  await page.keyboard.press('Enter');
+
+  const undo = deleteNotice(page, 'Welcome to uslides').getByRole('button', { name: 'Undo', exact: true });
+  await expect(undo).toBeFocused();
+  await page.keyboard.press('Enter');
+
+  await expect(deckItems(page).filter({ hasText: 'Welcome to uslides' })).toHaveCount(1);
+});
+
+test('the delete notice timer pauses on focus and restarts for eight seconds after focus leaves', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  const deletedId = await currentDeckId(page);
+
+  await moreMenu(page, 'Delete deck');
+  const notice = deleteNotice(page, 'Welcome to uslides');
+  const undo = notice.getByRole('button', { name: 'Undo', exact: true });
+  await expect(undo).toBeFocused();
+
+  await page.clock.fastForward(20_000);
+  await expect(notice).toBeVisible();
+  await expect(undo).toBeFocused();
+
+  await page.getByRole('button', { name: 'More', exact: true }).focus();
+  await page.clock.fastForward(7_999);
+  await expect(notice).toBeVisible();
+  await page.clock.fastForward(1);
+  await expect(notice).toHaveCount(0);
+  await expect.poll(() => rawDeckExists(page, deletedId)).toBe(false);
+});
+
 test('Undo restores and opens the deck with its original text', async ({ page }) => {
   await page.goto('/?test');
   await expect(page.locator('.us-stage')).toHaveCount(4);
@@ -144,6 +185,7 @@ test('the notice ending removes the deck for good', async ({ page }) => {
   await moreMenu(page, 'Delete deck');
   const notice = deleteNotice(page, 'Welcome to uslides');
   await expect(notice).toBeVisible();
+  await page.getByRole('button', { name: 'More', exact: true }).focus();
   await page.clock.fastForward(8_000);
   await expect(notice).toHaveCount(0);
   await expect.poll(() => rawDeckExists(page, deletedId)).toBe(false);

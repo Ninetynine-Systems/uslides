@@ -780,6 +780,7 @@ export function App() {
     };
     noticeId = notify(`Deleted "${deletedName}".`, {
       action: { label: 'Undo', run: () => void undo().catch(reportError) },
+      focusAction: true,
       onDismiss: () => {
         if (!undone) void deleteDeck(id).catch(reportError);
       },

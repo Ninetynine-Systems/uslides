@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { IconButton } from './IconButton';
 
@@ -6,6 +6,8 @@ export type NoticeAction = { label: string; run(): void };
 export type NoticeOptions = {
   /** A button shown in the notice. */
   action?: NoticeAction;
+  /** Moves focus to the action when the notice appears. */
+  focusAction?: boolean;
   /** Stays until the user dismisses it, instead of going away after a few seconds. */
   sticky?: boolean;
   /** Called when the user dismisses the notice (or its timer ends). */
@@ -35,7 +37,6 @@ export function useNotices(): {
     (text: string, options: NoticeOptions = {}) => {
       const id = nextId++;
       setNotices((n) => [...n, { id, text, ...options }]);
-      if (!options.sticky) setTimeout(() => dismiss(id), 8000);
       return id;
     },
     [dismiss],
@@ -43,19 +44,70 @@ export function useNotices(): {
   return { notices, notify, dismiss };
 }
 
+function NoticeItem({ notice, onDismiss }: { notice: Notice; onDismiss(id: number): void }) {
+  const container = useRef<HTMLDivElement>(null);
+  const action = useRef<HTMLButtonElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const focused = useRef(false);
+  const hovered = useRef(false);
+
+  const stopTimer = useCallback(() => {
+    clearTimeout(timer.current);
+    timer.current = undefined;
+  }, []);
+  const startTimer = useCallback(() => {
+    stopTimer();
+    if (!notice.sticky && !focused.current && !hovered.current) {
+      timer.current = setTimeout(() => onDismiss(notice.id), 8000);
+    }
+  }, [notice.id, notice.sticky, onDismiss, stopTimer]);
+
+  useEffect(() => {
+    startTimer();
+    return stopTimer;
+  }, [startTimer, stopTimer]);
+  useEffect(() => {
+    if (notice.focusAction) action.current?.focus();
+  }, [notice.focusAction]);
+
+  return (
+    <div
+      ref={container}
+      className="notice"
+      onFocus={() => {
+        focused.current = true;
+        stopTimer();
+      }}
+      onBlur={(event) => {
+        if (event.relatedTarget instanceof Node && container.current?.contains(event.relatedTarget)) return;
+        focused.current = false;
+        startTimer();
+      }}
+      onPointerEnter={() => {
+        hovered.current = true;
+        stopTimer();
+      }}
+      onPointerLeave={() => {
+        hovered.current = false;
+        startTimer();
+      }}
+    >
+      {notice.text !== '' && <span>{notice.text}</span>}
+      {notice.action && (
+        <button ref={action} type="button" className="notice-action" onClick={notice.action.run}>
+          {notice.action.label}
+        </button>
+      )}
+      <IconButton label="Dismiss" icon={X} onClick={() => onDismiss(notice.id)} />
+    </div>
+  );
+}
+
 export function Notices({ notices, onDismiss }: { notices: Notice[]; onDismiss(id: number): void }) {
   return (
     <div className="notices" role="status" aria-live="polite">
       {notices.map((n) => (
-        <div className="notice" key={n.id}>
-          {n.text !== '' && <span>{n.text}</span>}
-          {n.action && (
-            <button type="button" className="notice-action" onClick={n.action.run}>
-              {n.action.label}
-            </button>
-          )}
-          <IconButton label="Dismiss" icon={X} onClick={() => onDismiss(n.id)} />
-        </div>
+        <NoticeItem key={n.id} notice={n} onDismiss={onDismiss} />
       ))}
     </div>
   );
