@@ -53,7 +53,7 @@ test('Tab indents selected lines by two spaces and Shift+Tab removes them', asyn
   await expect.poll(() => getSource(page)).toBe('# First\nSecond\n');
 });
 
-test('Escape then Tab moves focus from the editor to the preview controls', async ({ page }) => {
+test('Escape then Tab moves focus from the editor to the next control', async ({ page }) => {
   await page.goto('/?test');
   await expect(page.locator('.us-stage')).toHaveCount(4);
   await editor(page).focus();
@@ -61,7 +61,7 @@ test('Escape then Tab moves focus from the editor to the preview controls', asyn
   await page.keyboard.press('Escape');
   await page.keyboard.press('Tab');
 
-  await expect(page.getByRole('checkbox', { name: 'Grid lines' })).toBeFocused();
+  await expect(page.getByRole('separator', { name: 'Resize editor' })).toBeFocused();
 });
 
 test('Cmd or Ctrl+F opens search and finds every copy', async ({ page }) => {

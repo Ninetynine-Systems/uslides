@@ -79,7 +79,30 @@ button.danger { color: var(--danger); }
 .deck-name { font-weight: 500; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .workspace { grid-area: main; display: grid; grid-template-columns: 1fr 1fr; min-width: 0; min-height: 0; }
-.editor-pane { min-width: 0; min-height: 0; border-right: 1px solid var(--line); background: var(--panel); }
+.editor-pane { min-width: 0; min-height: 0; background: var(--panel); }
+.workspace-divider {
+  position: relative;
+  z-index: 3;
+  width: 8px;
+  min-width: 8px;
+  min-height: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+.workspace-divider::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 50%;
+  width: 1px;
+  background: var(--line);
+  transform: translateX(-50%);
+}
+.workspace-divider:hover::before,
+.workspace-divider:focus-visible::before,
+.workspace-divider.dragging::before { width: 2px; background: var(--accent); }
+.workspace-divider:focus-visible { outline: none; }
+body.us-resizing-workspace { cursor: col-resize; user-select: none; }
 .preview-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .editor { height: 100%; }
 .editor .cm-editor { height: 100%; }

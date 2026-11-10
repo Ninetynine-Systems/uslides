@@ -37,6 +37,7 @@ import { useFolderImages } from './useFolderImages';
 import { findFamily, loadCatalog } from '../fonts/catalog';
 import { fontWarnings } from './fontWarnings';
 import { usePopup, usePopupDismiss } from './usePopup';
+import { WorkspaceDivider } from './WorkspaceDivider';
 import './app.css';
 
 declare global {
@@ -50,6 +51,7 @@ const Editor = lazy(() => import('./Editor').then((m) => ({ default: m.Editor })
 
 const NEW_DECK = '# Untitled\n';
 const PREVIEW_VIEW_KEY = 'uslides.previewView';
+const EDITOR_FRACTION_KEY = 'uslides.layout.editorFraction';
 
 /** The 1-based slide whose range starts last before the cursor. */
 function slideAtPosition(deck: Deck | undefined, pos: number | undefined): number {
@@ -66,6 +68,23 @@ function savedPreviewView(): PreviewView {
     return localStorage.getItem(PREVIEW_VIEW_KEY) === 'one' ? 'one' : 'all';
   } catch {
     return 'all';
+  }
+}
+
+function savedEditorFraction(): number {
+  try {
+    const value = Number(localStorage.getItem(EDITOR_FRACTION_KEY));
+    return Number.isFinite(value) && value > 0 && value < 1 ? value : 0.5;
+  } catch {
+    return 0.5;
+  }
+}
+
+function saveEditorFraction(value: number): void {
+  try {
+    localStorage.setItem(EDITOR_FRACTION_KEY, String(value));
+  } catch {
+    // The current split still works when storage is unavailable.
   }
 }
 
@@ -178,6 +197,7 @@ export function App() {
   const [listOpen, setListOpen] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   const [showGrid, setShowGrid] = useState(true);
   const [previewView, setPreviewView] = useState<PreviewView>(savedPreviewView);
+  const [editorFraction, setEditorFraction] = useState(savedEditorFraction);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [askFirst, setAskFirst] = useState(readAskFirst);
   const [allowedOnce, setAllowedOnce] = useState<Set<string>>(() => new Set());
@@ -189,6 +209,7 @@ export function App() {
   const { notices, notify, dismiss } = useNotices();
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const editor = useRef<EditorHandle>(null);
+  const workspace = useRef<HTMLElement>(null);
   /** 1-based slide shown in present mode, or undefined when not presenting. */
   const [presenting, setPresenting] = useState<number | undefined>(() => parseRoute(location.hash).present);
 
@@ -896,7 +917,13 @@ export function App() {
           onAskFirstChange={changeAskFirst}
         />
       </div>
-      <main className="workspace">
+      <main
+        ref={workspace}
+        className="workspace"
+        style={wide ? {
+          gridTemplateColumns: `minmax(280px, ${editorFraction}fr) 8px minmax(280px, ${1 - editorFraction}fr)`,
+        } : undefined}
+      >
         <div className="editor-pane">
           {ready && wide && (
             <Suspense fallback={null}>
@@ -911,6 +938,14 @@ export function App() {
             </Suspense>
           )}
         </div>
+        {wide && (
+          <WorkspaceDivider
+            fraction={editorFraction}
+            workspace={workspace}
+            onChange={setEditorFraction}
+            onCommit={saveEditorFraction}
+          />
+        )}
         <div className="preview-pane">
           {blockExternal && hosts.length > 0 && (
             <PrivacyBanner hosts={hosts} onAllowOnce={allowOnce} onAlwaysAllow={alwaysAllow} />
