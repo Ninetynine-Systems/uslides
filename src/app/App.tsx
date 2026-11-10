@@ -728,12 +728,10 @@ export function App() {
     refreshList();
   };
 
-  const rename = async () => {
+  const rename = async (title: string) => {
     if (!deckId || !ready) return;
-    const title = window.prompt('Rename deck', name);
-    if (title === null || title.trim() === '') return;
     await flush();
-    adopt(await renameDeck(deckId, title.trim()));
+    adopt(await renameDeck(deckId, title));
     refreshList();
   };
 
@@ -810,9 +808,10 @@ export function App() {
         listOpen={listOpen}
         onToggleList={() => setListOpen((o) => !o)}
         name={name}
+        renameDisabled={!deckId || !ready}
         deckFontOpen={deckFontOpen}
         onDeckFont={() => setDeckFontOpen((open) => !open)}
-        onRename={guarded(rename)}
+        onRename={(title) => guarded(() => rename(title))()}
         onDuplicate={guarded(duplicate)}
         onDelete={guarded(remove)}
         onPresent={() => startPresenting(1)}

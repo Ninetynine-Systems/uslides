@@ -8,7 +8,7 @@ const deckCount = (page: Page) => page.locator('.decklist li').count();
 
 /** Opens the share menu and copies the link. Returns just the `#…` part, since links point at the production address. */
 async function copyHash(page: Page): Promise<string> {
-  await page.getByRole('button', { name: 'Share' }).click();
+  await page.getByRole('button', { name: 'Share', exact: true }).click();
   await page.getByRole('button', { name: 'Copy link' }).click();
   await expect(page.getByText('Link copied')).toBeVisible();
   const link = await page.evaluate(() => navigator.clipboard.readText());
@@ -123,7 +123,7 @@ test('a deck with stored images warns they are not in the link', async ({ page }
       }),
     id,
   );
-  await page.getByRole('button', { name: 'Share' }).click();
+  await page.getByRole('button', { name: 'Share', exact: true }).click();
   await page.getByRole('button', { name: 'Copy link' }).click();
   await expect(page.getByText('Images stored in this browser are not included in links')).toBeVisible();
 });
@@ -134,7 +134,7 @@ test('when the clipboard refuses, the link is shown in a read-only field', async
   await page.evaluate(() => {
     navigator.clipboard.writeText = () => Promise.reject(new Error('denied'));
   });
-  await page.getByRole('button', { name: 'Share' }).click();
+  await page.getByRole('button', { name: 'Share', exact: true }).click();
   await page.getByRole('button', { name: 'Copy link' }).click();
   const field = page.locator('.share-manual input');
   await expect(field).toHaveAttribute('readonly', '');

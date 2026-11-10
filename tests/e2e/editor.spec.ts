@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { renameDeck } from './helpers/app';
 
 const editor = (page: Page) => page.getByRole('textbox', { name: 'Deck source' });
 
@@ -57,8 +58,7 @@ test('new, rename, duplicate, delete', async ({ page }) => {
   await expect(items.first()).toContainText('Untitled');
   await expect.poll(() => getSource(page)).toBe('# Untitled\n');
 
-  page.once('dialog', (d) => void d.accept('Quarterly plan'));
-  await page.getByRole('button', { name: 'Rename', exact: true }).click();
+  await renameDeck(page, 'Quarterly plan');
   await expect(items.first()).toContainText('Quarterly plan');
   await expect.poll(() => getSource(page)).toContain('title: Quarterly plan');
 
@@ -202,8 +202,7 @@ test('rename right after typing keeps the typed text, with no conflict notice', 
   await typeAtEnd(page, '\nfirst');
   await page.waitForTimeout(450); // the save has started and is waiting
   await page.keyboard.type(' second');
-  page.once('dialog', (d) => void d.accept('Renamed'));
-  await page.getByRole('button', { name: 'Rename', exact: true }).click();
+  await renameDeck(page, 'Renamed');
 
   await expect.poll(() => getSource(page)).toContain('title: Renamed');
   expect(await getSource(page)).toContain('first second');

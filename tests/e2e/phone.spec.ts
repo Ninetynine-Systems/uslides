@@ -43,8 +43,11 @@ test('menus stay inside the screen at 390 px', async ({ page }) => {
 test('Rename, Duplicate and Delete are still reachable with the keyboard', async ({ page }) => {
   await page.goto('/?test');
   await expect(page.locator('.us-stage').first()).toBeVisible();
-  for (const name of ['Rename', 'Duplicate', 'Delete', 'Pack images']) {
-    const button = page.getByRole('button', { name, exact: true });
+  const buttons = [
+    page.getByRole('button', { name: /^Rename deck:/ }),
+    ...['Duplicate', 'Delete', 'Pack images'].map((name) => page.getByRole('button', { name, exact: true })),
+  ];
+  for (const button of buttons) {
     await button.focus();
     await expect(button).toBeFocused();
     const box = (await button.boundingBox())!;

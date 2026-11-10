@@ -47,6 +47,19 @@ button.danger { color: var(--danger); }
   border-bottom: 1px solid var(--line);
 }
 .toolbar-name { flex: 1 1 8rem; min-width: 0; margin: 0; font-size: 1rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toolbar-name-button {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 3px 5px;
+  border-color: transparent;
+  background: transparent;
+  font-weight: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.toolbar-name-button:hover { border-color: var(--line); background: var(--bg); }
+.toolbar-name-input { width: 100%; min-width: 0; padding: 3px 5px; font: inherit; font-weight: inherit; }
 .toolbar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .decks { grid-area: decks; overflow: auto; background: var(--panel); border-right: 1px solid var(--line); }

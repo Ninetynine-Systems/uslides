@@ -1,17 +1,19 @@
 import { useState } from 'react';
 import {
   Copy, Download, FileCode, FileText, FileUp, FolderOpen, ImageDown, Link, Link2, PanelLeftClose, PanelLeftOpen,
-  Pencil, Play, Printer, Share2, Trash2, TriangleAlert, Type,
+  Play, Printer, Share2, Trash2, TriangleAlert, Type,
 } from 'lucide-react';
 import { IconButton, MenuItem } from './IconButton';
+import { DeckName } from './DeckName';
 
 type Props = {
   listOpen: boolean;
   onToggleList(): void;
   name: string;
+  renameDisabled: boolean;
   deckFontOpen: boolean;
   onDeckFont(): void;
-  onRename(): void;
+  onRename(title: string): void;
   onDuplicate(): void;
   onDelete(): void;
   onPresent(): void;
@@ -116,7 +118,7 @@ function DownloadMenu({ onMarkdown, onHtml, onPrint }: { onMarkdown(): void; onH
 }
 
 export function Toolbar({
-  listOpen, onToggleList, name, deckFontOpen, onDeckFont, onRename, onDuplicate, onDelete, onPresent, onCopyLink,
+  listOpen, onToggleList, name, renameDisabled, deckFontOpen, onDeckFont, onRename, onDuplicate, onDelete, onPresent, onCopyLink,
   onPackImages, onDownloadMarkdown, onDownloadHtml, onPrint, onOpen, onOpenFolder, link, needsAccess, readOnly, onGrant, onUnlink,
 }: Props) {
   return (
@@ -128,7 +130,7 @@ export function Toolbar({
         aria-expanded={listOpen}
         aria-controls="decks"
       />
-      <h1 className="toolbar-name">{name}</h1>
+      <DeckName name={name} disabled={renameDisabled} onRename={onRename} />
       <div className="toolbar-actions">
         {link && (needsAccess || readOnly) && (
           <button type="button" className="grant-btn" onClick={onGrant}>
@@ -156,7 +158,6 @@ export function Toolbar({
           aria-expanded={deckFontOpen}
           onClick={onDeckFont}
         />
-        <IconButton label="Rename" icon={Pencil} onClick={onRename} />
         <IconButton label="Duplicate" icon={Copy} onClick={onDuplicate} />
         <IconButton label="Delete" icon={Trash2} className="danger" onClick={onDelete} />
       </div>
