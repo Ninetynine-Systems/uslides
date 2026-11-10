@@ -921,7 +921,8 @@ export function App() {
         ref={workspace}
         className="workspace"
         style={wide ? {
-          gridTemplateColumns: `minmax(280px, ${editorFraction}fr) 8px minmax(280px, ${1 - editorFraction}fr)`,
+          // Each side keeps 280px, or half the room when the workspace is too narrow for both.
+          gridTemplateColumns: `minmax(min(280px, calc(50% - 4px)), ${editorFraction}fr) 8px minmax(min(280px, calc(50% - 4px)), ${1 - editorFraction}fr)`,
         } : undefined}
       >
         <div className="editor-pane">
