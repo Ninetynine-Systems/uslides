@@ -1,8 +1,8 @@
 import {
   lazy, useCallback, useEffect, useMemo, useRef, useState, type ComponentType,
 } from 'react';
-import { ChevronLeft, ChevronRight, Rows3, Square, SquarePlus } from 'lucide-react';
-import { insertBox, type EditResult } from '../core/edit';
+import { ChevronLeft, ChevronRight, Plus, Rows3, Square, SquarePlus } from 'lucide-react';
+import { insertBox, insertSlideAfter, type EditResult } from '../core/edit';
 import { centredSpan, findFreeArea } from '../core/layout';
 import type { Deck } from '../core/parse';
 import type { Slide } from '../core/slide';
@@ -36,7 +36,7 @@ type Props = {
   view: PreviewView;
   onViewChange(view: PreviewView): void;
   currentSlide: number;
-  onEdit(make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }): void;
+  onEdit(make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string; focus?: boolean }): void;
   onMoveCursor(pos: number): void;
   getDeck(): Deck | undefined;
   getSource(): string;
@@ -77,7 +77,7 @@ function SlideCard(props: {
   blockExternal: boolean;
   active: boolean;
   editable: boolean;
-  onEdit(make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }): void;
+  onEdit(make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string; focus?: boolean }): void;
   onMoveCursor(pos: number): void;
   getDeck(): Deck | undefined;
   getSource(): string;
@@ -182,6 +182,11 @@ export function Preview({
   const slideCount = deck?.slides.length ?? 0;
   const shownIndex = Math.min(Math.max(0, currentSlide), Math.max(0, slideCount - 1));
   const shownSlide = deck?.slides[shownIndex];
+  const preview = useRef<HTMLElement>(null);
+  const revealId = useRef(0);
+  const [revealSlide, setRevealSlide] = useState<
+    { id: number; index: number; slideCount: number } | undefined
+  >();
   const requestId = useRef(0);
   const [selectionRequest, setSelectionRequest] = useState<
     { slideIndex: number; request: SelectionRequest } | undefined
@@ -198,11 +203,30 @@ export function Preview({
       return insertBox(freshDeck.source, slide, area.col, area.row);
     });
   }, [onEdit, shownIndex]);
+  const addSlide = useCallback((atEnd: boolean) => {
+    onEdit((freshDeck) => {
+      const slide = atEnd ? freshDeck.slides.at(-1) : freshDeck.slides[shownIndex];
+      if (!atEnd && freshDeck.slides.length > 0 && !slide) return null;
+      const index = slide ? slide.index + 1 : 0;
+      setRevealSlide({ id: ++revealId.current, index, slideCount: freshDeck.slides.length + 1 });
+      onSelectSlide(index);
+      return insertSlideAfter(freshDeck.source, slide);
+    }, { focus: true });
+  }, [onEdit, onSelectSlide, shownIndex]);
+  useEffect(() => {
+    if (!revealSlide || slideCount !== revealSlide.slideCount || shownIndex !== revealSlide.index) return;
+    const frame = preview.current?.querySelector<HTMLElement>(
+      `.slide-frame[aria-label="Slide ${revealSlide.index + 1}"]`,
+    );
+    if (!frame) return;
+    frame.scrollIntoView({ block: 'nearest' });
+    setRevealSlide(undefined);
+  }, [revealSlide, shownIndex, slideCount, view]);
   const selectionRequestHandled = useCallback((id: number) => {
     setSelectionRequest((current) => current?.request.id === id ? undefined : current);
   }, []);
   return (
-    <section className="preview" aria-label="Preview">
+    <section className="preview" aria-label="Preview" ref={preview}>
       <div className="preview-bar">
         <div className="preview-controls">
           <label>
@@ -223,6 +247,7 @@ export function Preview({
             />
           </div>
           {editable && deck && <IconButton label="Add box" icon={SquarePlus} onClick={addBox} />}
+          {editable && deck && <IconButton label="Add slide" icon={Plus} onClick={() => addSlide(false)} />}
         </div>
         <span className="muted">{deck ? `${deck.slides.length} slide${deck.slides.length === 1 ? '' : 's'}` : ''}</span>
       </div>
@@ -251,6 +276,17 @@ export function Preview({
               onFit={onFit}
             />
           ))}
+          {editable && deck && (
+            <button
+              type="button"
+              className="add-slide-end"
+              aria-label="Add slide at the end"
+              onClick={() => addSlide(true)}
+            >
+              <Plus size={18} aria-hidden />
+              <span>Add slide</span>
+            </button>
+          )}
         </div>
       ) : (
         <div className="one-slide">

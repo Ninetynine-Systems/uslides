@@ -16,7 +16,7 @@ const externalChange = Annotation.define<boolean>();
 
 export type EditorHandle = {
   /** Applies source changes together so they share one history step. */
-  applyEdit(result: EditResult, opts?: { userEvent?: string }): void;
+  applyEdit(result: EditResult, opts?: { userEvent?: string; focus?: boolean }): void;
   undo(): void;
   redo(): void;
   /** Moves the cursor to a character offset and scrolls it into view. */
@@ -126,6 +126,7 @@ export function Editor({ value, onChange, onCursorChange, warnings = [], onNotic
         ...(opts?.userEvent === undefined ? {} : { userEvent: opts.userEvent }),
         annotations: opts?.userEvent?.startsWith('input.type') ? [] : isolateHistory.of('full'),
       });
+      if (opts?.focus) v.focus();
     },
     undo() {
       const v = view.current;

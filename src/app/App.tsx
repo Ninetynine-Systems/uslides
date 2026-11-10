@@ -275,7 +275,7 @@ export function App() {
 
   /** Applies an edit made outside CodeMirror to the latest text, through CodeMirror's normal change path. */
   const editDeck = useCallback(
-    (make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }) => {
+    (make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string; focus?: boolean }) => {
       const target = editor.current;
       if (!target) return;
       const cached = deckRef.current;
