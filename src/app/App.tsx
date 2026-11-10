@@ -768,9 +768,19 @@ export function App() {
     let noticeId = 0;
     const undo = async () => {
       undone = true;
-      await flush();
-      const restored = await restoreDeck(id);
+      try {
+        await flush();
+      } catch (err) {
+        reportError(err);
+      }
+      let restored: Awaited<ReturnType<typeof restoreDeck>>;
+      try {
+        restored = await restoreDeck(id);
+      } catch {
+        restored = undefined;
+      }
       if (!restored) {
+        dismiss(noticeId);
         notify('That deck could not be restored.');
         return;
       }

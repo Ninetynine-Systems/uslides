@@ -58,6 +58,23 @@ async function rawDeckExists(page: Page, deckId: string): Promise<boolean> {
   );
 }
 
+async function removeRawDeck(page: Page, deckId: string): Promise<void> {
+  await page.evaluate(
+    (id) =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open('uslides');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const tx = open.result.transaction('decks', 'readwrite');
+          tx.objectStore('decks').delete(id);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+    deckId,
+  );
+}
+
 test.beforeEach(async ({ page }) => {
   page.on('dialog', (dialog) => {
     void dialog.dismiss();
@@ -143,6 +160,20 @@ test('Undo restores text typed immediately before deleting', async ({ page }) =>
   await deleteNotice(page, 'Welcome to uslides').getByRole('button', { name: 'Undo', exact: true }).click();
 
   await expect.poll(() => getSource(page).then((source) => source.endsWith(' typed just before delete'))).toBe(true);
+});
+
+test('a failed restore dismisses the Deleted notice', async ({ page }) => {
+  await page.goto('/?test');
+  await expect(page.locator('.us-stage')).toHaveCount(4);
+  const deletedId = await currentDeckId(page);
+
+  await moreMenu(page, 'Delete deck');
+  const deletedNotice = deleteNotice(page, 'Welcome to uslides');
+  await removeRawDeck(page, deletedId);
+  await deletedNotice.getByRole('button', { name: 'Undo', exact: true }).click();
+
+  await expect(deletedNotice).toHaveCount(0);
+  await expect(page.locator('.notice').filter({ hasText: 'That deck could not be restored.' })).toBeVisible();
 });
 
 test('Undo saves work in the next deck and restores the deleted deck with its image', async ({ page }) => {
