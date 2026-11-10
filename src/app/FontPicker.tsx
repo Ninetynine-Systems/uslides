@@ -9,6 +9,7 @@ import {
   useSyncExternalStore,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type Ref,
 } from 'react';
 import { X } from 'lucide-react';
 import {
@@ -27,6 +28,7 @@ export type FontPickerProps = {
   blocked: boolean;
   onPick(name: string | null): void;
   onClose(): void;
+  rootRef?: Ref<HTMLDivElement>;
 };
 
 const ROW_HEIGHT = 44;
@@ -107,7 +109,7 @@ function FontOption(props: {
   );
 }
 
-export function FontPicker({ value, blocked, onPick, onClose }: FontPickerProps) {
+export function FontPicker({ value, blocked, onPick, onClose, rootRef }: FontPickerProps) {
   const titleId = useId();
   const listId = useId();
   const search = useRef<HTMLInputElement>(null);
@@ -230,6 +232,7 @@ export function FontPicker({ value, blocked, onPick, onClose }: FontPickerProps)
 
   return (
     <div
+      ref={rootRef}
       className="us-font-picker"
       role="dialog"
       aria-labelledby={titleId}

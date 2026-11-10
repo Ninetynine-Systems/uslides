@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useRef } from 'react';
 import { Archive, ArchiveRestore, Ellipsis, Plus, Square, SquareCheckBig } from 'lucide-react';
 import { IconButton, MenuItem } from './IconButton';
+import { usePopup, usePopupDismiss } from './usePopup';
 
 export type DeckSummary = { id: string; name: string; updatedAt: number };
 
@@ -32,20 +33,23 @@ export function relativeTime(then: number, now: number): string {
 export function DeckList({
   decks, activeId, now = Date.now(), onSelect, onNew, onBackup, onRestore, askFirst, onAskFirstChange,
 }: Props) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const menu = usePopup();
+  const container = useRef<HTMLElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  usePopupDismiss(menu.open, menu.close, [container], trigger);
   const choose = (action: () => void) => () => {
-    setMenuOpen(false);
+    menu.close();
     action();
   };
   return (
-    <nav className="decklist" aria-label="Decks">
+    <nav ref={container} className="decklist" aria-label="Decks">
       <div className="decklist-head">
         <strong>Decks</strong>
         <IconButton label="New deck" icon={Plus} onClick={onNew} />
-        <IconButton label="Menu" icon={Ellipsis} aria-haspopup="true" aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)} />
+        <IconButton ref={trigger} label="Menu" icon={Ellipsis} aria-haspopup="true" aria-expanded={menu.open} onClick={menu.toggle} />
       </div>
-      {menuOpen && (
-        <div className="decklist-menu" onKeyDown={(e) => e.key === 'Escape' && setMenuOpen(false)}>
+      {menu.open && (
+        <div className="decklist-menu">
           <MenuItem label="Back up all decks" icon={Archive} onClick={choose(onBackup)} />
           <MenuItem label="Restore from backup" icon={ArchiveRestore} onClick={choose(onRestore)} />
           <MenuItem

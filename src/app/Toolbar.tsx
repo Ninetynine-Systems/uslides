@@ -1,11 +1,12 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState, type Ref } from 'react';
 import {
   Copy, Download, Ellipsis, FileCode, FileText, FileUp, FolderOpen, ImageDown, Link, Link2, PanelLeftClose, PanelLeftOpen,
   Play, Printer, Share2, Trash2, TriangleAlert, Type,
 } from 'lucide-react';
 import { IconButton, LabelButton, MenuItem } from './IconButton';
 import { DeckName } from './DeckName';
-import { Menu, useOutsidePress } from './Menu';
+import { Menu } from './Menu';
+import { usePopup, usePopupDismiss } from './usePopup';
 
 type Props = {
   listOpen: boolean;
@@ -14,6 +15,7 @@ type Props = {
   renameDisabled: boolean;
   deckFontOpen: boolean;
   onDeckFont(): void;
+  deckFontTriggerRef: Ref<HTMLButtonElement>;
   onRename(title: string): void;
   onDuplicate(): void;
   onDelete(): void;
@@ -36,39 +38,32 @@ type Props = {
 };
 
 function LinkedBadge({ name, onUnlink }: { name: string; onUnlink(): void }) {
-  const [open, setOpen] = useState(false);
+  const popup = usePopup();
   const container = useRef<HTMLDivElement>(null);
-  const close = () => setOpen(false);
-  useOutsidePress(container, open, close);
+  const trigger = useRef<HTMLButtonElement>(null);
+  usePopupDismiss(popup.open, popup.close, [container], trigger);
   return (
-    <div
-      ref={container}
-      className="linked"
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape') return;
-        close();
-        container.current?.querySelector('button')?.focus();
-      }}
-    >
+    <div ref={container} className="linked">
       <button
+        ref={trigger}
         type="button"
         className="linked-btn"
         aria-label={`Linked: ${name}`}
         title={`Linked: ${name}`}
         aria-haspopup="true"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
+        aria-expanded={popup.open}
+        onClick={popup.toggle}
       >
         <Link2 size={18} aria-hidden />
         <span>{name}</span>
       </button>
-      {open && (
+      {popup.open && (
         <div className="linked-menu">
           <MenuItem
             label="Unlink file"
             icon={Link2}
             onClick={() => {
-              close();
+              popup.close();
               onUnlink();
             }}
           />
@@ -79,32 +74,24 @@ function LinkedBadge({ name, onUnlink }: { name: string; onUnlink(): void }) {
 }
 
 function ShareMenu({ onCopyLink }: { onCopyLink: Props['onCopyLink'] }) {
-  const [open, setOpen] = useState(false);
+  const popup = usePopup();
   const [manual, setManual] = useState<string>();
   const container = useRef<HTMLDivElement>(null);
-  const close = () => {
-    setOpen(false);
-    setManual(undefined);
-  };
-  useOutsidePress(container, open, close);
+  const trigger = useRef<HTMLButtonElement>(null);
+  usePopupDismiss(popup.open, popup.close, [container], trigger);
+  useEffect(() => {
+    if (!popup.open) setManual(undefined);
+  }, [popup.open]);
   const copy = () => {
     onCopyLink().then(
-      (link) => (link === undefined ? close() : setManual(link)),
-      () => close(),
+      (link) => (link === undefined ? popup.close() : setManual(link)),
+      popup.close,
     );
   };
   return (
-    <div
-      ref={container}
-      className="share"
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape') return;
-        close();
-        container.current?.querySelector('button')?.focus();
-      }}
-    >
-      <LabelButton label="Share" icon={Share2} aria-haspopup="true" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))} />
-      {open && (
+    <div ref={container} className="share">
+      <LabelButton ref={trigger} label="Share" icon={Share2} aria-haspopup="true" aria-expanded={popup.open} onClick={popup.toggle} />
+      {popup.open && (
         <div className="share-menu">
           <MenuItem label="Copy link" icon={Link} onClick={copy} />
           {manual !== undefined && (
@@ -120,26 +107,18 @@ function ShareMenu({ onCopyLink }: { onCopyLink: Props['onCopyLink'] }) {
 }
 
 function DownloadMenu({ onMarkdown, onHtml, onPrint }: { onMarkdown(): void; onHtml(): void; onPrint(): void }) {
-  const [open, setOpen] = useState(false);
+  const popup = usePopup();
   const container = useRef<HTMLDivElement>(null);
-  const close = () => setOpen(false);
-  useOutsidePress(container, open, close);
+  const trigger = useRef<HTMLButtonElement>(null);
+  usePopupDismiss(popup.open, popup.close, [container], trigger);
   const choose = (action: () => void) => () => {
-    close();
+    popup.close();
     action();
   };
   return (
-    <div
-      ref={container}
-      className="share"
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape') return;
-        close();
-        container.current?.querySelector('button')?.focus();
-      }}
-    >
-      <IconButton label="Download" icon={Download} aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((o) => !o)} />
-      {open && (
+    <div ref={container} className="share">
+      <IconButton ref={trigger} label="Download" icon={Download} aria-haspopup="true" aria-expanded={popup.open} onClick={popup.toggle} />
+      {popup.open && (
         <div className="share-menu">
           <MenuItem label="Download .md" icon={FileText} onClick={choose(onMarkdown)} />
           <MenuItem label="Download .html" icon={FileCode} onClick={choose(onHtml)} />
@@ -151,7 +130,7 @@ function DownloadMenu({ onMarkdown, onHtml, onPrint }: { onMarkdown(): void; onH
 }
 
 export function Toolbar({
-  listOpen, onToggleList, name, renameDisabled, deckFontOpen, onDeckFont, onRename, onDuplicate, onDelete, onPresent, onCopyLink,
+  listOpen, onToggleList, name, renameDisabled, deckFontOpen, onDeckFont, deckFontTriggerRef, onRename, onDuplicate, onDelete, onPresent, onCopyLink,
   onPackImages, onDownloadMarkdown, onDownloadHtml, onPrint, onOpen, onOpenFolder, link, needsAccess, readOnly, onGrant, onUnlink,
 }: Props) {
   return (
@@ -179,6 +158,7 @@ export function Toolbar({
         )}
         {link && <LinkedBadge name={link.name} onUnlink={onUnlink} />}
         <IconButton
+          ref={deckFontTriggerRef}
           label="Deck font"
           icon={Type}
           aria-haspopup="dialog"

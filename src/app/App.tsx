@@ -36,6 +36,7 @@ import { useFileSync } from './useFileSync';
 import { useFolderImages } from './useFolderImages';
 import { findFamily, loadCatalog } from '../fonts/catalog';
 import { fontWarnings } from './fontWarnings';
+import { usePopup, usePopupDismiss } from './usePopup';
 import './app.css';
 
 declare global {
@@ -180,7 +181,10 @@ export function App() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [askFirst, setAskFirst] = useState(readAskFirst);
   const [allowedOnce, setAllowedOnce] = useState<Set<string>>(() => new Set());
-  const [deckFontOpen, setDeckFontOpen] = useState(false);
+  const deckFont = usePopup();
+  const deckFontTrigger = useRef<HTMLButtonElement>(null);
+  const deckFontPicker = useRef<HTMLDivElement>(null);
+  usePopupDismiss(deckFont.open, deckFont.close, [deckFontTrigger, deckFontPicker], deckFontTrigger);
   const wide = useWide();
   const { notices, notify, dismiss } = useNotices();
   const [catalogLoaded, setCatalogLoaded] = useState(false);
@@ -189,8 +193,8 @@ export function App() {
   const [presenting, setPresenting] = useState<number | undefined>(() => parseRoute(location.hash).present);
 
   useEffect(() => {
-    setDeckFontOpen(false);
-  }, [deckId]);
+    deckFont.close();
+  }, [deckFont.close, deckId]);
 
   const refreshList = useCallback(() => {
     void listDecks().then(setDecks);
@@ -852,8 +856,9 @@ export function App() {
         onToggleList={() => setListOpen((o) => !o)}
         name={name}
         renameDisabled={!deckId || !ready}
-        deckFontOpen={deckFontOpen}
-        onDeckFont={() => setDeckFontOpen((open) => !open)}
+        deckFontOpen={deckFont.open}
+        onDeckFont={deckFont.toggle}
+        deckFontTriggerRef={deckFontTrigger}
         onRename={(title) => guarded(() => rename(title))()}
         onDuplicate={guarded(duplicate)}
         onDelete={guarded(remove)}
@@ -871,15 +876,16 @@ export function App() {
         onGrant={guarded(sync.grant)}
         onUnlink={guarded(sync.unlink)}
       />
-      {deckFontOpen && ready && (
+      {deckFont.open && ready && (
         <FontPicker
+          rootRef={deckFontPicker}
           value={current.deck?.settings.font}
           blocked={blockExternal}
           onPick={(font) => {
             editDeck((deck) => setDeckFont(deck.source, font));
-            setDeckFontOpen(false);
+            deckFont.close();
           }}
-          onClose={() => setDeckFontOpen(false)}
+          onClose={deckFont.close}
         />
       )}
       <div className="decks" id="decks" hidden={!listOpen}>

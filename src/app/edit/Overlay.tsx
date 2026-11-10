@@ -21,6 +21,7 @@ import { FloatingBar } from './FloatingBar';
 import { boxesAt, cellAt } from './stageGeometry';
 import type { QueuedTypingKey, TypingAreaProps } from './TypingArea';
 import { FontPicker } from '../FontPicker';
+import { usePopup, usePopupDismiss } from '../usePopup';
 import { IconButton } from '../IconButton';
 
 type OnEdit = (make: (deck: Deck) => EditResult | null, opts?: { userEvent?: string }) => void;
@@ -219,7 +220,10 @@ export function Overlay({
   onHintDone,
 }: OverlayProps) {
   const [selected, setSelected] = useState<number | null>(null);
-  const [fontOpen, setFontOpen] = useState(false);
+  const fontPopup = usePopup();
+  const fontContainer = useRef<HTMLDivElement>(null);
+  const fontTrigger = useRef<HTMLButtonElement>(null);
+  usePopupDismiss(fontPopup.open, fontPopup.close, [fontContainer], fontTrigger);
   const [geometry, setGeometry] = useState<Geometry | null>(null);
   const [typingRect, setTypingRect] = useState<DOMRect | null>(null);
   const [typing, setTyping] = useState<Typing | null>(null);
@@ -275,19 +279,19 @@ export function Overlay({
   useEffect(() => {
     if (active) return;
     setSelected(null);
-    setFontOpen(false);
+    fontPopup.close();
     storeTyping(null);
     lastPoint.current = null;
-  }, [active, storeTyping]);
+  }, [active, fontPopup.close, storeTyping]);
 
   useEffect(() => {
     if (lastSlide.current === slide.index) return;
     lastSlide.current = slide.index;
     setSelected(null);
-    setFontOpen(false);
+    fontPopup.close();
     storeTyping(null);
     lastPoint.current = null;
-  }, [slide.index, storeTyping]);
+  }, [fontPopup.close, slide.index, storeTyping]);
 
   useEffect(() => {
     if (previousSlide.current === slide) return;
@@ -891,23 +895,24 @@ export function Overlay({
             bounds={geometry.bounds}
             onSet={setAttrs}
             fontSlot={(
-              <div className="us-font-control">
+              <div ref={fontContainer} className="us-font-control">
                 <IconButton
+                  ref={fontTrigger}
                   label="Font"
                   icon={Type}
                   aria-haspopup="dialog"
-                  aria-expanded={fontOpen}
-                  onClick={() => setFontOpen((open) => !open)}
+                  aria-expanded={fontPopup.open}
+                  onClick={fontPopup.toggle}
                 />
-                {fontOpen && (
+                {fontPopup.open && (
                   <FontPicker
                     value={box.font}
                     blocked={blocked}
                     onPick={(name) => {
                       setAttrs({ font: name });
-                      setFontOpen(false);
+                      fontPopup.close();
                     }}
-                    onClose={() => setFontOpen(false)}
+                    onClose={fontPopup.close}
                   />
                 )}
               </div>

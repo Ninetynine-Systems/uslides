@@ -1,8 +1,8 @@
-import type { ButtonHTMLAttributes, ComponentType } from 'react';
+import type { ComponentPropsWithRef, ComponentType } from 'react';
 
 export type IconProps = { size?: number; 'aria-hidden'?: boolean };
 
-type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'type'> & {
+type Props = Omit<ComponentPropsWithRef<'button'>, 'children' | 'type'> & {
   /** What the button does. Screen readers read it, and it shows as a tooltip on hover and keyboard focus. */
   label: string;
   icon: ComponentType<IconProps>;

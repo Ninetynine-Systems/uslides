@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { Box } from '../../core/slide';
 import { IconButton } from '../IconButton';
+import { usePopup, usePopupDismiss } from '../usePopup';
 
 type Theme = 'light' | 'dark';
 type ColourKind = 'fill' | 'text';
@@ -29,31 +30,38 @@ function palette(theme: Theme, kind: ColourKind): string[] {
 function ColourControl(props: {
   kind: ColourKind;
   theme: Theme;
-  open: boolean;
-  onOpen(): void;
   onSet(value: string | null): void;
 }) {
-  const { kind, theme, open, onOpen, onSet } = props;
+  const { kind, theme, onSet } = props;
+  const popup = usePopup();
   const fill = kind === 'fill';
   const label = fill ? 'Fill colour' : 'Text colour';
+  const container = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
   const custom = useRef<HTMLInputElement>(null);
+  usePopupDismiss(popup.open, popup.close, [container], trigger);
   useEffect(() => {
     const input = custom.current;
-    if (!input || !open) return;
+    if (!input || !popup.open) return;
     const changed = () => onSet(input.value.toLowerCase());
     input.addEventListener('change', changed);
     return () => input.removeEventListener('change', changed);
-  }, [onSet, open]);
+  }, [onSet, popup.open]);
+  const choose = (value: string | null) => {
+    popup.close();
+    onSet(value);
+  };
   return (
-    <div className="us-colour-control">
+    <div ref={container} className="us-colour-control">
       <IconButton
+        ref={trigger}
         label={label}
         icon={fill ? PaintBucket : Baseline}
         aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={onOpen}
+        aria-expanded={popup.open}
+        onClick={popup.toggle}
       />
-      {open && (
+      {popup.open && (
         <div className="us-colour-menu" role="menu" aria-label={label}>
           <div className="us-colour-swatches">
             {palette(theme, kind).map((colour) => (
@@ -64,11 +72,11 @@ function ColourControl(props: {
                 aria-label={colour}
                 title={colour}
                 style={{ backgroundColor: colour }}
-                onClick={() => onSet(colour)}
+                onClick={() => choose(colour)}
               />
             ))}
           </div>
-          <button type="button" className="us-colour-none" onClick={() => onSet(null)}>None</button>
+          <button type="button" className="us-colour-none" onClick={() => choose(null)}>None</button>
           <label className="us-custom-colour">
             Custom
             <input
@@ -108,7 +116,6 @@ export function FloatingBar({
   onDelete,
   fontSlot,
 }: FloatingBarProps) {
-  const [openColour, setOpenColour] = useState<ColourKind | null>(null);
   const bar = useRef<HTMLDivElement>(null);
   const [barSize, setBarSize] = useState({ width: 0, height: 0 });
   useLayoutEffect(() => {
@@ -135,26 +142,17 @@ export function FloatingBar({
     top: above ? anchor.top - bounds.top - 6 : anchor.bottom - bounds.top + 6,
     transform: above ? 'translateY(-100%)' : undefined,
   };
-  const choose = (kind: ColourKind, value: string | null) => {
-    onSet({ [kind === 'fill' ? 'bg' : 'color']: value });
-    setOpenColour(null);
-  };
-
   return (
     <div ref={bar} className="us-floating-bar" style={style} data-placement={above ? 'above' : 'below'}>
       <ColourControl
         kind="fill"
         theme={theme}
-        open={openColour === 'fill'}
-        onOpen={() => setOpenColour((open) => (open === 'fill' ? null : 'fill'))}
-        onSet={(value) => choose('fill', value)}
+        onSet={(value) => onSet({ bg: value })}
       />
       <ColourControl
         kind="text"
         theme={theme}
-        open={openColour === 'text'}
-        onOpen={() => setOpenColour((open) => (open === 'text' ? null : 'text'))}
-        onSet={(value) => choose('text', value)}
+        onSet={(value) => onSet({ color: value })}
       />
       {fontSlot}
       <div className="us-bar-group" role="group" aria-label="Horizontal alignment">

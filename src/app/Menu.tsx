@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type ComponentType, type ReactNode, type RefObject } from 'react';
+import { useRef, type ComponentType, type ReactNode } from 'react';
 import { IconButton, type IconProps } from './IconButton';
+import { usePopup, usePopupDismiss } from './usePopup';
 
 type Props = {
   label: string;
@@ -7,45 +8,24 @@ type Props = {
   children: (close: () => void) => ReactNode;
 };
 
-/** Closes a popup when a pointer press starts outside its container. */
-export function useOutsidePress(container: RefObject<HTMLElement | null>, open: boolean, close: () => void) {
-  useEffect(() => {
-    if (!open) return;
-
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && !container.current?.contains(target)) close();
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [close, container, open]);
-}
-
 /** An icon button with a popup menu. */
 export function Menu({ label, icon, children }: Props) {
-  const [open, setOpen] = useState(false);
+  const popup = usePopup();
   const container = useRef<HTMLDivElement>(null);
-  const close = () => setOpen(false);
-  useOutsidePress(container, open, close);
+  const trigger = useRef<HTMLButtonElement>(null);
+  usePopupDismiss(popup.open, popup.close, [container], trigger);
 
   return (
-    <div
-      ref={container}
-      className="share"
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape') return;
-        close();
-        container.current?.querySelector('button')?.focus();
-      }}
-    >
+    <div ref={container} className="share">
       <IconButton
+        ref={trigger}
         label={label}
         icon={icon}
         aria-haspopup="true"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+        aria-expanded={popup.open}
+        onClick={popup.toggle}
       />
-      {open && <div className="share-menu">{children(close)}</div>}
+      {popup.open && <div className="share-menu">{children(popup.close)}</div>}
     </div>
   );
 }
