@@ -19,6 +19,7 @@ test('renames a deck and keeps the name after reload', async ({ page }) => {
 
   await expect(toolbarName(page)).toHaveText('Quarterly plan');
   await expect(deckList(page)).toContainText('Quarterly plan');
+  await expect(page.getByRole('button', { name: 'Rename deck: Quarterly plan' })).toBeFocused();
 
   await page.reload();
   await expect(toolbarName(page)).toHaveText('Quarterly plan');
@@ -32,6 +33,7 @@ test('Escape cancels a rename', async ({ page }) => {
 
   await expect(toolbarName(page)).toHaveText(originalName);
   await expect(deckList(page)).toContainText(originalName);
+  await expect(page.getByRole('button', { name: `Rename deck: ${originalName}` })).toBeFocused();
 });
 
 test('a name containing only spaces changes nothing', async ({ page }) => {

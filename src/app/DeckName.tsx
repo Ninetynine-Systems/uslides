@@ -30,9 +30,10 @@ export function DeckName({ name, disabled, onRename }: Props) {
     setEditing(true);
   };
 
-  const finish = () => {
+  const finish = (focusButton = false) => {
     if (!active.current) return;
     active.current = false;
+    restoreFocus.current = focusButton;
     setEditing(false);
     const title = value.trim();
     if (title !== '' && title !== name) onRename(title);
@@ -56,11 +57,11 @@ export function DeckName({ name, disabled, onRename }: Props) {
           aria-label="Deck name"
           value={value}
           onChange={(event) => setValue(event.currentTarget.value)}
-          onBlur={finish}
+          onBlur={() => finish()}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
               event.preventDefault();
-              finish();
+              finish(true);
             } else if (event.key === 'Escape') {
               event.preventDefault();
               cancel();
