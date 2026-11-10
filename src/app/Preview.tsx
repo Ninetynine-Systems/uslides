@@ -1,7 +1,7 @@
 import {
   lazy, useCallback, useEffect, useMemo, useRef, useState, type ComponentType,
 } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Rows3, Square, SquarePlus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CopyPlus, Rows3, Square, SquarePlus } from 'lucide-react';
 import { insertBox, insertSlideAfter, type EditResult } from '../core/edit';
 import { centredSpan, findFreeArea } from '../core/layout';
 import type { Deck } from '../core/parse';
@@ -260,7 +260,7 @@ export function Preview({
             />
           </div>
           {editable && deck && <IconButton label="Add box" icon={SquarePlus} onClick={addBox} />}
-          {editable && deck && <IconButton label="Add slide" icon={Plus} onClick={() => addSlide(false)} />}
+          {editable && deck && <IconButton label="Add slide" icon={CopyPlus} onClick={() => addSlide(false)} />}
         </div>
         <span className="muted">{deck ? `${deck.slides.length} slide${deck.slides.length === 1 ? '' : 's'}` : ''}</span>
       </div>
@@ -298,7 +298,7 @@ export function Preview({
               aria-label="Add slide at the end"
               onClick={() => addSlide(true)}
             >
-              <Plus size={18} aria-hidden />
+              <CopyPlus size={18} aria-hidden />
               <span>Add slide</span>
             </button>
           )}
