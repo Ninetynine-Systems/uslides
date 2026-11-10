@@ -142,7 +142,7 @@ button.danger { color: var(--danger); }
   font-size: 13px;
   line-height: 1.4;
   text-align: center;
-  white-space: nowrap;
+  white-space: normal;
   pointer-events: none;
 }
 .us-typing-area {

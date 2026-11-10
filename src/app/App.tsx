@@ -912,7 +912,8 @@ export function App() {
             getSource={getSource}
             onUndo={() => editor.current?.undo()}
             onRedo={() => editor.current?.redo()}
-            editable={wide && !showPresent}
+            editable={wide}
+            showHint={!showPresent}
             onFit={onFit}
             onSelectSlide={(i) => {
               setCurrentSlide(i);

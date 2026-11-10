@@ -44,6 +44,7 @@ type Props = {
   onUndo(): void;
   onRedo(): void;
   editable: boolean;
+  showHint: boolean;
   /** Called with the slide index when a slide is clicked. */
   onSelectSlide(index: number): void;
   /** Called with fitSlide's results each time a slide is laid out. */
@@ -177,7 +178,7 @@ function SlideCard(props: {
 
 export function Preview({
   deck, images, blockExternal, showGrid, onShowGridChange, view, onViewChange, currentSlide, onEdit, onMoveCursor,
-  getDeck, getSource, onUndo, onRedo, editable, onSelectSlide, onFit,
+  getDeck, getSource, onUndo, onRedo, editable, showHint, onSelectSlide, onFit,
 }: Props) {
   useEffect(() => {
     if (editable) void loadTypingArea();
@@ -284,7 +285,7 @@ export function Preview({
               onSelect={() => onSelectSlide(slide.index)}
               selectionRequest={selectionRequest?.slideIndex === slide.index ? selectionRequest.request : undefined}
               onSelectionRequestHandled={selectionRequestHandled}
-              showHint={!hintHidden}
+              showHint={showHint && !hintHidden}
               onHintDone={finishHint}
               fontVersion={fontVersion}
               onFit={onFit}
@@ -338,7 +339,7 @@ export function Preview({
                 onSelect={() => onSelectSlide(shownIndex)}
                 selectionRequest={selectionRequest?.slideIndex === shownIndex ? selectionRequest.request : undefined}
                 onSelectionRequestHandled={selectionRequestHandled}
-                showHint={!hintHidden}
+                showHint={showHint && !hintHidden}
                 onHintDone={finishHint}
                 fontVersion={fontVersion}
                 onFit={onFit}

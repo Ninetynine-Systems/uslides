@@ -37,6 +37,36 @@ test('the hint shows only on the shown slide when it has no boxes', async ({ pag
   await expect(hint).toHaveCount(0);
 });
 
+test('the hint stays inside the slide without horizontal overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 900 });
+  await openSample(page);
+  await expect(page.locator('.decks')).toBeVisible();
+  await expect(page.locator('.app')).toHaveClass(/list-open/);
+
+  const hint = page.locator('.us-hint');
+  const frame = page.locator('.slide-frame').filter({ has: hint });
+  const hintBounds = await hint.boundingBox();
+  const frameBounds = await frame.boundingBox();
+  if (!hintBounds || !frameBounds) throw new Error('The hint and its slide frame must be visible');
+
+  expect(hintBounds.x).toBeGreaterThanOrEqual(frameBounds.x);
+  expect(hintBounds.y).toBeGreaterThanOrEqual(frameBounds.y);
+  expect(hintBounds.x + hintBounds.width).toBeLessThanOrEqual(frameBounds.x + frameBounds.width);
+  expect(hintBounds.y + hintBounds.height).toBeLessThanOrEqual(frameBounds.y + frameBounds.height);
+
+  const hintSize = await hint.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(hintSize.scrollWidth).toBeLessThanOrEqual(hintSize.clientWidth);
+
+  const scrollSize = await page.locator('.preview-scroll').evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(scrollSize.scrollWidth).toBeLessThanOrEqual(scrollSize.clientWidth);
+});
+
 test('dragging through the hint draws a box and hides it for good', async ({ page }) => {
   await openSample(page);
   await expect(page.locator('.us-hint')).toBeVisible();
@@ -69,7 +99,7 @@ test('the hint is absent from present mode and downloads', async ({ page }) => {
   await page.getByRole('button', { name: 'Present', exact: true }).click();
   await expect(page.locator('.present')).toBeVisible();
   await expect(page.locator('.present .us-hint')).toHaveCount(0);
-  await expect(page.locator('.us-hint')).toBeHidden();
+  await expect(page.locator('.us-hint:visible')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(page.locator('.present')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true);
