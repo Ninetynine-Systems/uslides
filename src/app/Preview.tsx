@@ -94,6 +94,9 @@ function SlideCard(props: {
   showHint: boolean;
   onHintDone(): void;
   fontVersion: number;
+  slideSelected: boolean;
+  onSlideSelect(selected: boolean): void;
+  onSlideSelectIndex(index: number | null): void;
   onFit?(slide: Slide, results: FitResult[]): void;
 }) {
   const {
@@ -130,7 +133,7 @@ function SlideCard(props: {
   }, [slide, deck.settings, urls, showGrid, blockExternal, props.fontVersion]);
 
   return (
-    <figure className={active ? 'slide-card current' : 'slide-card'}>
+    <figure className={`slide-card${active ? ' current' : ''}${props.slideSelected ? ' slide-selected' : ''}`}>
       <div
         className="slide-frame"
         ref={frame}
@@ -167,6 +170,11 @@ function SlideCard(props: {
             onSelectionRequestHandled={props.onSelectionRequestHandled}
             showHint={props.showHint}
             onHintDone={props.onHintDone}
+            slideSelected={props.slideSelected}
+            onSlideSelect={props.onSlideSelect}
+            onSlideSelectIndex={props.onSlideSelectIndex}
+            slideCount={deck.slides.length}
+            deckGrid={deck.settings.grid}
           />
         )}
       </div>
@@ -239,6 +247,25 @@ export function Preview({
     frame.scrollIntoView({ block: 'nearest' });
     setRevealSlide(undefined);
   }, [revealSlide, shownIndex, slideCount, view]);
+  /** The slide that is selected as a whole, showing its settings bar. Only one at a time. */
+  const [selectedSlide, setSelectedSlide] = useState<number | null>(null);
+  const slideSelect = useCallback((index: number, on: boolean) => {
+    setSelectedSlide((current) => (on ? index : current === index ? null : current));
+  }, []);
+  useEffect(() => {
+    if (selectedSlide !== null && selectedSlide >= slideCount) setSelectedSlide(null);
+  }, [selectedSlide, slideCount]);
+  // A moved or copied slide stays selected, and in view.
+  useEffect(() => {
+    if (selectedSlide === null) return;
+    const frame = preview.current?.querySelector<HTMLElement>(`.slide-frame[aria-label="Slide ${selectedSlide + 1}"]`);
+    frame?.scrollIntoView({ block: 'nearest' });
+    // A moved or copied slide's bar is a new one, so the button that was pressed is gone. Keep the keyboard
+    // on the slide, so Escape and Ctrl+Z still work.
+    if (frame && (document.activeElement === document.body || document.activeElement === null)) {
+      frame.focus({ preventScroll: true });
+    }
+  }, [selectedSlide, slideCount]);
   const selectionRequestHandled = useCallback((id: number) => {
     setSelectionRequest((current) => current?.request.id === id ? undefined : current);
   }, []);
@@ -303,6 +330,9 @@ export function Preview({
               onHintDone={finishHint}
               fontVersion={fontVersion}
               onFit={onFit}
+              slideSelected={selectedSlide === slide.index}
+              onSlideSelect={(on) => slideSelect(slide.index, on)}
+              onSlideSelectIndex={setSelectedSlide}
             />
           ))}
           {editable && deck && (
@@ -357,6 +387,9 @@ export function Preview({
                 onHintDone={finishHint}
                 fontVersion={fontVersion}
                 onFit={onFit}
+                slideSelected={selectedSlide === shownIndex}
+                onSlideSelect={(on) => slideSelect(shownIndex, on)}
+                onSlideSelectIndex={setSelectedSlide}
               />
             </>
           )}

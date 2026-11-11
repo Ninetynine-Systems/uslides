@@ -13,11 +13,15 @@ import {
   type Edit,
   type EditResult,
 } from '../../core/edit';
-import { clampNewBox, moveSpan, resizeSpan, type Edge, type GridArea } from '../../core/layout';
+import {
+  centredSpan, clampNewBox, findFreeArea, moveSpan, resizeSpan, type Edge, type GridArea,
+} from '../../core/layout';
+import { deleteSlide, duplicateSlide, moveSlide, setSlideAttrs, setSlideGrid } from '../../core/slideEdit';
 import type { Deck } from '../../core/parse';
 import type { Box, Slide } from '../../core/slide';
 import type { Grid, SourceRange } from '../../core/types';
 import { FloatingBar } from './FloatingBar';
+import { SlideBar } from './SlideBar';
 import { boxesAt, cellAt } from './stageGeometry';
 import type { QueuedTypingKey, TypingAreaProps, TypingLook } from './TypingArea';
 import { FontPicker } from '../FontPicker';
@@ -68,6 +72,16 @@ export type OverlayProps = {
   onSelectionRequestHandled?(id: number): void;
   showHint?: boolean;
   onHintDone?(): void;
+  /** True when the slide itself is selected: a click on it chose no box. Its settings bar shows. */
+  slideSelected?: boolean;
+  /** Selects or clears the slide itself. */
+  onSlideSelect?(selected: boolean): void;
+  /** After a slide is moved, copied or deleted, the slide to select next (null for none). */
+  onSlideSelectIndex?(index: number | null): void;
+  /** How many slides the deck has, for the move and delete buttons. */
+  slideCount?: number;
+  /** The deck's grid, which a slide goes back to when its own grid is removed. */
+  deckGrid?: Grid;
 };
 
 const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const;
@@ -260,7 +274,14 @@ export function Overlay({
   onSelectionRequestHandled,
   showHint = false,
   onHintDone,
+  slideSelected = false,
+  onSlideSelect,
+  onSlideSelectIndex,
+  slideCount = 1,
+  deckGrid,
 }: OverlayProps) {
+  const slideSelectedRef = useRef(slideSelected);
+  slideSelectedRef.current = slideSelected;
   const [selected, setSelected] = useState<number | null>(null);
   const fontPopup = usePopup();
   const fontContainer = useRef<HTMLDivElement>(null);
@@ -317,9 +338,10 @@ export function Overlay({
     });
     setSelected(target.kind === 'box' ? target.index : null);
     lastPoint.current = null;
+    if (slideSelectedRef.current) onSlideSelect?.(false);
     onMoveCursor(range.from);
     return true;
-  }, [frame, getDeck, getSource, onMoveCursor, slide.index, storeTyping]);
+  }, [frame, getDeck, getSource, onMoveCursor, onSlideSelect, slide.index, storeTyping]);
 
   const takeQueuedTypingInput = useCallback(() => {
     const queued = queuedTypingInput.current;
@@ -334,6 +356,31 @@ export function Overlay({
     storeTyping(null);
     lastPoint.current = null;
   }, [active, fontPopup.close, storeTyping]);
+
+  const onSlideSelectRef = useRef(onSlideSelect);
+  onSlideSelectRef.current = onSlideSelect;
+
+  // Escape clears the selected slide wherever the keyboard is, unless something else used the key first
+  // (an open menu, the typing area, the editor's search bar).
+  useEffect(() => {
+    if (!slideSelected || !active) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest('.us-typing-area, .us-font-picker, input, select, textarea')) return;
+      onSlideSelectRef.current?.(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [active, slideSelected]);
+
+  // Another slide became current: this one is no longer selected. Only on that change, so a slide that is
+  // selected a moment before it becomes current (after a move or copy) keeps its selection.
+  const wasActive = useRef(active);
+  useEffect(() => {
+    if (wasActive.current && !active && slideSelectedRef.current) onSlideSelectRef.current?.(false);
+    wasActive.current = active;
+  }, [active]);
 
   useEffect(() => {
     if (lastSlide.current === slide.index) return;
@@ -390,6 +437,17 @@ export function Overlay({
     },
     [frame],
   );
+
+  // The slide frame hides what overflows it, but the browser still scrolls it to show a focused control or
+  // an open menu, which shifts the whole slide. The slide never scrolls, so put it back at once.
+  useEffect(() => {
+    const unscroll = () => {
+      if (frame.scrollTop !== 0) frame.scrollTop = 0;
+      if (frame.scrollLeft !== 0) frame.scrollLeft = 0;
+    };
+    frame.addEventListener('scroll', unscroll);
+    return () => frame.removeEventListener('scroll', unscroll);
+  }, [frame]);
 
   const updateGeometry = useCallback(() => {
     if (!stage.isConnected) return;
@@ -525,6 +583,40 @@ export function Overlay({
     },
     [onEdit, onHintDone, slide.index],
   );
+
+  /** Runs a slide edit against the latest deck. */
+  const editSlide = useCallback(
+    (make: (deck: Deck, freshSlide: Slide) => EditResult | null) => {
+      onEdit((deck) => {
+        const freshSlide = deck.slides[slide.index];
+        return freshSlide ? make(deck, freshSlide) : null;
+      });
+    },
+    [onEdit, slide.index],
+  );
+
+  const slideActions = {
+    onSet: (attrs: Record<string, string | null>) => editSlide((deck, s) => setSlideAttrs(deck.source, s, attrs)),
+    onGrid: (next: Grid | null) => editSlide((deck, s) => setSlideGrid(deck.source, s, deckGrid ?? deck.settings.grid, next)),
+    onAddBox: () => {
+      onSlideSelect?.(false);
+      insert(findFreeArea(slide, 4, 2) ?? centredSpan(slide.grid, 4, 2));
+    },
+    onDuplicate: () => {
+      editSlide((deck, s) => duplicateSlide(deck.source, s));
+      onSlideSelectIndex?.(slide.index + 1);
+    },
+    onMove: (direction: -1 | 1) => {
+      editSlide((deck) => moveSlide(deck.source, deck.slides, slide.index, direction));
+      onSlideSelectIndex?.(slide.index + direction);
+    },
+    onDelete: () => {
+      editSlide((deck) => deleteSlide(deck.source, deck.slides, slide.index));
+      onSlideSelectIndex?.(null);
+      // The bar goes away with the selection. Keep the keyboard on the slides, so Ctrl+Z undoes the delete.
+      frame.focus({ preventScroll: true });
+    },
+  };
 
   const setSpan = useCallback(
     (boxIndex: number, area: GridArea) => {
@@ -668,6 +760,7 @@ export function Overlay({
           setSelected(boxIndex);
           lastPoint.current = null;
         }
+        if (slideSelectedRef.current) onSlideSelect?.(false);
         onSelectSlide?.();
         onMoveCursor(box.range.from);
         frame.focus({ preventScroll: true });
@@ -821,6 +914,7 @@ export function Overlay({
         current.moved = true;
         frame.classList.add('us-dragging');
         setDragging(true);
+        if (slideSelectedRef.current) onSlideSelect?.(false);
         setHover(null);
         fontPopup.close();
         if (current.kind !== 'draw') {
@@ -866,7 +960,10 @@ export function Overlay({
       if (suppressClick.current) return;
       const target = event.target;
       if (target instanceof Element && target.closest('.us-floating-bar, .us-typing-bar')) return;
-      if (boxesAt(stage, event.clientX, event.clientY).length === 0) onSelectSlide?.();
+      if (boxesAt(stage, event.clientX, event.clientY).length === 0) {
+        onSelectSlide?.();
+        if (!typingRef.current) onSlideSelect?.(true);
+      }
     };
 
     const onDoubleClick = (event: MouseEvent) => {
@@ -940,7 +1037,14 @@ export function Overlay({
         onRedo();
         return;
       }
-      if (selected === null) return;
+      if (selected === null) {
+        if (event.key === 'Escape' && slideSelectedRef.current) {
+          event.preventDefault();
+          event.stopPropagation();
+          onSlideSelect?.(false);
+        }
+        return;
+      }
       if (event.target !== frame) {
         if (event.key === 'Escape') {
           event.preventDefault();
@@ -1014,8 +1118,8 @@ export function Overlay({
       frame.removeEventListener('keydown', onKeyDown);
     };
   }, [
-    beginTyping, duplicate, fontPopup.close, frame, getDeck, grid, insert, onMoveCursor, onRedo, onSelectSlide, onUndo,
-    remove, selected, setSpan, slide, stage, withSelected,
+    beginTyping, duplicate, fontPopup.close, frame, getDeck, grid, insert, onMoveCursor, onRedo, onSelectSlide,
+    onSlideSelect, onUndo, remove, selected, setSpan, slide, stage, withSelected,
   ]);
 
   const box = selected === null ? undefined : slide.boxes[selected];
@@ -1030,7 +1134,7 @@ export function Overlay({
 
   return (
     <div className="us-edit-overlay">
-      {showHint && active && slide.boxes.length === 0 && (
+      {showHint && active && !slideSelected && slide.boxes.length === 0 && (
         <p className="us-hint" aria-hidden="true">
           Drag on the slide to draw a box. Double-click text to edit it.
         </p>
@@ -1075,6 +1179,16 @@ export function Overlay({
             }}
           />
         </Suspense>
+      )}
+      {slideSelected && active && !typing && !dragging && selected === null && (
+        <SlideBar
+          index={slide.index}
+          count={slideCount}
+          theme={theme}
+          grid={slide.grid}
+          deckGrid={deckGrid ?? slide.grid}
+          {...slideActions}
+        />
       )}
       {!typing && !dragging && box && geometry && (
         <>

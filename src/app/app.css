@@ -457,6 +457,17 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
 .us-floating-bar .icon-btn[aria-pressed='true'] { color: var(--accent-ink); background: var(--accent-soft); }
 .us-bar-group { display: flex; flex: 0 0 auto; gap: 2px; margin-left: 2px; border-left: 1px solid var(--line); padding-left: 4px; }
 .us-bar-group + .icon-btn { margin-left: 2px; }
+/* The selected slide's settings, in its bottom-right corner, away from the title, so a double-click on the
+   title still reaches the text. Its menus open upward. */
+.us-slide-bar { right: 8px; bottom: 8px; }
+.us-slide-bar .us-colour-menu { top: auto; bottom: calc(100% + 6px); }
+.us-slide-bar.us-arming, .us-slide-bar.us-arming * { pointer-events: none !important; }
+.us-bar-label { padding: 0 8px 0 6px; color: var(--muted); font-size: 0.78rem; font-weight: 600; white-space: nowrap; }
+.us-grid-menu { left: auto; right: 0; width: max-content; min-width: 200px; display: flex; flex-direction: column; gap: 2px; padding: 6px; }
+.us-grid-menu .menu-item { padding: 7px 10px; font-size: 0.875rem; white-space: nowrap; }
+.us-grid-menu .menu-item[aria-checked='true'] { color: var(--accent-ink); }
+.slide-card.slide-selected .slide-frame { box-shadow: 0 0 0 3px var(--accent), var(--shadow-slide); }
+.us-floating-bar .icon-btn:disabled { opacity: 0.35; }
 .us-colour-control { position: relative; }
 .us-font-control { display: flex; }
 .us-colour-menu {

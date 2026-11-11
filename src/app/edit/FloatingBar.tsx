@@ -22,27 +22,37 @@ type ColourKind = 'fill' | 'text';
 
 const PALE = ['#dbeafe', '#dcfce7', '#fef3c7', '#fee2e2', '#f3e8ff', '#f1f5f9'];
 const DARK = ['#1e3a8a', '#14532d', '#713f12', '#7f1d1d', '#581c87', '#1e293b'];
-/** What each swatch is called, in the order of the two lists above. */
+/** Bright colours for backgrounds, offered after the theme's own row. */
+const VIVID = ['#5b5bd6', '#ff6b6b', '#ffd43b', '#12b886', '#4dabf7', '#1a1a2b'];
+/** What each swatch is called, in the order of the lists above. */
 const NAMES = ['blue', 'green', 'yellow', 'red', 'purple', 'grey'];
+const VIVID_NAMES = ['Indigo', 'Coral', 'Sunflower', 'Green', 'Sky blue', 'Ink'];
 
 function colourName(colour: string): string {
   const pale = PALE.indexOf(colour);
-  return pale >= 0 ? `Pale ${NAMES[pale]}` : `Dark ${NAMES[DARK.indexOf(colour)]}`;
+  if (pale >= 0) return `Pale ${NAMES[pale]}`;
+  const vivid = VIVID.indexOf(colour);
+  if (vivid >= 0) return VIVID_NAMES[vivid]!;
+  return `Dark ${NAMES[DARK.indexOf(colour)]}`;
 }
 
 function palette(theme: Theme, kind: ColourKind): string[] {
-  return (theme === 'light') === (kind === 'fill') ? PALE : DARK;
+  const own = (theme === 'light') === (kind === 'fill') ? PALE : DARK;
+  return kind === 'fill' ? [...own, ...VIVID] : own;
 }
 
-function ColourControl(props: {
+/** A colour button with a menu of swatches, a None choice and a custom colour. Used for boxes and slides. */
+export function ColourControl(props: {
   kind: ColourKind;
   theme: Theme;
   onSet(value: string | null): void;
+  /** The button's name. Defaults to Fill colour or Text colour. */
+  label?: string;
 }) {
   const { kind, theme, onSet } = props;
   const popup = usePopup();
   const fill = kind === 'fill';
-  const label = fill ? 'Fill colour' : 'Text colour';
+  const label = props.label ?? (fill ? 'Fill colour' : 'Text colour');
   const container = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const custom = useRef<HTMLInputElement>(null);
