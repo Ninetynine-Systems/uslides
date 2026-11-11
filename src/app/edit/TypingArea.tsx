@@ -1,10 +1,13 @@
-import { useEffect, useRef, type CSSProperties } from 'react';
-import { Annotation, EditorState, RangeSetBuilder, StateField } from '@codemirror/state';
-import {
-  Decoration, EditorView, keymap, placeholder, runScopeHandlers, type DecorationSet, type ViewUpdate,
-} from '@codemirror/view';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Bold, Heading, Italic, List } from 'lucide-react';
+import { Annotation, EditorState } from '@codemirror/state';
+import { EditorView, keymap, placeholder, runScopeHandlers, type Command, type ViewUpdate } from '@codemirror/view';
 import { defaultKeymap } from '@codemirror/commands';
 import type { Edit } from '../../core/edit';
+import { IconButton } from '../IconButton';
+import {
+  activeFormats, cycleHeading, livePreview, toggleBold, toggleBullets, toggleItalic, type ActiveFormats,
+} from './livePreview';
 
 const externalChange = Annotation.define<boolean>();
 
@@ -22,6 +25,10 @@ export type TypingAreaProps = {
   look?: TypingLook;
   /** When set, the area starts at the rect's height and grows with the text, up to this height. */
   maxHeight?: number;
+  /** Where the user double-clicked, in page coordinates: the cursor starts there when it is on the text. */
+  caretAt?: { x: number; y: number };
+  /** True when the format buttons have no room on the left and line up with the right edge instead. */
+  alignBarRight?: boolean;
   text: string;
   from: number;
   onChange(edit: Edit): void;
@@ -31,6 +38,9 @@ export type TypingAreaProps = {
   takeQueuedInput(): QueuedTypingKey[];
   onDone(): void;
 };
+
+/** Height of the format buttons plus the gap above the text, so they only go above when they fit. */
+const BAR_ROOM = 46;
 
 /** Turns one CodeMirror update into one replacement against the main editor's source. */
 function changedText(update: ViewUpdate, from: number): Edit {
@@ -50,27 +60,6 @@ function changedText(update: ViewUpdate, from: number): Edit {
   };
 }
 
-const headingMark = Decoration.mark({ class: 'us-md-mark' });
-
-/** Heading lines are drawn at their heading size with the `#` marks faded, so the text looks as it will on the slide. */
-function headingLook(state: EditorState): DecorationSet {
-  const builder = new RangeSetBuilder<Decoration>();
-  for (let n = 1; n <= state.doc.lines; n++) {
-    const line = state.doc.line(n);
-    const marks = /^(#{1,6})\s/.exec(line.text)?.[1];
-    if (!marks) continue;
-    builder.add(line.from, line.from, Decoration.line({ class: `us-md-h us-md-h${marks.length}` }));
-    builder.add(line.from, line.from + marks.length, headingMark);
-  }
-  return builder.finish();
-}
-
-const headings = StateField.define<DecorationSet>({
-  create: headingLook,
-  update: (value, transaction) => (transaction.docChanged ? headingLook(transaction.state) : value),
-  provide: (field) => EditorView.decorations.from(field),
-});
-
 function replayKey(editor: EditorView, queued: QueuedTypingKey): void {
   const { key } = queued;
   if (key.length !== 1) {
@@ -85,12 +74,35 @@ function replayKey(editor: EditorView, queued: QueuedTypingKey): void {
   });
 }
 
+/**
+ * The text position under a double-click, or null when the click was on blank space (then typing starts at
+ * the top, as it does for a box opened with Enter or Add box).
+ */
+function caretOnText(editor: EditorView, point: { x: number; y: number } | undefined): number | null {
+  if (!point) return null;
+  const pos = editor.posAtCoords(point);
+  if (pos === null) return null;
+  const at = editor.coordsAtPos(pos);
+  if (!at) return null;
+  const nearX = Math.abs(point.x - at.left) <= 24;
+  const nearY = point.y >= at.top - 4 && point.y <= at.bottom + 4;
+  return nearX && nearY ? pos : null;
+}
+
+const NO_FORMATS: ActiveFormats = { bold: false, italic: false, heading: false, list: false };
+
+function sameFormats(a: ActiveFormats, b: ActiveFormats): boolean {
+  return a.bold === b.bold && a.italic === b.italic && a.heading === b.heading && a.list === b.list;
+}
+
 export function TypingArea({
-  rect, look, maxHeight, text, from, onChange, onUndo, onRedo, onReady, takeQueuedInput, onDone,
+  rect, look, maxHeight, caretAt, alignBarRight, text, from, onChange, onUndo, onRedo, onReady, takeQueuedInput, onDone,
 }: TypingAreaProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | undefined>(undefined);
+  const [formats, setFormats] = useState<ActiveFormats>(NO_FORMATS);
   const initialText = useRef(text);
+  const initialCaret = useRef(caretAt);
   const fromRef = useRef(from);
   fromRef.current = from;
   const onChangeRef = useRef(onChange);
@@ -114,7 +126,7 @@ export function TypingArea({
         extensions: [
           EditorView.lineWrapping,
           placeholder('Type here'),
-          headings,
+          livePreview(),
           EditorView.contentAttributes.of({ 'aria-label': 'Markdown on slide' }),
           EditorView.domEventHandlers({
             keydown(event) {
@@ -137,11 +149,17 @@ export function TypingArea({
               run: () => (onDoneRef.current(), true),
               stopPropagation: true,
             },
+            { key: 'Mod-b', run: toggleBold, preventDefault: true },
+            { key: 'Mod-i', run: toggleItalic, preventDefault: true },
             ...defaultKeymap,
           ]),
           EditorView.updateListener.of((update) => {
             if (update.docChanged && !update.transactions.some((t) => t.annotation(externalChange))) {
               onChangeRef.current(changedText(update, fromRef.current));
+            }
+            if (update.docChanged || update.selectionSet) {
+              const next = activeFormats(update.state);
+              setFormats((current) => (sameFormats(current, next) ? current : next));
             }
           }),
         ],
@@ -149,6 +167,9 @@ export function TypingArea({
     });
     view.current = editor;
     editor.focus();
+    const at = caretOnText(editor, initialCaret.current);
+    if (at !== null) editor.dispatch({ selection: { anchor: at } });
+    setFormats(activeFormats(editor.state));
     for (const key of takeQueuedInputRef.current()) replayKey(editor, key);
     onReadyRef.current(true);
     return () => {
@@ -168,10 +189,17 @@ export function TypingArea({
     });
   }, [text]);
 
-  const style: CSSProperties = {
-    left: rect.x,
-    top: rect.y,
-    width: rect.width,
+  const run = (command: Command) => {
+    const editor = view.current;
+    if (!editor) return;
+    command(editor);
+    editor.focus();
+  };
+  /** Keeps the text focused when a format button is pressed, so the selection stays where it was. */
+  const keepFocus = (event: React.MouseEvent) => event.preventDefault();
+
+  const wrapStyle: CSSProperties = { left: rect.x, top: rect.y, width: rect.width };
+  const areaStyle: CSSProperties = {
     ...(maxHeight === undefined
       ? { height: rect.height }
       : { minHeight: rect.height, maxHeight: Math.max(rect.height, maxHeight) }),
@@ -183,5 +211,20 @@ export function TypingArea({
       '--us-typing-pad': `${look.padding}px`,
     }),
   };
-  return <div className={maxHeight === undefined ? 'us-typing-area' : 'us-typing-area us-typing-grow'} ref={host} style={style} />;
+  return (
+    <div
+      className="us-typing-wrap"
+      style={wrapStyle}
+      data-bar={rect.y >= BAR_ROOM ? 'above' : 'below'}
+      data-align={alignBarRight ? 'right' : 'left'}
+    >
+      <div className="us-typing-bar" role="toolbar" aria-label="Text style">
+        <IconButton label="Bold (Ctrl+B)" icon={Bold} aria-pressed={formats.bold} onMouseDown={keepFocus} onClick={() => run(toggleBold)} />
+        <IconButton label="Italic (Ctrl+I)" icon={Italic} aria-pressed={formats.italic} onMouseDown={keepFocus} onClick={() => run(toggleItalic)} />
+        <IconButton label="Heading" icon={Heading} aria-pressed={formats.heading} onMouseDown={keepFocus} onClick={() => run(cycleHeading)} />
+        <IconButton label="Bulleted list" icon={List} aria-pressed={formats.list} onMouseDown={keepFocus} onClick={() => run(toggleBullets)} />
+      </div>
+      <div className={maxHeight === undefined ? 'us-typing-area' : 'us-typing-area us-typing-grow'} ref={host} style={areaStyle} />
+    </div>
+  );
 }

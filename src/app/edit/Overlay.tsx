@@ -28,7 +28,7 @@ type OnEdit = (make: (deck: Deck) => EditResult | null, opts?: { userEvent?: str
 type Geometry = { anchor: DOMRect; bounds: DOMRect };
 type Point = { x: number; y: number };
 type TypingTarget = { kind: 'box'; index: number } | { kind: 'loose'; index: number };
-type Typing = TypingTarget & { from: number; text: string; session: number };
+type Typing = TypingTarget & { from: number; text: string; session: number; caret?: Point };
 type Drag = {
   pointerId: number;
   start: Point;
@@ -107,7 +107,7 @@ function typingLook(stage: HTMLElement, element: Element): TypingLook {
     color: style.color,
     fontFamily: style.fontFamily,
     // The size the text has on screen, so it does not jump when typing starts. Never too small to read.
-    fontSize: clamp(Math.round(parseFloat(style.fontSize) * scale * 10) / 10, 12, 44),
+    fontSize: clamp(Math.round(parseFloat(style.fontSize) * scale * 10) / 10, 10, 44),
     padding: clamp(Math.round(parseFloat(style.paddingTop) * scale), 2, 40),
   };
 }
@@ -300,7 +300,7 @@ export function Overlay({
     setTyping(next);
   }, []);
 
-  const beginTyping = useCallback((target: TypingTarget, deck = getDeck()): boolean => {
+  const beginTyping = useCallback((target: TypingTarget, deck = getDeck(), caret?: Point): boolean => {
     const source = deck?.source ?? getSource();
     const freshSlide = deck?.slides[slide.index];
     const range = freshSlide && targetRange(source, freshSlide, target);
@@ -313,6 +313,7 @@ export function Overlay({
       from: range.from,
       text: source.slice(range.from, range.to),
       session: ++typingSession.current,
+      caret,
     });
     setSelected(target.kind === 'box' ? target.index : null);
     lastPoint.current = null;
@@ -375,7 +376,7 @@ export function Overlay({
     if (!typing) return;
     const onOutsidePointerDown = (event: PointerEvent) => {
       const target = event.target;
-      if (target instanceof Element && target.closest('.us-typing-area')) return;
+      if (target instanceof Element && target.closest('.us-typing-area, .us-typing-bar')) return;
       storeTyping(null);
     };
     document.addEventListener('pointerdown', onOutsidePointerDown, true);
@@ -637,7 +638,7 @@ export function Overlay({
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return;
       const target = event.target;
-      if (target instanceof Element && target.closest('.us-floating-bar, .us-typing-area')) return;
+      if (target instanceof Element && target.closest('.us-floating-bar, .us-typing-area, .us-typing-bar')) return;
       const point = { x: event.clientX, y: event.clientY };
       const hits = boxesAt(stage, event.clientX, event.clientY);
       const handle = target instanceof Element ? target.closest<HTMLElement>('.us-handle[data-edge]') : null;
@@ -780,7 +781,7 @@ export function Overlay({
     /** Shows what is under the pointer: an outline on a box, and a cursor for what a press would do. */
     const showHover = (event: PointerEvent) => {
       const target = event.target;
-      if (typingRef.current || (target instanceof Element && target.closest('.us-floating-bar, .us-typing-area, .us-handle'))) {
+      if (typingRef.current || (target instanceof Element && target.closest('.us-floating-bar, .us-typing-area, .us-typing-bar, .us-handle'))) {
         frame.style.cursor = '';
         setHover(null);
         return;
@@ -864,13 +865,14 @@ export function Overlay({
       if (event.button !== 0) return;
       if (suppressClick.current) return;
       const target = event.target;
-      if (target instanceof Element && target.closest('.us-floating-bar')) return;
+      if (target instanceof Element && target.closest('.us-floating-bar, .us-typing-bar')) return;
       if (boxesAt(stage, event.clientX, event.clientY).length === 0) onSelectSlide?.();
     };
 
     const onDoubleClick = (event: MouseEvent) => {
       if (event.button !== 0) return;
-      if (event.target instanceof Element && event.target.closest('.us-typing-area')) return;
+      if (event.target instanceof Element && event.target.closest('.us-typing-area, .us-typing-bar')) return;
+      const caret = { x: event.clientX, y: event.clientY };
       const freshDeck = getDeck();
       const freshSlide = freshDeck?.slides[slide.index];
       const looseIndex = freshSlide && loosePieceAt(
@@ -882,7 +884,7 @@ export function Overlay({
       if (looseIndex !== undefined) {
         event.preventDefault();
         onSelectSlide?.();
-        beginTyping({ kind: 'loose', index: looseIndex }, freshDeck);
+        beginTyping({ kind: 'loose', index: looseIndex }, freshDeck, caret);
         return;
       }
       const hits = boxesAt(stage, event.clientX, event.clientY);
@@ -890,7 +892,7 @@ export function Overlay({
         const boxIndex = selected !== null && hits.includes(selected) ? selected : hits[0]!;
         event.preventDefault();
         onSelectSlide?.();
-        beginTyping({ kind: 'box', index: boxIndex }, freshDeck);
+        beginTyping({ kind: 'box', index: boxIndex }, freshDeck, caret);
         return;
       }
       if (!isEmptyPoint(stage, event.clientX, event.clientY)) return;
@@ -904,7 +906,7 @@ export function Overlay({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.target instanceof Element && event.target.closest('.us-font-picker')) return;
-      if (event.target instanceof Element && event.target.closest('.us-typing-area')) return;
+      if (event.target instanceof Element && event.target.closest('.us-typing-area, .us-typing-bar')) return;
       if (typingRef.current && !typingAreaReady.current) {
         event.preventDefault();
         event.stopPropagation();
@@ -1056,6 +1058,8 @@ export function Overlay({
             rect={typingRect}
             look={look}
             maxHeight={typingMaxHeight}
+            caretAt={typing.caret}
+            alignBarRight={typingRect.x + 180 > frame.clientWidth}
             text={typing.text}
             from={typing.from}
             onChange={changeTyping}

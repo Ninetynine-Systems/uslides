@@ -300,9 +300,28 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
   white-space: normal;
   pointer-events: none;
 }
-.us-typing-area {
+/* The text being typed on a slide, with its format buttons above or below it. */
+.us-typing-wrap { position: absolute; z-index: 4; pointer-events: none; }
+.us-typing-bar {
   position: absolute;
-  z-index: 4;
+  left: 0;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-pop);
+  pointer-events: auto;
+}
+.us-typing-wrap[data-bar='above'] .us-typing-bar { bottom: calc(100% + 10px); }
+.us-typing-wrap[data-bar='below'] .us-typing-bar { top: calc(100% + 10px); }
+.us-typing-wrap[data-align='right'] .us-typing-bar { right: 0; left: auto; }
+.us-typing-bar .icon-btn { width: 30px; height: 30px; border-radius: 6px; }
+.us-typing-bar .icon-btn[aria-pressed='true'] { color: var(--accent-ink); background: var(--accent-soft); }
+.us-typing-area {
+  position: relative;
   overflow: hidden;
   color: var(--us-typing-fg, #111827);
   background: var(--us-typing-bg, #fff);
@@ -332,7 +351,33 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
 .us-typing-area .us-md-h1 { font-size: 2.2em; }
 .us-typing-area .us-md-h2 { font-size: 1.6em; }
 .us-typing-area .us-md-h3 { font-size: 1.25em; }
-.us-typing-area .us-md-mark { opacity: 0.3; }
+.us-typing-area .us-md-mark { opacity: 0.35; }
+.us-typing-area .us-md-strong { font-weight: 700; }
+.us-typing-area .us-md-em { font-style: italic; }
+.us-typing-area .us-md-strike { text-decoration: line-through; }
+.us-typing-area .us-md-link { text-decoration: underline; text-underline-offset: 2px; }
+.us-typing-area .us-md-code {
+  padding: 0 0.2em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: rgb(127 127 127 / 0.16);
+  border-radius: 0.2em;
+}
+.us-typing-area .us-md-quote { padding-left: 0.7em; border-left: 0.15em solid rgb(127 127 127 / 0.45); opacity: 0.85; }
+.us-typing-area .us-md-codeblock {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: rgb(127 127 127 / 0.12);
+}
+.us-typing-area .us-md-li { padding-left: 0.4em !important; }
+.us-typing-area .us-md-bullet { display: inline-block; min-width: 0.6em; }
+.us-typing-area .us-md-image {
+  display: inline-block;
+  padding: 0 0.5em;
+  font-size: 0.8em;
+  background: rgb(127 127 127 / 0.16);
+  border-radius: 0.6em;
+}
 .us-typing-area .cm-line { padding: 0; }
 .us-selection {
   position: absolute;

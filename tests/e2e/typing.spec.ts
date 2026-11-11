@@ -301,7 +301,8 @@ test('a list split by a box maps each rendered list to its source piece', async 
   await openDeck(page, source);
 
   await page.locator('.us-loose').getByText('Tail', { exact: true }).dblclick();
-  await expect(typingArea(page)).toHaveText('- Tail');
+  // The list mark shows as a bullet, as it does on the slide.
+  await expect(typingArea(page)).toHaveText('• Tail');
   await page.keyboard.press('ControlOrMeta+End');
   await page.keyboard.insertText('!');
 
@@ -431,4 +432,27 @@ test('long text scrolls inside the box instead of growing it', async ({ page }) 
     (el) => el.scrollHeight > el.clientHeight,
   );
   expect(scrolls).toBe(true);
+});
+
+test('typing on a slide shows text as it looks on the slide, and the format buttons edit the Markdown', async ({ page }) => {
+  await openDeck(page, '::: box col=1-6 row=1-3\n## Title\n\nSome **bold** words\n:::\n');
+  // Blank space in the box: the cursor starts at the top, on the heading line, so its # shows.
+  const box = await page.locator('.us-box[data-box="0"]').boundingBox();
+  if (!box) throw new Error('The box is not visible');
+  await page.mouse.dblclick(box.x + box.width * 0.75, box.y + box.height * 0.85);
+  await expect(typingArea(page)).toBeFocused();
+  // Away from the bold word, its ** marks are hidden.
+  await expect(typingArea(page).locator('.cm-line').nth(2)).toHaveText('Some bold words');
+
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.press('Shift+ControlOrMeta+ArrowLeft');
+  await page.keyboard.press('ControlOrMeta+b');
+  await expect.poll(() => getSource(page)).toContain('Some **bold** **words**');
+
+  await page.getByRole('button', { name: 'Bold (Ctrl+B)' }).click();
+  await expect.poll(() => getSource(page)).toContain('Some **bold** words');
+  await expect(typingArea(page)).toBeFocused();
+
+  await page.getByRole('button', { name: 'Bulleted list' }).click();
+  await expect.poll(() => getSource(page)).toContain('- Some **bold** words');
 });
