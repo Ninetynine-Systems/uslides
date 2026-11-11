@@ -93,7 +93,7 @@ test('reloading on /present/3 shows slide 3', async ({ page }) => {
   await expect.poll(() => slideNumber(page)).toBe(3);
   await page.reload();
   await expect(present(page)).toBeVisible();
-  await expect(shown(page)).toContainText('Left box');
+  await expect(shown(page)).toContainText('Drag me');
   expect(await slideNumber(page)).toBe(3);
 });
 
@@ -140,7 +140,7 @@ test('Ctrl/Cmd+Enter in the editor presents the slide with the cursor', async ({
   await page.getByRole('group', { name: 'Slide 3' }).click(); // moves the cursor into slide 3
   await page.keyboard.press('ControlOrMeta+Enter');
   await expect(present(page)).toBeVisible();
-  await expect(shown(page)).toContainText('Left box');
+  await expect(shown(page)).toContainText('Drag me');
   expect(await slideNumber(page)).toBe(3);
   await page.keyboard.press('Escape');
   await expect(present(page)).toHaveCount(0);

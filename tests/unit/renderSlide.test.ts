@@ -107,6 +107,11 @@ describe('renderSlide', () => {
     expect(render(source).querySelector('.us-box')!.classList.contains('us-empty')).toBe(false);
   });
 
+  it('does not mark an empty box that has a colour, such as one square of a picture', () => {
+    const source = '::: box col=1 row=1 bg=#ff6b9a\n:::\n';
+    expect(render(source, { markEmpty: true }).querySelector('.us-box')!.classList.contains('us-empty')).toBe(false);
+  });
+
   it('renders markdown and resolves images', () => {
     const stage = render('![a](./x.png)', { resolveImage: () => 'https://example.com/x.png' });
     expect(stage.querySelector('img')!.getAttribute('src')).toBe('https://example.com/x.png');

@@ -13,6 +13,10 @@ async function openSample(page: Page): Promise<void> {
   await expect(editor(page)).toBeVisible();
 }
 
+async function boxCount(page: Page): Promise<number> {
+  return (await getSource(page)).match(/^::: box\b/gm)?.length ?? 0;
+}
+
 async function dragAcrossHint(page: Page): Promise<void> {
   const bounds = await page.locator('.us-hint').boundingBox();
   if (!bounds) throw new Error('The hint is not visible');
@@ -32,7 +36,7 @@ test('the hint shows only on the shown slide when it has no boxes', async ({ pag
   await expect(hint).toHaveText(HINT_TEXT);
 
   const thirdSlide = page.locator('.slide-card').nth(2);
-  await expect(thirdSlide.locator('.us-box')).toHaveCount(2);
+  await expect(thirdSlide.locator('.us-box')).toHaveCount(11);
   await thirdSlide.locator('.us-box').first().click();
   await expect(hint).toHaveCount(0);
 });
@@ -71,9 +75,10 @@ test('dragging through the hint draws a box and hides it for good', async ({ pag
   await openSample(page);
   await expect(page.locator('.us-hint')).toBeVisible();
 
+  const boxes = await boxCount(page);
   await dragAcrossHint(page);
 
-  await expect.poll(async () => (await getSource(page)).match(/^::: box\b/gm)?.length ?? 0).toBe(3);
+  await expect.poll(() => boxCount(page)).toBe(boxes + 1);
   await expect(page.locator('.us-hint')).toHaveCount(0);
   await page.reload();
   await expect(page.locator('.slide-card')).toHaveCount(4);
@@ -138,9 +143,10 @@ test('storage errors do not stop the hint or drawing', async ({ page }) => {
   await openSample(page);
   await expect(page.locator('.us-hint')).toBeVisible();
 
+  const boxes = await boxCount(page);
   await dragAcrossHint(page);
 
-  await expect.poll(async () => (await getSource(page)).match(/^::: box\b/gm)?.length ?? 0).toBe(3);
+  await expect.poll(() => boxCount(page)).toBe(boxes + 1);
   await expect(page.locator('.us-hint')).toHaveCount(0);
   expect(errors).toEqual([]);
 });

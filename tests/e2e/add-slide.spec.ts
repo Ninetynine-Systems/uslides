@@ -34,7 +34,7 @@ test('adding from the preview bar inserts after the shown slide', async ({ page 
   await expect(page.getByText('5 slides', { exact: true })).toBeVisible();
   await expect(page.locator('.slide-card').nth(2)
     .getByRole('heading', { name: 'New slide', exact: true })).toBeVisible();
-  await expect(page.locator('.slide-card').nth(3)).toContainText('Left box');
+  await expect(page.locator('.slide-card').nth(3)).toContainText('Drag me');
 });
 
 test('adding a slide while renaming keeps both changes after reload', async ({ page }) => {
@@ -82,7 +82,7 @@ test('adding in one-slide view shows the new slide', async ({ page }) => {
 
 test('adding a slide commits text from an open box editor first', async ({ page }) => {
   await openSample(page);
-  const leftBox = page.locator('.slide-card').nth(2).locator('.us-box').filter({ hasText: 'Left box' });
+  const leftBox = page.locator('.slide-card').nth(2).locator('.us-box').filter({ hasText: 'Drag me' });
   await leftBox.dblclick();
   const typingArea = page.getByRole('textbox', { name: 'Markdown on slide' });
   await expect(typingArea).toBeFocused();

@@ -9,7 +9,7 @@ import './slide.css';
 export type RenderOptions = {
   /** Draw the grid lines over the slide (editor preview only). */
   showGrid?: boolean;
-  /** Mark blank boxes so they stay visible in the editor preview. */
+  /** Mark blank boxes with no colour so they stay visible in the editor preview. */
   markEmpty?: boolean;
   /** Mark loose blocks with their source line (editor preview only). */
   markLines?: boolean;
@@ -55,7 +55,8 @@ function mayUseFont(name: string, blockExternal: boolean | undefined): boolean {
 function renderBox(box: Box, index: number, opts: RenderOptions): HTMLElement {
   const el = document.createElement('div');
   el.className = `us-box us-align-${box.align} us-valign-${box.valign} us-fit-${box.fit}`;
-  if (opts.markEmpty && box.markdown.trim() === '') el.classList.add('us-empty');
+  // A box with a colour is already visible, for example one square of a picture drawn with boxes.
+  if (opts.markEmpty && box.markdown.trim() === '' && !box.bg) el.classList.add('us-empty');
   el.dataset.box = String(index);
   el.style.setProperty('grid-column', `${box.col[0]} / ${box.col[1] + 1}`);
   el.style.setProperty('grid-row', `${box.row[0]} / ${box.row[1] + 1}`);

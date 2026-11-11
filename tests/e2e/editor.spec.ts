@@ -185,12 +185,13 @@ test('clicking a slide moves the cursor to it', async ({ page }) => {
   await page.goto('/?test');
   await expect(page.locator('.us-stage')).toHaveCount(4);
   await expect(editor(page)).toBeVisible(); // the editor loads lazily
-  // Slide 3's centre is a box now, so use its empty top row to test selecting the slide itself.
+  // Slide 3's centre is a box, so use its top row, which only has the title, to select the slide itself.
   await page.getByRole('group', { name: 'Slide 3' }).click({ position: { x: 10, y: 10 } });
   await page.keyboard.type('@@');
   const src = await getSource(page);
   expect(src.indexOf('@@')).toBeGreaterThan(src.indexOf('# The basics'));
-  expect(src.indexOf('@@')).toBeLessThan(src.indexOf('::: box'));
+  expect(src.indexOf('@@')).toBeGreaterThan(src.indexOf('What you type'));
+  expect(src.indexOf('@@')).toBeLessThan(src.indexOf('# Boxes go anywhere'));
 });
 
 test('a second tab picks up a saved change silently', async ({ page, context }) => {
