@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type Ref } from 'react';
 import {
-  Copy, Download, Ellipsis, FileCode, Info, FileText, FileUp, FolderOpen, ImageDown, Link, Link2, Moon, PanelLeftClose,
-  PanelLeftOpen, Play, Printer, Share2, Sun, Trash2, TriangleAlert, Type,
+  ChevronDown, Copy, Download, Ellipsis, FileCode, Info, FileText, FileUp, FolderOpen, ImageDown, Link, Link2, Moon,
+  PanelLeftClose, PanelLeftOpen, Play, Presentation, Printer, Redo2, Share2, Sun, Trash2, TriangleAlert, Type, Undo2,
 } from 'lucide-react';
 import { IconButton, LabelButton, MenuItem } from './IconButton';
 import { DeckName } from './DeckName';
@@ -22,6 +22,9 @@ type Props = {
   onDelete(): void;
   onAbout(): void;
   onPresent(): void;
+  onPresenterView(): void;
+  /** Undefined where the deck cannot be edited (a narrow screen), so the buttons are not shown. */
+  history?: { canUndo: boolean; canRedo: boolean; onUndo(): void; onRedo(): void };
   /** Copies the share link. Resolves to the link when the clipboard could not be written, else undefined. */
   onCopyLink(): Promise<string | undefined>;
   onPackImages(): void;
@@ -131,8 +134,47 @@ function DownloadMenu({ onMarkdown, onHtml, onPrint }: { onMarkdown(): void; onH
   );
 }
 
+const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+const MOD = MAC ? '⌘' : 'Ctrl+';
+
+function PresentButton({ onPresent, onPresenterView }: { onPresent(): void; onPresenterView(): void }) {
+  const popup = usePopup();
+  const container = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  usePopupDismiss(popup.open, popup.close, [container], trigger);
+  return (
+    <div ref={container} className="share present-split">
+      <LabelButton label="Present" icon={Play} className="primary" onClick={onPresent} />
+      <button
+        ref={trigger}
+        type="button"
+        className="label-btn primary present-more"
+        aria-label="Notes and second screen"
+        title="Notes and second screen"
+        aria-haspopup="true"
+        aria-expanded={popup.open}
+        onClick={popup.toggle}
+      >
+        <ChevronDown size={16} aria-hidden />
+      </button>
+      {popup.open && (
+        <div className="share-menu present-menu">
+          <MenuItem label="Present" icon={Play} onClick={() => { popup.close(); onPresent(); }} />
+          <MenuItem
+            label="Presenter view, with notes"
+            icon={Presentation}
+            onClick={() => { popup.close(); onPresenterView(); }}
+          />
+          <p className="menu-note">Shows your notes and the next slide here, and the slides in a second window for the audience.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Toolbar({
-  listOpen, onToggleList, name, renameDisabled, deckFontOpen, onDeckFont, deckFontTriggerRef, onRename, onDuplicate, onDelete, onAbout, onPresent, onCopyLink,
+  listOpen, onToggleList, name, renameDisabled, deckFontOpen, onDeckFont, deckFontTriggerRef, onRename, onDuplicate, onDelete, onAbout, onPresent,
+  onPresenterView, history, onCopyLink,
   onPackImages, onDownloadMarkdown, onDownloadHtml, onPrint, onOpen, onOpenFolder, link, needsAccess, readOnly, onGrant, onUnlink,
 }: Props) {
   const { theme, toggle: toggleTheme } = useTheme();
@@ -146,6 +188,17 @@ export function Toolbar({
         aria-controls="decks"
       />
       <DeckName name={name} disabled={renameDisabled} onRename={onRename} />
+      {history && (
+        <div className="toolbar-history" role="group" aria-label="History">
+          <IconButton label={`Undo (${MOD}Z)`} icon={Undo2} disabled={!history.canUndo} onClick={history.onUndo} />
+          <IconButton
+            label={`Redo (${MAC ? '⇧⌘Z' : 'Ctrl+Y'})`}
+            icon={Redo2}
+            disabled={!history.canRedo}
+            onClick={history.onRedo}
+          />
+        </div>
+      )}
       <div className="toolbar-actions">
         {link && (needsAccess || readOnly) && (
           <button type="button" className="grant-btn" onClick={onGrant}>
@@ -170,7 +223,7 @@ export function Toolbar({
         />
         <DownloadMenu onMarkdown={onDownloadMarkdown} onHtml={onDownloadHtml} onPrint={onPrint} />
         <ShareMenu onCopyLink={onCopyLink} />
-        <LabelButton label="Present" icon={Play} className="primary" onClick={onPresent} />
+        <PresentButton onPresent={onPresent} onPresenterView={onPresenterView} />
         <IconButton
           label={theme === 'dark' ? 'Light theme' : 'Dark theme'}
           icon={theme === 'dark' ? Sun : Moon}

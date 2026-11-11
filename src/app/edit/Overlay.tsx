@@ -16,6 +16,7 @@ import {
 import {
   centredSpan, clampNewBox, findFreeArea, moveSpan, resizeSpan, type Edge, type GridArea,
 } from '../../core/layout';
+import { boxClipboardText, pasteBoxes } from '../../core/boxClipboard';
 import { deleteSlide, duplicateSlide, moveSlide, setSlideAttrs, setSlideGrid } from '../../core/slideEdit';
 import type { Deck } from '../../core/parse';
 import type { Box, Slide } from '../../core/slide';
@@ -372,8 +373,16 @@ export function Overlay({
       if (target instanceof Element && target.closest('.us-typing-area, .us-font-picker, input, select, textarea')) return;
       onSlideSelectRef.current?.(false);
     };
+    // Clicking into the text editor turns to the text, so the slide is no longer selected.
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('.cm-editor')) onSlideSelectRef.current?.(false);
+    };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+    };
   }, [active, slideSelected]);
 
   // Another slide became current: this one is no longer selected. Only on that change, so a slide that is
@@ -566,6 +575,60 @@ export function Overlay({
     setSelected(null);
     lastPoint.current = null;
   }, [withSelected]);
+
+  // Copy, cut and paste boxes with the usual keys. The clipboard holds the box's Markdown, so a copied box
+  // can also be pasted into the text editor, another deck, or another app, and pasted back.
+  useEffect(() => {
+    if (!active) return;
+    const ours = () => document.activeElement === frame && !typingRef.current;
+    // A click on a slide moves the keyboard to the text editor at that slide, but while the slide is
+    // selected, a pasted box still belongs on it. Text that is not a box pastes into the editor as usual.
+    const pasteHere = (event: ClipboardEvent) => {
+      if (typingRef.current) return false;
+      if (document.activeElement === frame) return true;
+      const target = event.target;
+      if (target instanceof Element && target.closest('input, textarea, .us-font-picker')) return false;
+      return slideSelectedRef.current === true;
+    };
+    const onCopy = (event: ClipboardEvent) => {
+      if (!ours() || selected === null || !event.clipboardData) return;
+      const deck = getDeck();
+      const box = deck?.slides[slide.index]?.boxes[selected];
+      if (!deck || !box) return;
+      event.preventDefault();
+      event.clipboardData.setData('text/plain', boxClipboardText(deck.source, box));
+      if (event.type === 'cut') remove();
+    };
+    const onPaste = (event: ClipboardEvent) => {
+      if (!pasteHere(event) || !event.clipboardData) return;
+      const text = event.clipboardData.getData('text/plain');
+      let added = 0;
+      let first = 0;
+      onEdit((deck) => {
+        const freshSlide = deck.slides[slide.index];
+        const result = freshSlide && pasteBoxes(deck.source, freshSlide, text);
+        if (!freshSlide || !result) return null;
+        added = result.count;
+        first = freshSlide.boxes.length;
+        return result;
+      });
+      if (added === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (slideSelectedRef.current) onSlideSelect?.(false);
+      setSelected(first + added - 1);
+      lastPoint.current = null;
+    };
+    document.addEventListener('copy', onCopy);
+    document.addEventListener('cut', onCopy);
+    // Capture, so a box pasted while the slide is selected is not also pasted into the text editor.
+    document.addEventListener('paste', onPaste, true);
+    return () => {
+      document.removeEventListener('copy', onCopy);
+      document.removeEventListener('cut', onCopy);
+      document.removeEventListener('paste', onPaste, true);
+    };
+  }, [active, frame, getDeck, onEdit, onSlideSelect, remove, selected, slide.index]);
 
   const insert = useCallback(
     (area: GridArea) => {

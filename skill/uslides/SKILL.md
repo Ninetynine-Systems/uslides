@@ -142,6 +142,15 @@ slide. It may span several lines.
 <!-- note: Say that the numbers are from September. -->
 ```
 
+Notes show in the presenter view (the arrow next to Present, then Presenter view).
+It shows the notes, the next slide and a timer on the presenter's screen, while a
+second window shows the slides to the audience. A link ending in
+`#/deck/<id>/presenter/<slide>` opens it directly.
+
+To copy a box from one slide to another, copy its `::: box` block: the app puts
+exactly that text on the clipboard when someone copies a box, and pastes it back
+as a box.
+
 Other `<!-- ... -->` comments are hidden too. Raw HTML tags are not rendered:
 they show up as literal text, so do not write HTML.
 

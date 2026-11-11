@@ -12,6 +12,10 @@ describe('route', () => {
     expect(parseRoute('#/deck/abc/present/x')).toEqual({ deckId: 'abc' });
     expect(parseRoute('#/deck/abc/present/0')).toEqual({ deckId: 'abc', present: 1 });
   });
+  it('builds and reads the presenter view', () => {
+    expect(deckHash('abc', 2, true)).toBe('#/deck/abc/presenter/2');
+    expect(parseRoute('#/deck/abc/presenter/2')).toEqual({ deckId: 'abc', present: 2, presenter: true });
+  });
   it('leaves unknown forms alone', () => {
     expect(parseRoute('')).toEqual({});
     expect(parseRoute('#z=abcdef')).toEqual({});

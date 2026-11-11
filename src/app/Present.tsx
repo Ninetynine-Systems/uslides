@@ -99,6 +99,11 @@ export function Present({ deck, images, blockExternal, slide, onGo, onExit }: Pr
       if (e.altKey || e.ctrlKey || e.metaKey) return;
       const { current: at, count: n, onGo: go, onExit: exit } = latest.current;
       if (e.key === 'Escape') return exit();
+      // F goes full screen, for a window that opened without it (the audience window, dragged to a projector).
+      if (e.key === 'f' || e.key === 'F') {
+        if (!document.fullscreenElement && document.fullscreenEnabled) root.current?.requestFullscreen().catch(() => undefined);
+        return;
+      }
       const target = slideTarget(e.key, at, n);
       if (target === undefined) return;
       e.preventDefault();

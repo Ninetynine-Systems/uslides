@@ -25,6 +25,8 @@ import { ConflictDialog, FilePicker } from './FileDialogs';
 import { isImageDrop } from './editor/dropMarker';
 import { Notices, useNotices } from './Notices';
 import { Present } from './Present';
+import { PresenterView } from './PresenterView';
+import { isAudienceWindow, openAudienceWindow, openPresentChannel } from './presentSync';
 import { imageKey, Preview, type PreviewView, useImageUrls } from './Preview';
 import { PrivacyBanner } from './PrivacyBanner';
 import { isBlocked, readAskFirst, writeAskFirst } from './privacy';
@@ -236,6 +238,12 @@ export function App() {
   const workspace = useRef<HTMLElement>(null);
   /** 1-based slide shown in present mode, or undefined when not presenting. */
   const [presenting, setPresenting] = useState<number | undefined>(() => parseRoute(location.hash).present);
+  /** True when presenting shows the presenter view (notes, next slide) instead of the slide itself. */
+  const [presenter, setPresenter] = useState(() => parseRoute(location.hash).presenter === true);
+  const presenterRef = useRef(presenter);
+  presenterRef.current = presenter;
+  const [history_, setHistory] = useState({ canUndo: false, canRedo: false });
+  const onHistoryChange = useCallback((canUndo: boolean, canRedo: boolean) => setHistory({ canUndo, canRedo }), []);
 
   useEffect(() => {
     deckFont.close();
@@ -517,6 +525,7 @@ export function App() {
       const id = route.deckId;
       if (!id) return;
       setPresenting(route.present);
+      setPresenter(route.presenter === true);
       // A link to a deck that no longer exists (for example Back after deleting it) shows another deck.
       void resolveDeck(id).then((found) => {
         if (found !== id) {
@@ -537,14 +546,16 @@ export function App() {
 
   const slideCount = ready ? current.deck?.slides.length : undefined;
 
-  /** Starts presenting. Adds a history entry, so Back leaves present mode. */
+  /** Starts presenting, or the presenter view. Adds a history entry, so Back leaves present mode. */
   const startPresenting = useCallback(
-    (slide: number) => {
+    (slide: number, asPresenter = false) => {
       // Use the text as it is now, not as it was 150 ms ago.
       const count = flushParse()?.slides.length ?? slideCount;
-      if (!deckId || !count) return;
-      history.pushState({ present: true }, '', deckHash(deckId, slide));
+      if (!deckId || !count) return false;
+      history.pushState({ present: true }, '', deckHash(deckId, slide, asPresenter));
+      setPresenter(asPresenter);
       setPresenting(slide);
+      return true;
     },
     [deckId, slideCount, flushParse],
   );
@@ -553,20 +564,96 @@ export function App() {
   const goToSlide = useCallback(
     (slide: number) => {
       if (!deckId) return;
-      history.replaceState(history.state, '', deckHash(deckId, slide));
+      history.replaceState(history.state, '', deckHash(deckId, slide, presenterRef.current));
       setPresenting(slide);
     },
     [deckId],
   );
+  const goToSlideRef = useRef(goToSlide);
+  goToSlideRef.current = goToSlide;
+
+  // The presenter view and the audience window, in two windows of this browser, stay on the same slide.
+  const audienceWindow = useRef<Window | null>(null);
+  const [audienceOpen, setAudienceOpen] = useState(false);
+  const channel = useRef<ReturnType<typeof openPresentChannel> | null>(null);
+  useEffect(() => {
+    const ch = openPresentChannel((message) => {
+      const id = deckIdRef.current;
+      if (!id || message.deckId !== id || presentingRef.current === undefined) return;
+      if (message.type === 'go') {
+        // Only follow; never send back, so quick presses in one window cannot bounce between the two.
+        if (message.slide !== presentingRef.current) goToSlideRef.current(message.slide);
+      } else if (message.type === 'hello') {
+        ch.post({ type: 'go', deckId: id, slide: presentingRef.current });
+      } else if (message.type === 'end' && isAudienceWindow()) {
+        window.close();
+      }
+    });
+    channel.current = ch;
+    return () => ch.close();
+  }, []);
+  // A new audience window asks where the presenter is, instead of moving the presenter to its own slide.
+  const presentingNow = presenting !== undefined;
+  useEffect(() => {
+    if (presentingNow && deckId && isAudienceWindow()) channel.current?.post({ type: 'hello', deckId });
+  }, [presentingNow, deckId]);
+  /** A slide change made in this window: shown here and sent to the other window. */
+  const goToSlideHere = useCallback(
+    (slide: number) => {
+      goToSlide(slide);
+      if (deckId) channel.current?.post({ type: 'go', deckId, slide });
+    },
+    [deckId, goToSlide],
+  );
+
+  // Notice when the audience window is closed (by its own Esc, or by hand).
+  useEffect(() => {
+    if (!audienceOpen) return;
+    const timer = window.setInterval(() => {
+      if (!audienceWindow.current || audienceWindow.current.closed) {
+        audienceWindow.current = null;
+        setAudienceOpen(false);
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [audienceOpen]);
+
+  const openAudience = useCallback(async () => {
+    if (!deckId) return false;
+    const slide = presentingRef.current ?? 1;
+    const url = `${location.pathname}${location.search}${deckHash(deckId, slide)}`;
+    const { win } = await openAudienceWindow(url);
+    audienceWindow.current = win;
+    setAudienceOpen(win !== null);
+    return win !== null;
+  }, [deckId]);
+
+  /** Starts the presenter view here and opens the audience window, in the same click. */
+  const startPresenterView = useCallback(
+    (slide: number) => {
+      if (!startPresenting(slide, true)) return;
+      void openAudience();
+    },
+    [openAudience, startPresenting],
+  );
 
   const stopPresenting = useCallback(() => {
     if (!deckId) return;
+    if (presenterRef.current) {
+      channel.current?.post({ type: 'end', deckId });
+      audienceWindow.current?.close();
+      audienceWindow.current = null;
+      setAudienceOpen(false);
+    }
+    // The audience window goes away when its presentation ends. If the browser keeps it open, it shows the deck.
+    if (isAudienceWindow()) window.close();
     if ((history.state as { present?: boolean } | null)?.present) {
       history.back(); // the hashchange handler then clears present mode
     } else {
       history.replaceState(null, '', deckHash(deckId));
     }
     setPresenting(undefined);
+    setPresenter(false);
   }, [deckId]);
 
   /** The slide the editor cursor is in: the one whose range holds it, else the last one starting before it. */
@@ -920,6 +1007,12 @@ export function App() {
         onDelete={guarded(remove)}
         onAbout={() => setAboutOpen(true)}
         onPresent={() => startPresenting(1)}
+        onPresenterView={() => startPresenterView(1)}
+        history={wide ? {
+          ...history_,
+          onUndo: undoOnSlide,
+          onRedo: redoOnSlide,
+        } : undefined}
         onCopyLink={copyLink}
         onPackImages={guarded(packAllImages)}
         onDownloadMarkdown={guarded(downloadMd)}
@@ -972,6 +1065,7 @@ export function App() {
               onCursorChange={(pos) => setCurrentSlide(slideAtPosition(deckRef.current, pos) - 1)}
               warnings={warnings}
               onNotice={notify}
+              onHistoryChange={onHistoryChange}
             />
             </Suspense>
           )}
@@ -1058,13 +1152,25 @@ export function App() {
         />
       )}
     </div>
-    {showPresent && (
+    {showPresent && presenter && (
+      <PresenterView
+        deck={current.deck!}
+        images={images}
+        blockExternal={blockExternal}
+        slide={presenting}
+        onGo={goToSlideHere}
+        onExit={stopPresenting}
+        onOpenAudience={openAudience}
+        audienceOpen={audienceOpen}
+      />
+    )}
+    {showPresent && !presenter && (
       <Present
         deck={current.deck!}
         images={images}
         blockExternal={blockExternal}
         slide={presenting}
-        onGo={goToSlide}
+        onGo={goToSlideHere}
         onExit={stopPresenting}
       />
     )}

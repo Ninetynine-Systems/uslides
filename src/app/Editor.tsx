@@ -4,7 +4,8 @@ import {
   EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers,
 } from '@codemirror/view';
 import {
-  defaultKeymap, history, historyKeymap, indentWithTab, isolateHistory, redo as redoCommand, undo as undoCommand,
+  defaultKeymap, history, historyKeymap, indentWithTab, isolateHistory, redo as redoCommand, redoDepth, undo as undoCommand,
+  undoDepth,
 } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { bracketMatching, indentUnit } from '@codemirror/language';
@@ -38,6 +39,8 @@ type Props = {
   warnings?: Warning[];
   /** Shows a message to the user (for example that a pasted image is too large). */
   onNotice(text: string): void;
+  /** Reports whether there is anything to undo or redo, whenever that changes. */
+  onHistoryChange?(canUndo: boolean, canRedo: boolean): void;
   ref?: Ref<EditorHandle>;
 };
 
@@ -49,7 +52,9 @@ function toDiagnostics(warnings: Warning[], length: number): Diagnostic[] {
   });
 }
 
-export function Editor({ value, onChange, onCursorChange, warnings = [], onNotice, ref }: Props) {
+export function Editor({ value, onChange, onCursorChange, warnings = [], onNotice, onHistoryChange, ref }: Props) {
+  const onHistoryChangeRef = useRef(onHistoryChange);
+  onHistoryChangeRef.current = onHistoryChange;
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | undefined>(undefined);
   const onChangeRef = useRef(onChange);
@@ -86,15 +91,24 @@ export function Editor({ value, onChange, onCursorChange, warnings = [], onNotic
             if (u.selectionSet && u.startState.selection.main.head !== u.state.selection.main.head) {
               onCursorChangeRef.current?.(u.state.selection.main.head);
             }
+            if (u.transactions.length > 0) {
+              const canUndo = undoDepth(u.state) > 0;
+              const canRedo = redoDepth(u.state) > 0;
+              if (canUndo !== (undoDepth(u.startState) > 0) || canRedo !== (redoDepth(u.startState) > 0)) {
+                onHistoryChangeRef.current?.(canUndo, canRedo);
+              }
+            }
           }),
           pasteImage({ onNotice: (text) => onNoticeRef.current(text) }),
         ],
       }),
     });
     view.current = v;
+    onHistoryChangeRef.current?.(false, false);
     return () => {
       v.destroy();
       view.current = undefined;
+      onHistoryChangeRef.current?.(false, false);
     };
   }, []);
 
