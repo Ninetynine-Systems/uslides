@@ -40,6 +40,8 @@ npm run preview   # serve dist/ locally
 
 The end-to-end tests drive a real browser. Install it once with `npx playwright install chromium`. Then run `npm run test:e2e`. It builds the site and serves it on port 4173. Some tests start extra servers on ports 4175 and 4176. Make sure ports 4173, 4175 and 4176 are free.
 
+The deploy on GitHub runs lint, the type check and the unit tests, but not the end-to-end tests. Run `npm run test:e2e` yourself before you push a change to the app.
+
 ## Deploying
 
 The site is hosted on GitHub Pages at https://uslides.ninetynine.systems/. The workflow in `.github/workflows/deploy.yml` runs on every push to `main`. It runs lint, type check, unit tests and end-to-end tests first. It builds and publishes the site only if they all pass.

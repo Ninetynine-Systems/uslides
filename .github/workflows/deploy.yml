@@ -26,8 +26,8 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      # The end-to-end browser tests are run locally (npm run test:e2e), not here: installing the browser
+      # is slow and depends on Ubuntu's package servers.
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
