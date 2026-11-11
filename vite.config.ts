@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import react from '@vitejs/plugin-react';
 import type { Plugin } from 'vite';
@@ -15,10 +16,22 @@ function skillFile(): Plugin {
   };
 }
 
+/** The short hash of the commit being built, or "dev" outside a git checkout. */
+function commitHash(): string {
+  try {
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
+  } catch {
+    return process.env.GITHUB_SHA?.slice(0, 7) ?? 'dev';
+  }
+}
+
 export default defineConfig({
   base: '/',
-  // Shown in the About menu. Tests build twice with different ids to check the update prompt.
-  define: { __BUILD_ID__: JSON.stringify(process.env.BUILD_ID ?? Date.now().toString()) },
+  // Shown in the corner badge and on the About page. Tests build twice with different ids to check the update prompt.
+  define: {
+    __BUILD_ID__: JSON.stringify(process.env.BUILD_ID ?? new Date().toISOString().slice(0, 10).replaceAll('-', '.')),
+    __COMMIT__: JSON.stringify(commitHash()),
+  },
   plugins: [
     react(),
     skillFile(),

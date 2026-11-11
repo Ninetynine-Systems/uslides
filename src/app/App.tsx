@@ -15,7 +15,7 @@ import {
   createDeck, deleteDeck, duplicateDeck, getImages, listDecks, markDeckDeleted,
   purgeDeletedDecks, renameDeck, restoreDeck, setDeckPrivacy,
 } from '../storage/db';
-import { About } from './About';
+import { About, VersionBadge } from './About';
 import { DeckList, type DeckSummary } from './DeckList';
 import type { EditorHandle } from './Editor';
 import { exportBackup, importBackup } from '../storage/backup';
@@ -918,6 +918,7 @@ export function App() {
         onRename={(title) => guarded(() => rename(title))()}
         onDuplicate={guarded(duplicate)}
         onDelete={guarded(remove)}
+        onAbout={() => setAboutOpen(true)}
         onPresent={() => startPresenting(1)}
         onCopyLink={copyLink}
         onPackImages={guarded(packAllImages)}
@@ -1016,6 +1017,7 @@ export function App() {
         </div>
       </main>
       <Notices notices={notices} onDismiss={dismiss} />
+      <VersionBadge onClick={() => setAboutOpen(true)} />
       <input
         ref={fileInput}
         type="file"

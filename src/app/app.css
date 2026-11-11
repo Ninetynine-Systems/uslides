@@ -241,7 +241,7 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
   .preview-controls .label-btn { width: 34px; padding: 0; justify-content: center; }
   .preview-controls .label-btn span { display: none; }
 }
-.preview-scroll { flex: 1; overflow: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+.preview-scroll { flex: 1; overflow: auto; padding: 20px 20px 44px; display: flex; flex-direction: column; gap: 20px; }
 .add-slide-end {
   display: flex;
   flex: 0 0 auto;
@@ -259,7 +259,7 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
   border-radius: var(--radius-pop);
 }
 .add-slide-end:hover { background: var(--accent-soft); border-color: var(--accent); }
-.one-slide { flex: 1; min-height: 0; overflow: auto; padding: 20px; }
+.one-slide { flex: 1; min-height: 0; overflow: auto; padding: 20px 20px 44px; }
 .one-slide-nav { display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 12px; }
 .slide-counter { min-width: 4.5rem; text-align: center; font-variant-numeric: tabular-nums; }
 .slide-card { margin: 0; }
@@ -518,7 +518,23 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
 .slide-card figcaption { max-width: 960px; margin: 6px auto 0; font-size: 0.8rem; color: var(--muted); }
 .slide-warning { max-width: 960px; margin: 6px auto 0; padding: 6px 10px; font-size: 0.85rem; color: var(--warn-text); background: var(--warn-bg); border-left: 3px solid var(--warn-line); border-radius: 4px; }
 
-.notices { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; max-width: min(460px, calc(100vw - 32px)); z-index: 10; }
+/* App name and version, always in the bottom-right corner. Notices stack above it. */
+.version-badge {
+  position: fixed;
+  right: 12px;
+  bottom: 10px;
+  z-index: 9;
+  padding: 3px 10px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+}
+.version-badge:hover { color: var(--accent-ink); background: var(--panel); border-color: var(--line-strong); }
+.notices { position: fixed; right: 16px; bottom: 44px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; max-width: min(460px, calc(100vw - 32px)); z-index: 10; }
 .notice { display: flex; gap: 12px; align-items: center; padding: 10px 10px 10px 16px; background: var(--toast-bg); color: var(--toast-text); border-radius: var(--radius-pop); box-shadow: var(--shadow-pop); line-height: 1.4; }
 .notice button { flex: 0 0 auto; background: transparent; color: inherit; border-color: transparent; }
 .notice button:hover { background: rgb(255 255 255 / 0.14); }

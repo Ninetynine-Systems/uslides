@@ -2,6 +2,18 @@ import { useEffect, useId, useRef } from 'react';
 import { AtSign, Globe, HardDrive, Mail, WifiOff, X } from 'lucide-react';
 import { IconButton } from './IconButton';
 
+/** The version shown in the corner badge and on the About page. */
+export const VERSION_TEXT = `uslides · ${__BUILD_ID__} · ${__COMMIT__}`;
+
+/** The app name and version in the bottom-right corner. It opens the About page. */
+export function VersionBadge({ onClick }: { onClick(): void }) {
+  return (
+    <button type="button" className="version-badge" aria-label={`About uslides, version ${__BUILD_ID__}, commit ${__COMMIT__}`} title="About uslides" onClick={onClick}>
+      {VERSION_TEXT}
+    </button>
+  );
+}
+
 type Props = { onClose(): void };
 
 /** What uslides is, where decks are kept, and how to reach the people who make it. */
@@ -85,7 +97,7 @@ export function About({ onClose }: Props) {
             Follow @sazidz on X
           </a>
         </div>
-        <p className="muted about-build">{`Made by Ninetynine Systems · build ${__BUILD_ID__}`}</p>
+        <p className="muted about-build">{`Made by Ninetynine Systems · version ${__BUILD_ID__} · commit ${__COMMIT__}`}</p>
       </div>
     </div>
   );

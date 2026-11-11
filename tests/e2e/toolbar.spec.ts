@@ -44,6 +44,7 @@ test('More shows its actions in order with Delete separated', async ({ page }) =
     'Open folder',
     'Pack images',
     'Duplicate deck',
+    'About uslides',
     'Delete deck',
   ]);
   await expect(menu.locator('hr')).toHaveCount(1);

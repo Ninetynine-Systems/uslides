@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type Ref } from 'react';
 import {
-  Copy, Download, Ellipsis, FileCode, FileText, FileUp, FolderOpen, ImageDown, Link, Link2, Moon, PanelLeftClose,
+  Copy, Download, Ellipsis, FileCode, Info, FileText, FileUp, FolderOpen, ImageDown, Link, Link2, Moon, PanelLeftClose,
   PanelLeftOpen, Play, Printer, Share2, Sun, Trash2, TriangleAlert, Type,
 } from 'lucide-react';
 import { IconButton, LabelButton, MenuItem } from './IconButton';
@@ -20,6 +20,7 @@ type Props = {
   onRename(title: string): void;
   onDuplicate(): void;
   onDelete(): void;
+  onAbout(): void;
   onPresent(): void;
   /** Copies the share link. Resolves to the link when the clipboard could not be written, else undefined. */
   onCopyLink(): Promise<string | undefined>;
@@ -131,7 +132,7 @@ function DownloadMenu({ onMarkdown, onHtml, onPrint }: { onMarkdown(): void; onH
 }
 
 export function Toolbar({
-  listOpen, onToggleList, name, renameDisabled, deckFontOpen, onDeckFont, deckFontTriggerRef, onRename, onDuplicate, onDelete, onPresent, onCopyLink,
+  listOpen, onToggleList, name, renameDisabled, deckFontOpen, onDeckFont, deckFontTriggerRef, onRename, onDuplicate, onDelete, onAbout, onPresent, onCopyLink,
   onPackImages, onDownloadMarkdown, onDownloadHtml, onPrint, onOpen, onOpenFolder, link, needsAccess, readOnly, onGrant, onUnlink,
 }: Props) {
   const { theme, toggle: toggleTheme } = useTheme();
@@ -184,6 +185,7 @@ export function Toolbar({
               )}
               <MenuItem label="Pack images" icon={ImageDown} onClick={() => { close(); onPackImages(); }} />
               <MenuItem label="Duplicate deck" icon={Copy} onClick={() => { close(); onDuplicate(); }} />
+              <MenuItem label="About uslides" icon={Info} onClick={() => { close(); onAbout(); }} />
               <hr />
               <MenuItem label="Delete deck" icon={Trash2} className="danger" onClick={() => { close(); onDelete(); }} />
             </>

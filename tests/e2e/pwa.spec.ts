@@ -112,9 +112,7 @@ test('update flow: the notice appears, nothing reloads by itself, clicking reloa
     await page.goto('http://127.0.0.1:4176/?test');
     await serviceWorkerActive(page);
     await page.reload();
-    await openMenu(page);
     await expect(page.getByText('build-a')).toBeVisible();
-    await page.keyboard.press('Escape');
     await page.evaluate(() => ((window as unknown as { marker: string }).marker = 'same page'));
 
     setRoot(b);
@@ -136,7 +134,6 @@ test('update flow: the notice appears, nothing reloads by itself, clicking reloa
     expect(await page.evaluate(() => (window as unknown as { marker?: string }).marker)).toBeUndefined();
     await expect(page.locator('.us-stage').first()).toBeVisible();
     await expect.poll(() => page.evaluate(() => window.__uslides!.getSource())).toContain('last words');
-    await openMenu(page);
     await expect(page.getByText('build-b')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Update available — reload' })).toHaveCount(0);
   } finally {
@@ -191,7 +188,6 @@ test('an update in one tab saves the typing in another tab before it reloads', a
     expect(await marker(b)).toBeUndefined();
     await expect(b.locator('.us-stage').first()).toBeVisible();
     await expect.poll(() => b.evaluate(() => window.__uslides!.getSource())).toContain('typed in the other tab');
-    await openMenu(b);
     await expect(b.getByText('build-b')).toBeVisible();
   } finally {
     await close(server);
@@ -224,7 +220,6 @@ test('a tab that is presenting reloads only after present mode ends', async ({ c
     await Promise.all([b.waitForEvent('load'), b.keyboard.press('Escape')]);
     await expect(b.locator('.us-stage').first()).toBeVisible();
     expect(await marker(b)).toBeUndefined();
-    await openMenu(b);
     await expect(b.getByText('build-b')).toBeVisible();
   } finally {
     await close(server);
