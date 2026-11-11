@@ -107,6 +107,19 @@ function isTransparent(colour: string): boolean {
   return colour === 'transparent' || /[,/]\s*0\)$/.test(colour);
 }
 
+/**
+ * Where a box sits in its cells, leaving out the glide that moves a dropped box there. The outline is
+ * drawn there at once, instead of where the glide happened to be when it was measured.
+ */
+function restingRect(element: HTMLElement, stage: HTMLElement): DOMRect {
+  const rect = element.getBoundingClientRect();
+  const translate = getComputedStyle(element).translate;
+  if (!translate || translate === 'none') return rect;
+  const [x = 0, y = 0] = translate.split(/\s+/).map((part) => parseFloat(part) || 0);
+  const scale = viewScale(stage);
+  return new DOMRect(rect.left - x * scale, rect.top - y * scale, rect.width, rect.height);
+}
+
 /** Space between loose text and the frame drawn round it while typing. */
 const LOOSE_PAD = 6;
 
@@ -466,7 +479,7 @@ export function Overlay({
     const selectedBox = selected === null
       ? null
       : stage.querySelector<HTMLElement>(`:scope > .us-box[data-box="${selected}"]`);
-    setGeometry(selectedBox ? { anchor: selectedBox.getBoundingClientRect(), bounds } : null);
+    setGeometry(selectedBox ? { anchor: restingRect(selectedBox, stage), bounds } : null);
 
     if (!typing) return void setTypingRect(null);
     let anchor: DOMRect | undefined;

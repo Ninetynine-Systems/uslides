@@ -230,3 +230,20 @@ test('Add box puts a 4x2 box in the first free area, or the middle when full', a
   await expect.poll(() => getSource(page)).toContain('::: box col=5-8 row=3-4\n\n:::');
   await expect(typingArea(page)).toBeFocused();
 });
+
+test('after a drop, the selection outline sits on the box, not where its glide started', async ({ page }) => {
+  await openDeck(page, '# A\n\n::: box col=1-3 row=1-2 bg=#ffd43b\nMove me\n:::\n');
+  const from = await gridPoint(page, 2, 1);
+  const cell = await gridPoint(page, 7, 4);
+  // Let go partway into a cell, as people do, so the box has to glide to it.
+  await drag(page, from, { x: cell.x + cell.cellWidth * 0.35, y: cell.y + cell.cellHeight * 0.3 });
+  await expect.poll(() => getSource(page)).toContain('col=6-8 row=4-5');
+  // Let the glide finish, then compare the outline with the box.
+  await page.waitForTimeout(400);
+  const offset = await page.evaluate(() => {
+    const sel = document.querySelector('.us-selection')!.getBoundingClientRect();
+    const box = document.querySelector('.us-box')!.getBoundingClientRect();
+    return Math.max(Math.abs(sel.left - box.left), Math.abs(sel.top - box.top));
+  });
+  expect(offset).toBeLessThan(1.5);
+});

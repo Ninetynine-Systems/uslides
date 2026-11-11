@@ -389,15 +389,24 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
   position: absolute;
   z-index: 2;
   border: 2px solid #5753d6;
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.85);
+  /* White on both sides of the line, so it shows on any slide colour, indigo included. */
+  box-shadow: 0 0 0 2px #fff, inset 0 0 0 1.5px #fff, 0 0 0 3px rgb(26 26 43 / 0.25);
   pointer-events: none;
 }
-.us-hover { position: absolute; z-index: 1; outline: 2px solid rgb(87 83 214 / 0.55); outline-offset: -1px; pointer-events: none; }
+.us-hover {
+  position: absolute;
+  z-index: 1;
+  border: 2px solid rgb(87 83 214 / 0.75);
+  box-shadow: 0 0 0 1.5px rgb(255 255 255 / 0.85), inset 0 0 0 1px rgb(255 255 255 / 0.85);
+  pointer-events: none;
+}
 /* A box being dragged: it sits above the others with a shadow, and glides when let go. */
 .us-box.us-lifted {
   z-index: 999 !important;
   outline: calc(2px / var(--us-view-scale, 1)) solid #5753d6;
-  box-shadow: 0 calc(10px / var(--us-view-scale, 1)) calc(30px / var(--us-view-scale, 1)) rgb(26 26 60 / 0.28);
+  box-shadow:
+    0 0 0 calc(4px / var(--us-view-scale, 1)) #fff,
+    0 calc(10px / var(--us-view-scale, 1)) calc(30px / var(--us-view-scale, 1)) rgb(26 26 60 / 0.28);
   opacity: 0.94;
 }
 .us-box.us-settling { transition: translate 0.16s cubic-bezier(0.2, 0.8, 0.2, 1); }
