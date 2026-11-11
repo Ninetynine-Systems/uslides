@@ -38,6 +38,12 @@ describe('renderSlide', () => {
     expect(stage.style.gridTemplateRows).toBe('repeat(6, 1fr)');
   });
 
+  it('aligns the loose text by the slide settings', () => {
+    expect(render('# Hi').querySelector('.us-loose')!.className).toContain('us-align-left us-valign-top');
+    const loose = render('<!-- slide align=center valign=bottom -->\n# Hi').querySelector('.us-loose')!;
+    expect(loose.className).toContain('us-align-center us-valign-bottom');
+  });
+
   it('uses the deck theme and the 4:3 stage size', () => {
     const stage = render('---\naspect: 4:3\ntheme: dark\n---\n# Hi');
     expect(stage.style.width).toBe('1440px');

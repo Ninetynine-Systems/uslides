@@ -1,5 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, CopyPlus, Grid3x3, SquarePlus, Trash2 } from 'lucide-react';
+import {
+  AlignCenter,
+  AlignCenterHorizontal,
+  AlignEndHorizontal,
+  AlignLeft,
+  AlignRight,
+  AlignStartHorizontal,
+  ArrowDown,
+  ArrowUp,
+  Check,
+  CopyPlus,
+  Grid3x3,
+  SquarePlus,
+  Trash2,
+} from 'lucide-react';
+import type { Slide } from '../../core/slide';
 import type { Grid } from '../../core/types';
 import { IconButton } from '../IconButton';
 import { usePopup, usePopupDismiss } from '../usePopup';
@@ -13,6 +28,8 @@ export type SlideBarProps = {
   theme: Theme;
   grid: Grid;
   deckGrid: Grid;
+  align: Slide['align'];
+  valign: Slide['valign'];
   onSet(attrs: Record<string, string | null>): void;
   onGrid(grid: Grid | null): void;
   onAddBox(): void;
@@ -74,7 +91,7 @@ function GridControl({ grid, deckGrid, onGrid }: { grid: Grid; deckGrid: Grid; o
 
 /** Settings for the selected slide, shown when a click on the slide selects no box. */
 export function SlideBar(props: SlideBarProps) {
-  const { index, count, theme, grid, deckGrid } = props;
+  const { index, count, theme, grid, deckGrid, align, valign } = props;
   // The bar appears on the first click of what may be a double-click. Until a double-click would be over,
   // it lets clicks through, so the second click still reaches the text or blank space under it.
   const [armed, setArmed] = useState(false);
@@ -92,6 +109,17 @@ export function SlideBar(props: SlideBarProps) {
       <ColourControl kind="fill" theme={theme} label="Background colour" onSet={(value) => props.onSet({ bg: value })} />
       <ColourControl kind="text" theme={theme} onSet={(value) => props.onSet({ color: value })} />
       <GridControl grid={grid} deckGrid={deckGrid} onGrid={props.onGrid} />
+      {/* Alignment of the slide's own text, outside boxes. Left and top are the defaults, so they remove the setting. */}
+      <div className="us-bar-group" role="group" aria-label="Horizontal alignment">
+        <IconButton label="Left" icon={AlignLeft} aria-pressed={align === 'left'} onClick={() => props.onSet({ align: null })} />
+        <IconButton label="Centre" icon={AlignCenter} aria-pressed={align === 'center'} onClick={() => props.onSet({ align: 'center' })} />
+        <IconButton label="Right" icon={AlignRight} aria-pressed={align === 'right'} onClick={() => props.onSet({ align: 'right' })} />
+      </div>
+      <div className="us-bar-group" role="group" aria-label="Vertical alignment">
+        <IconButton label="Top" icon={AlignStartHorizontal} aria-pressed={valign === 'top'} onClick={() => props.onSet({ valign: null })} />
+        <IconButton label="Middle" icon={AlignCenterHorizontal} aria-pressed={valign === 'middle'} onClick={() => props.onSet({ valign: 'middle' })} />
+        <IconButton label="Bottom" icon={AlignEndHorizontal} aria-pressed={valign === 'bottom'} onClick={() => props.onSet({ valign: 'bottom' })} />
+      </div>
       <div className="us-bar-group" role="group" aria-label="Slide actions">
         <IconButton label="Add box" icon={SquarePlus} onClick={props.onAddBox} />
         <IconButton label="Duplicate slide" icon={CopyPlus} onClick={props.onDuplicate} />

@@ -30,6 +30,9 @@ export type Slide = {
   grid: Grid;
   bg?: string;
   color?: string;
+  /** Alignment of the Markdown outside boxes, for example a title in the middle of the slide. */
+  align: 'left' | 'center' | 'right';
+  valign: 'top' | 'middle' | 'bottom';
   /** Markdown outside any box. Boxes, the slide comment and notes are removed. */
   loose: string;
   /** Source offset for the start of each line in loose. */
@@ -127,8 +130,15 @@ function parseSlideComment(
       const c = sanitizeColor(value);
       if (c) slide[key] = c;
       else warn(`Invalid ${key} colour "${value}" in slide settings. It was ignored.`, line.range);
+    } else if (key === 'align' || key === 'valign') {
+      const allowed: readonly string[] = key === 'align' ? ALIGN : VALIGN;
+      const align = key === 'align' ? oneOf(ALIGN, value) : undefined;
+      const valign = key === 'valign' ? oneOf(VALIGN, value) : undefined;
+      if (align) slide.align = align;
+      else if (valign) slide.valign = valign;
+      else warn(`Invalid ${key} "${value}" in slide settings. Use ${allowed.join(', ')}. Using ${allowed[0]}.`, line.range);
     } else {
-      warn(`Unknown slide setting "${key}" was ignored. Known settings are grid, bg and color.`, line.range);
+      warn(`Unknown slide setting "${key}" was ignored. Known settings are grid, bg, color, align and valign.`, line.range);
     }
   }
 }
@@ -203,6 +213,8 @@ export function parseSlide(
   const slide: Slide = {
     index,
     grid: settings.grid,
+    align: 'left',
+    valign: 'top',
     loose: '',
     looseLines: [],
     looseRanges: [],

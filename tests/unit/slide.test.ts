@@ -37,6 +37,22 @@ describe('slide comment', () => {
     expect(warnings).toEqual([]);
   });
 
+  it('reads align and valign for the text outside boxes, defaulting to left and top', () => {
+    expect(slideOf('# Hi').slide).toMatchObject({ align: 'left', valign: 'top' });
+    const { slide, warnings } = slideOf('<!-- slide align=center valign=middle -->\n# Hi');
+    expect(slide).toMatchObject({ align: 'center', valign: 'middle' });
+    expect(warnings).toEqual([]);
+  });
+
+  it('warns about a bad align and keeps the default', () => {
+    const { slide, warnings } = slideOf('<!-- slide align=middle valign=left -->\n# Hi');
+    expect(slide).toMatchObject({ align: 'left', valign: 'top' });
+    expect(warnings.map((w) => w.message)).toEqual([
+      'Invalid align "middle" in slide settings. Use left, center, right. Using left.',
+      'Invalid valign "left" in slide settings. Use top, middle, bottom. Using top.',
+    ]);
+  });
+
   it('warns about a bad grid, bad colour and unknown key', () => {
     const { slide, warnings } = slideOf('<!-- slide grid=big bg=url(x) foo=1 -->\n# Hi');
     expect(slide.grid).toEqual({ cols: 12, rows: 6 });

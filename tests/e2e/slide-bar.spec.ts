@@ -47,6 +47,22 @@ test('the slide bar sets the background, and changing it back removes the settin
   await expect.poll(() => getSource(page)).toBe(DECK);
 });
 
+test('the slide bar centres the slide text, and left and top remove the setting again', async ({ page }) => {
+  await openDeck(page);
+  await clickSlide(page, 0);
+  await page.getByRole('button', { name: 'Centre' }).click();
+  await page.getByRole('button', { name: 'Middle' }).click();
+  await expect.poll(() => getSource(page)).toMatch(/^<!-- slide align=center valign=middle -->\n\n# One/);
+  const loose = page.locator('.slide-frame').first().locator('.us-loose');
+  await expect(loose).toHaveClass(/us-align-center/);
+  await expect(loose).toHaveClass(/us-valign-middle/);
+  await expect(page.getByRole('button', { name: 'Centre' })).toHaveAttribute('aria-pressed', 'true');
+
+  await page.getByRole('button', { name: 'Left' }).click();
+  await page.getByRole('button', { name: 'Top' }).click();
+  await expect.poll(() => getSource(page)).toBe(DECK);
+});
+
 test('a finer grid keeps the boxes in place', async ({ page }) => {
   await openDeck(page);
   await clickSlide(page, 1);

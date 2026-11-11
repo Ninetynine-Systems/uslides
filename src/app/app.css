@@ -345,7 +345,7 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
   font-size: var(--us-typing-size, 14px);
   line-height: 1.35;
 }
-.us-typing-area .cm-content { min-height: 100%; padding: var(--us-typing-pad, 6px); caret-color: currentColor; }
+.us-typing-area .cm-content { min-height: 100%; padding: var(--us-typing-pad, 6px); caret-color: currentColor; text-align: var(--us-typing-align, left); }
 .us-typing-area .cm-placeholder { color: inherit; opacity: 0.45; }
 .us-typing-area .cm-scroller { scrollbar-width: thin; }
 /* Loose text: the area grows with what is typed instead of scrolling. */

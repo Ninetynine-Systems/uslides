@@ -123,6 +123,8 @@ function typingLook(stage: HTMLElement, element: Element): TypingLook {
     // The size the text has on screen, so it does not jump when typing starts. Never too small to read.
     fontSize: clamp(Math.round(parseFloat(style.fontSize) * scale * 10) / 10, 10, 44),
     padding: clamp(Math.round(parseFloat(style.paddingTop) * scale), 2, 40),
+    // Centred or right-aligned text stays where it is while it is typed.
+    textAlign: style.textAlign,
   };
 }
 
@@ -1187,6 +1189,8 @@ export function Overlay({
           theme={theme}
           grid={slide.grid}
           deckGrid={deckGrid ?? slide.grid}
+          align={slide.align}
+          valign={slide.valign}
           {...slideActions}
         />
       )}

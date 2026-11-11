@@ -18,7 +18,14 @@ export type QueuedTypingKey = {
 };
 
 /** Colours and type taken from the box being edited, so typing looks like it happens on the slide. */
-export type TypingLook = { background: string; color: string; fontFamily: string; fontSize: number; padding: number };
+export type TypingLook = {
+  background: string;
+  color: string;
+  fontFamily: string;
+  fontSize: number;
+  padding: number;
+  textAlign: string;
+};
 
 export type TypingAreaProps = {
   rect: DOMRect;
@@ -209,6 +216,7 @@ export function TypingArea({
       '--us-typing-font': look.fontFamily,
       '--us-typing-size': `${look.fontSize}px`,
       '--us-typing-pad': `${look.padding}px`,
+      '--us-typing-align': look.textAlign,
     }),
   };
   return (

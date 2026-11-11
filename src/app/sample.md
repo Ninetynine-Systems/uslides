@@ -2,7 +2,7 @@
 title: Welcome to uslides
 ---
 
-<!-- slide bg=#5b5bd6 color=white -->
+<!-- slide bg=#5b5bd6 color=white align=center valign=middle -->
 
 # Welcome to uslides ✨
 

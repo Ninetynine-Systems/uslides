@@ -119,8 +119,19 @@ that slide only:
 <!-- slide grid=16x9 bg=#0f172a color=white -->
 ```
 
-The keys are `grid`, `bg` and `color`. The comment must be on one line. A slide
-`grid` replaces the deck grid on that slide, so box positions on it use that grid.
+The keys are `grid`, `bg`, `color`, `align` and `valign`. The comment must be on
+one line. A slide `grid` replaces the deck grid on that slide, so box positions on
+it use that grid. `align` (`left`, `center`, `right`) and `valign` (`top`,
+`middle`, `bottom`) place the Markdown outside boxes, like the box keys of the same
+name. A title slide centred on the slide:
+
+```markdown
+<!-- slide align=center valign=middle -->
+
+# Quarterly review
+
+September 2026
+```
 
 ### Speaker notes
 

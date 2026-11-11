@@ -89,7 +89,7 @@ export function renderSlide(slide: Slide, settings: DeckSettings, opts: RenderOp
   }
 
   const loose = document.createElement('div');
-  loose.className = 'us-loose us-align-left us-valign-top us-fit-contain';
+  loose.className = `us-loose us-align-${slide.align} us-valign-${slide.valign} us-fit-contain`;
   loose.style.setProperty('grid-column', `1 / ${cols + 1}`);
   loose.style.setProperty('grid-row', `1 / ${rows + 1}`);
   loose.style.zIndex = '0';
