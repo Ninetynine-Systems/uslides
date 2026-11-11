@@ -141,7 +141,6 @@ input[type='checkbox'] { accent-color: var(--accent); }
 .decklist-head strong { flex: 1; font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
 .decklist-menu { display: flex; flex-direction: column; gap: 2px; margin: 0 8px 10px; padding: 6px; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-pop); }
 .decklist-menu .menu-item { width: 100%; }
-.decklist-menu .about { margin: 6px 10px 4px; font-size: 0.75rem; overflow-wrap: anywhere; }
 .decklist ul { list-style: none; margin: 0; padding: 0 8px 12px; }
 .deck-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; margin-bottom: 2px; padding: 8px 10px; border-color: transparent; background: transparent; text-align: left; }
 .deck-item.active, .deck-item.active:hover { background: var(--accent-soft); }
@@ -556,6 +555,22 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .modal-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
 .modal-list button { text-align: left; overflow-wrap: anywhere; }
+.about-dialog { width: min(480px, 100%); max-width: 480px; max-height: calc(100vh - 32px); overflow: auto; }
+.about-dialog:focus { outline: none; }
+.about-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -6px -8px 4px 0; }
+.about-head h2 { margin: 0; font-size: 1.25rem; }
+.modal p.about-lead { margin: 0 0 18px; color: var(--muted); font-size: 0.95rem; font-weight: 400; }
+.about-points { display: flex; flex-direction: column; gap: 14px; margin: 0 0 20px; padding: 0; list-style: none; }
+.about-points li { display: flex; gap: 12px; }
+.about-points svg { flex: 0 0 auto; margin-top: 2px; color: var(--accent-ink); }
+.about-points div { display: flex; flex-direction: column; gap: 2px; line-height: 1.45; }
+.about-points span { color: var(--muted); font-size: 0.9rem; }
+.about-links { display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--hover); border-radius: var(--radius-pop); }
+.about-links a { display: flex; align-items: center; gap: 10px; padding: 8px 10px; color: var(--text); font-weight: 550; text-decoration: none; border-radius: var(--radius); overflow-wrap: anywhere; }
+.about-links a:hover { color: var(--accent-ink); background: var(--panel); }
+.about-links a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.about-links svg { flex: 0 0 auto; color: var(--muted); }
+.modal p.about-build { margin: 14px 0 0; font-size: 0.75rem; font-weight: 400; }
 .drop-overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; color: var(--accent-ink); font-size: 1.4rem; font-weight: 600; text-align: center; background: color-mix(in srgb, var(--accent-soft) 88%, transparent); border: 4px dashed var(--accent); z-index: 30; pointer-events: none; }
 .linked { position: relative; }
 .linked-menu { position: absolute; right: 0; top: 100%; margin-top: 6px; padding: 6px; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-pop); box-shadow: var(--shadow-pop); z-index: 5; }

@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Archive, ArchiveRestore, Ellipsis, Plus, Square, SquareCheckBig } from 'lucide-react';
+import { Archive, ArchiveRestore, Ellipsis, Info, Plus, Square, SquareCheckBig } from 'lucide-react';
 import { IconButton, LabelButton, MenuItem } from './IconButton';
 import { usePopup, usePopupDismiss } from './usePopup';
 
@@ -13,6 +13,7 @@ type Props = {
   onNew(): void;
   onBackup(): void;
   onRestore(): void;
+  onAbout(): void;
   askFirst: boolean;
   onAskFirstChange(on: boolean): void;
 };
@@ -31,7 +32,7 @@ export function relativeTime(then: number, now: number): string {
 }
 
 export function DeckList({
-  decks, activeId, now = Date.now(), onSelect, onNew, onBackup, onRestore, askFirst, onAskFirstChange,
+  decks, activeId, now = Date.now(), onSelect, onNew, onBackup, onRestore, onAbout, askFirst, onAskFirstChange,
 }: Props) {
   const menu = usePopup();
   const container = useRef<HTMLElement>(null);
@@ -59,7 +60,7 @@ export function DeckList({
             aria-checked={askFirst}
             onClick={() => onAskFirstChange(!askFirst)}
           />
-          <p className="muted about">{`uslides, build ${__BUILD_ID__}`}</p>
+          <MenuItem label="About uslides" icon={Info} onClick={choose(onAbout)} />
         </div>
       )}
       <ul>

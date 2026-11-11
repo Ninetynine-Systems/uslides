@@ -15,6 +15,7 @@ import {
   createDeck, deleteDeck, duplicateDeck, getImages, listDecks, markDeckDeleted,
   purgeDeletedDecks, renameDeck, restoreDeck, setDeckPrivacy,
 } from '../storage/db';
+import { About } from './About';
 import { DeckList, type DeckSummary } from './DeckList';
 import type { EditorHandle } from './Editor';
 import { exportBackup, importBackup } from '../storage/backup';
@@ -221,6 +222,8 @@ export function App() {
   }, []);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [askFirst, setAskFirst] = useState(readAskFirst);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const closeAbout = useCallback(() => setAboutOpen(false), []);
   const [allowedOnce, setAllowedOnce] = useState<Set<string>>(() => new Set());
   const deckFont = usePopup();
   const deckFontTrigger = useRef<HTMLButtonElement>(null);
@@ -945,6 +948,7 @@ export function App() {
         <DeckList decks={decks} activeId={deckId} onSelect={selectDeck} onNew={guarded(newDeck)}
           onBackup={guarded(backupAll)}
           onRestore={() => restoreInput.current?.click()}
+          onAbout={() => setAboutOpen(true)}
           askFirst={askFirst}
           onAskFirstChange={changeAskFirst}
         />
@@ -1038,6 +1042,7 @@ export function App() {
         }}
       />
       {dragging && <div className="drop-overlay">Drop Markdown and image files to open them</div>}
+      {aboutOpen && <About onClose={closeAbout} />}
       {sync.conflict && <ConflictDialog onChoose={(c) => guarded(() => sync.resolve(c))()} />}
       {folderChoice && (
         <FilePicker
