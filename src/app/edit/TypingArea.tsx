@@ -1,6 +1,8 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
-import { Annotation, EditorState } from '@codemirror/state';
-import { EditorView, keymap, runScopeHandlers, type ViewUpdate } from '@codemirror/view';
+import { Annotation, EditorState, RangeSetBuilder, StateField } from '@codemirror/state';
+import {
+  Decoration, EditorView, keymap, placeholder, runScopeHandlers, type DecorationSet, type ViewUpdate,
+} from '@codemirror/view';
 import { defaultKeymap } from '@codemirror/commands';
 import type { Edit } from '../../core/edit';
 
@@ -12,8 +14,14 @@ export type QueuedTypingKey = {
   shiftKey: boolean;
 };
 
+/** Colours and type taken from the box being edited, so typing looks like it happens on the slide. */
+export type TypingLook = { background: string; color: string; fontFamily: string; fontSize: number; padding: number };
+
 export type TypingAreaProps = {
   rect: DOMRect;
+  look?: TypingLook;
+  /** When set, the area starts at the rect's height and grows with the text, up to this height. */
+  maxHeight?: number;
   text: string;
   from: number;
   onChange(edit: Edit): void;
@@ -42,6 +50,27 @@ function changedText(update: ViewUpdate, from: number): Edit {
   };
 }
 
+const headingMark = Decoration.mark({ class: 'us-md-mark' });
+
+/** Heading lines are drawn at their heading size with the `#` marks faded, so the text looks as it will on the slide. */
+function headingLook(state: EditorState): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  for (let n = 1; n <= state.doc.lines; n++) {
+    const line = state.doc.line(n);
+    const marks = /^(#{1,6})\s/.exec(line.text)?.[1];
+    if (!marks) continue;
+    builder.add(line.from, line.from, Decoration.line({ class: `us-md-h us-md-h${marks.length}` }));
+    builder.add(line.from, line.from + marks.length, headingMark);
+  }
+  return builder.finish();
+}
+
+const headings = StateField.define<DecorationSet>({
+  create: headingLook,
+  update: (value, transaction) => (transaction.docChanged ? headingLook(transaction.state) : value),
+  provide: (field) => EditorView.decorations.from(field),
+});
+
 function replayKey(editor: EditorView, queued: QueuedTypingKey): void {
   const { key } = queued;
   if (key.length !== 1) {
@@ -57,7 +86,7 @@ function replayKey(editor: EditorView, queued: QueuedTypingKey): void {
 }
 
 export function TypingArea({
-  rect, text, from, onChange, onUndo, onRedo, onReady, takeQueuedInput, onDone,
+  rect, look, maxHeight, text, from, onChange, onUndo, onRedo, onReady, takeQueuedInput, onDone,
 }: TypingAreaProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | undefined>(undefined);
@@ -84,6 +113,8 @@ export function TypingArea({
         doc: initialText.current,
         extensions: [
           EditorView.lineWrapping,
+          placeholder('Type here'),
+          headings,
           EditorView.contentAttributes.of({ 'aria-label': 'Markdown on slide' }),
           EditorView.domEventHandlers({
             keydown(event) {
@@ -141,7 +172,16 @@ export function TypingArea({
     left: rect.x,
     top: rect.y,
     width: rect.width,
-    height: rect.height,
+    ...(maxHeight === undefined
+      ? { height: rect.height }
+      : { minHeight: rect.height, maxHeight: Math.max(rect.height, maxHeight) }),
+    ...(look && {
+      '--us-typing-bg': look.background,
+      '--us-typing-fg': look.color,
+      '--us-typing-font': look.fontFamily,
+      '--us-typing-size': `${look.fontSize}px`,
+      '--us-typing-pad': `${look.padding}px`,
+    }),
   };
-  return <div className="us-typing-area" ref={host} style={style} />;
+  return <div className={maxHeight === undefined ? 'us-typing-area' : 'us-typing-area us-typing-grow'} ref={host} style={style} />;
 }

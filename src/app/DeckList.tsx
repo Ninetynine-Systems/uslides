@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { Archive, ArchiveRestore, Ellipsis, Plus, Square, SquareCheckBig } from 'lucide-react';
-import { IconButton, MenuItem } from './IconButton';
+import { IconButton, LabelButton, MenuItem } from './IconButton';
 import { usePopup, usePopupDismiss } from './usePopup';
 
 export type DeckSummary = { id: string; name: string; updatedAt: number };
@@ -45,7 +45,7 @@ export function DeckList({
     <nav ref={container} className="decklist" aria-label="Decks">
       <div className="decklist-head">
         <strong>Decks</strong>
-        <IconButton label="New deck" icon={Plus} onClick={onNew} />
+        <LabelButton label="New deck" icon={Plus} onClick={onNew} />
         <IconButton ref={trigger} label="Menu" icon={Ellipsis} aria-haspopup="true" aria-expanded={menu.open} onClick={menu.toggle} />
       </div>
       {menu.open && (

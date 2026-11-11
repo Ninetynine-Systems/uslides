@@ -52,6 +52,7 @@ const Editor = lazy(() => import('./Editor').then((m) => ({ default: m.Editor })
 const NEW_DECK = '# Untitled\n';
 const PREVIEW_VIEW_KEY = 'uslides.previewView';
 const EDITOR_FRACTION_KEY = 'uslides.layout.editorFraction';
+const EDITOR_HIDDEN_KEY = 'uslides.layout.editorHidden';
 
 /** The 1-based slide whose range starts last before the cursor. */
 function slideAtPosition(deck: Deck | undefined, pos: number | undefined): number {
@@ -68,6 +69,14 @@ function savedPreviewView(): PreviewView {
     return localStorage.getItem(PREVIEW_VIEW_KEY) === 'one' ? 'one' : 'all';
   } catch {
     return 'all';
+  }
+}
+
+function savedEditorHidden(): boolean {
+  try {
+    return localStorage.getItem(EDITOR_HIDDEN_KEY) === '1';
+  } catch {
+    return false;
   }
 }
 
@@ -198,6 +207,18 @@ export function App() {
   const [showGrid, setShowGrid] = useState(true);
   const [previewView, setPreviewView] = useState<PreviewView>(savedPreviewView);
   const [editorFraction, setEditorFraction] = useState(savedEditorFraction);
+  const [editorHidden, setEditorHidden] = useState(savedEditorHidden);
+  /** Hides or shows the Markdown text. It stays loaded while hidden, because every change still goes through it. */
+  const toggleEditor = useCallback(() => {
+    setEditorHidden((hidden) => {
+      try {
+        localStorage.setItem(EDITOR_HIDDEN_KEY, hidden ? '0' : '1');
+      } catch {
+        // The pane still hides for this page when storage is unavailable.
+      }
+      return !hidden;
+    });
+  }, []);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [askFirst, setAskFirst] = useState(readAskFirst);
   const [allowedOnce, setAllowedOnce] = useState<Set<string>>(() => new Set());
@@ -311,10 +332,21 @@ export function App() {
       const result = make(deck);
       if (result && (result.changes.length > 0 || result.select !== undefined)) {
         target.applyEdit(result, opts);
+        // Moving, resizing or restyling a box must show at once. Typing keeps the short parse delay.
+        if (!opts?.userEvent?.startsWith('input.type')) getFreshDeck();
       }
     },
     [getFreshDeck],
   );
+  /** Undo and redo started on a slide show their result at once, like any other change made there. */
+  const undoOnSlide = useCallback(() => {
+    editor.current?.undo();
+    getFreshDeck();
+  }, [getFreshDeck]);
+  const redoOnSlide = useCallback(() => {
+    editor.current?.redo();
+    getFreshDeck();
+  }, [getFreshDeck]);
 
   useEffect(() => {
     if (!E2E_EDIT) return;
@@ -919,8 +951,8 @@ export function App() {
       </div>
       <main
         ref={workspace}
-        className="workspace"
-        style={wide ? {
+        className={editorHidden ? 'workspace editor-hidden' : 'workspace'}
+        style={wide && editorHidden ? { gridTemplateColumns: 'minmax(0, 1fr)' } : wide ? {
           // Each side keeps 280px, or half the room when the workspace is too narrow for both.
           gridTemplateColumns: `minmax(min(280px, calc(50% - 4px)), ${editorFraction}fr) 8px minmax(min(280px, calc(50% - 4px)), ${1 - editorFraction}fr)`,
         } : undefined}
@@ -939,7 +971,7 @@ export function App() {
             </Suspense>
           )}
         </div>
-        {wide && (
+        {wide && !editorHidden && (
           <WorkspaceDivider
             fraction={editorFraction}
             workspace={workspace}
@@ -964,9 +996,11 @@ export function App() {
             onMoveCursor={(pos) => editor.current?.moveCursorTo(pos, { focus: false })}
             getDeck={getFreshDeck}
             getSource={getSource}
-            onUndo={() => editor.current?.undo()}
-            onRedo={() => editor.current?.redo()}
+            onUndo={undoOnSlide}
+            onRedo={redoOnSlide}
             editable={wide}
+            editorHidden={editorHidden}
+            onToggleEditor={toggleEditor}
             showHint={!showPresent}
             onFit={onFit}
             onSelectSlide={(i) => {

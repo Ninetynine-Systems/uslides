@@ -5,7 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>uslides</title>
     <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
-    <meta name="theme-color" content="#1c1917" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Sets the theme before the first paint, so a dark screen never flashes white. See src/app/theme.ts.
+      try {
+        var t = localStorage.getItem('uslides.theme');
+        if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

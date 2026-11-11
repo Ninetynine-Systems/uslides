@@ -22,6 +22,13 @@ type ColourKind = 'fill' | 'text';
 
 const PALE = ['#dbeafe', '#dcfce7', '#fef3c7', '#fee2e2', '#f3e8ff', '#f1f5f9'];
 const DARK = ['#1e3a8a', '#14532d', '#713f12', '#7f1d1d', '#581c87', '#1e293b'];
+/** What each swatch is called, in the order of the two lists above. */
+const NAMES = ['blue', 'green', 'yellow', 'red', 'purple', 'grey'];
+
+function colourName(colour: string): string {
+  const pale = PALE.indexOf(colour);
+  return pale >= 0 ? `Pale ${NAMES[pale]}` : `Dark ${NAMES[DARK.indexOf(colour)]}`;
+}
 
 function palette(theme: Theme, kind: ColourKind): string[] {
   return (theme === 'light') === (kind === 'fill') ? PALE : DARK;
@@ -69,8 +76,8 @@ function ColourControl(props: {
                 key={colour}
                 type="button"
                 className="us-colour-swatch"
-                aria-label={colour}
-                title={colour}
+                aria-label={colourName(colour)}
+                title={colourName(colour)}
                 style={{ backgroundColor: colour }}
                 onClick={() => choose(colour)}
               />

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Pencil } from 'lucide-react';
 
 type Props = {
   name: string;
@@ -82,7 +83,8 @@ export function DeckName({ name, disabled, onRename }: Props) {
             }
           }}
         >
-          {name}
+          <span>{name}</span>
+          <Pencil size={14} aria-hidden />
         </button>
       )}
     </h1>

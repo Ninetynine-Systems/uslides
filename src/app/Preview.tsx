@@ -1,7 +1,7 @@
 import {
-  lazy, useCallback, useEffect, useMemo, useRef, useState, type ComponentType,
+  lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType,
 } from 'react';
-import { ChevronLeft, ChevronRight, CopyPlus, Rows3, Square, SquarePlus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Code, CopyPlus, Rows3, Square, SquarePlus } from 'lucide-react';
 import { insertBox, insertSlideAfter, type EditResult } from '../core/edit';
 import { centredSpan, findFreeArea } from '../core/layout';
 import type { Deck } from '../core/parse';
@@ -14,7 +14,7 @@ import { BOX_CUT_OFF, SLIDE_CUT_OFF } from './cutOff';
 import { Overlay, type SelectionRequest } from './edit/Overlay';
 import { hintDone, markHintDone } from './edit/hint';
 import type { TypingAreaProps } from './edit/TypingArea';
-import { IconButton } from './IconButton';
+import { IconButton, LabelButton } from './IconButton';
 
 let typingAreaLoad: Promise<typeof import('./edit/TypingArea')> | undefined;
 
@@ -44,6 +44,9 @@ type Props = {
   onUndo(): void;
   onRedo(): void;
   editable: boolean;
+  /** True when the Markdown text beside the slides is hidden. */
+  editorHidden: boolean;
+  onToggleEditor(): void;
   showHint: boolean;
   /** Called with the slide index when a slide is clicked. */
   onSelectSlide(index: number): void;
@@ -104,7 +107,8 @@ function SlideCard(props: {
   const [cutOff, setCutOff] = useState<string[]>([]);
   const { w, h } = STAGE[deck.settings.aspect];
 
-  useEffect(() => {
+  // A layout effect, so the new slide and the selection drawn over it reach the screen in the same frame.
+  useLayoutEffect(() => {
     const container = frame.current!;
     const stage = renderSlide(slide, deck.settings, {
       showGrid,
@@ -126,7 +130,7 @@ function SlideCard(props: {
   }, [slide, deck.settings, urls, showGrid, blockExternal, props.fontVersion]);
 
   return (
-    <figure className="slide-card">
+    <figure className={active ? 'slide-card current' : 'slide-card'}>
       <div
         className="slide-frame"
         ref={frame}
@@ -178,7 +182,7 @@ function SlideCard(props: {
 
 export function Preview({
   deck, images, blockExternal, showGrid, onShowGridChange, view, onViewChange, currentSlide, onEdit, onMoveCursor,
-  getDeck, getSource, onUndo, onRedo, editable, showHint, onSelectSlide, onFit,
+  getDeck, getSource, onUndo, onRedo, editable, editorHidden, onToggleEditor, showHint, onSelectSlide, onFit,
 }: Props) {
   useEffect(() => {
     if (editable) void loadTypingArea();
@@ -242,9 +246,8 @@ export function Preview({
     <section className="preview" aria-label="Preview" ref={preview}>
       <div className="preview-bar">
         <div className="preview-controls">
-          <label>
-            <input type="checkbox" checked={showGrid} onChange={(e) => onShowGridChange(e.target.checked)} /> Grid lines
-          </label>
+          {editable && deck && <LabelButton label="Add slide" icon={CopyPlus} onClick={() => addSlide(false)} />}
+          {editable && deck && <LabelButton label="Add box" icon={SquarePlus} onClick={addBox} />}
           <div className="preview-view-switch" role="group" aria-label="Preview view">
             <IconButton
               label="All slides"
@@ -259,10 +262,21 @@ export function Preview({
               onClick={() => onViewChange('one')}
             />
           </div>
-          {editable && deck && <IconButton label="Add box" icon={SquarePlus} onClick={addBox} />}
-          {editable && deck && <IconButton label="Add slide" icon={CopyPlus} onClick={() => addSlide(false)} />}
+          <label className="preview-grid-toggle">
+            <input type="checkbox" checked={showGrid} onChange={(e) => onShowGridChange(e.target.checked)} /> Grid lines
+          </label>
         </div>
-        <span className="muted">{deck ? `${deck.slides.length} slide${deck.slides.length === 1 ? '' : 's'}` : ''}</span>
+        <div className="preview-end">
+          <span className="muted preview-count">{deck ? `${deck.slides.length} slide${deck.slides.length === 1 ? '' : 's'}` : ''}</span>
+          {editable && (
+            <IconButton
+              label={editorHidden ? 'Show text editor' : 'Hide text editor'}
+              icon={Code}
+              aria-pressed={!editorHidden}
+              onClick={onToggleEditor}
+            />
+          )}
+        </div>
       </div>
       {view === 'all' ? (
         <div className="preview-scroll">

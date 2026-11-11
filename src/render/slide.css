@@ -108,17 +108,19 @@
 }
 
 .us-empty {
-  outline: 3px dashed rgba(37, 99, 235, 0.8);
+  outline: 3px dashed rgba(87, 83, 214, 0.75);
   outline-offset: -3px;
 }
 
 .us-grid {
+  /* One screen pixel, whatever size the slide is shown at. */
+  --us-grid-line: calc(1px / var(--us-view-scale, 1));
   position: absolute;
   z-index: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(to right, rgba(37, 99, 235, 0.35) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(37, 99, 235, 0.35) 1px, transparent 1px);
+    linear-gradient(to right, rgba(87, 83, 214, 0.28) var(--us-grid-line), transparent var(--us-grid-line)),
+    linear-gradient(to bottom, rgba(87, 83, 214, 0.28) var(--us-grid-line), transparent var(--us-grid-line));
   background-size: calc(100% / var(--us-cols)) calc(100% / var(--us-rows));
 }
 .us-stage > .us-grid { inset: 0; z-index: 1000; }

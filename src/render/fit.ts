@@ -55,6 +55,8 @@ export function mountScaled(stage: HTMLElement, container: HTMLElement): () => v
     stage.style.left = `${(cw - w * scale) / 2}px`;
     stage.style.top = `${(ch - h * scale) / 2}px`;
     stage.style.transform = `scale(${scale})`;
+    // Lets lines drawn on the slide stay one screen pixel wide at any size.
+    stage.style.setProperty('--us-view-scale', String(scale));
   };
   update();
   const observer = new ResizeObserver(update);

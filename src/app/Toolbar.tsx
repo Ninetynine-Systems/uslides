@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type Ref } from 'react';
 import {
-  Copy, Download, Ellipsis, FileCode, FileText, FileUp, FolderOpen, ImageDown, Link, Link2, PanelLeftClose, PanelLeftOpen,
-  Play, Printer, Share2, Trash2, TriangleAlert, Type,
+  Copy, Download, Ellipsis, FileCode, FileText, FileUp, FolderOpen, ImageDown, Link, Link2, Moon, PanelLeftClose,
+  PanelLeftOpen, Play, Printer, Share2, Sun, Trash2, TriangleAlert, Type,
 } from 'lucide-react';
 import { IconButton, LabelButton, MenuItem } from './IconButton';
 import { DeckName } from './DeckName';
 import { Menu } from './Menu';
+import { useTheme } from './theme';
 import { usePopup, usePopupDismiss } from './usePopup';
 
 type Props = {
@@ -133,6 +134,7 @@ export function Toolbar({
   listOpen, onToggleList, name, renameDisabled, deckFontOpen, onDeckFont, deckFontTriggerRef, onRename, onDuplicate, onDelete, onPresent, onCopyLink,
   onPackImages, onDownloadMarkdown, onDownloadHtml, onPrint, onOpen, onOpenFolder, link, needsAccess, readOnly, onGrant, onUnlink,
 }: Props) {
+  const { theme, toggle: toggleTheme } = useTheme();
   return (
     <header className="toolbar">
       <IconButton
@@ -168,6 +170,11 @@ export function Toolbar({
         <DownloadMenu onMarkdown={onDownloadMarkdown} onHtml={onDownloadHtml} onPrint={onPrint} />
         <ShareMenu onCopyLink={onCopyLink} />
         <LabelButton label="Present" icon={Play} className="primary" onClick={onPresent} />
+        <IconButton
+          label={theme === 'dark' ? 'Light theme' : 'Dark theme'}
+          icon={theme === 'dark' ? Sun : Moon}
+          onClick={toggleTheme}
+        />
         <Menu label="More" icon={Ellipsis}>
           {(close) => (
             <>

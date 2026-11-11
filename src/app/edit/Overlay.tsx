@@ -1,5 +1,5 @@
 import {
-  Suspense, useCallback, useEffect, useRef, useState, type ComponentType, type CSSProperties,
+  Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type CSSProperties,
 } from 'react';
 import { Type } from 'lucide-react';
 import {
@@ -19,7 +19,7 @@ import type { Box, Slide } from '../../core/slide';
 import type { Grid, SourceRange } from '../../core/types';
 import { FloatingBar } from './FloatingBar';
 import { boxesAt, cellAt } from './stageGeometry';
-import type { QueuedTypingKey, TypingAreaProps } from './TypingArea';
+import type { QueuedTypingKey, TypingAreaProps, TypingLook } from './TypingArea';
 import { FontPicker } from '../FontPicker';
 import { usePopup, usePopupDismiss } from '../usePopup';
 import { IconButton } from '../IconButton';
@@ -37,6 +37,8 @@ type Drag = {
   area: GridArea | null;
   hits: number[];
   selectedAtStart: number | null;
+  /** The box element that follows the pointer, once the drag has started moving. */
+  el?: HTMLElement;
 } & (
   | { kind: 'draw' }
   | { kind: 'move'; boxIndex: number; original: GridArea }
@@ -69,6 +71,46 @@ export type OverlayProps = {
 };
 
 const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const;
+
+type Hover = { index: number; left: number; top: number; width: number; height: number };
+
+function boxElement(stage: HTMLElement, index: number): HTMLElement | null {
+  return stage.querySelector<HTMLElement>(`:scope > .us-box[data-box="${index}"]`);
+}
+
+/** Screen pixels per slide pixel: the slide is drawn at full size and scaled to fit its frame. */
+function viewScale(stage: HTMLElement): number {
+  const width = stage.offsetWidth;
+  return width === 0 ? 1 : stage.getBoundingClientRect().width / width;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function isTransparent(colour: string): boolean {
+  return colour === 'transparent' || /[,/]\s*0\)$/.test(colour);
+}
+
+/** Space between loose text and the frame drawn round it while typing. */
+const LOOSE_PAD = 6;
+
+/** How the typing area should look so it matches the box or text it covers. */
+function typingLook(stage: HTMLElement, element: Element): TypingLook {
+  const style = getComputedStyle(element);
+  let background = style.backgroundColor;
+  if (isTransparent(background)) background = getComputedStyle(stage).backgroundColor;
+  if (isTransparent(background)) background = '#fff';
+  const scale = viewScale(stage);
+  return {
+    background,
+    color: style.color,
+    fontFamily: style.fontFamily,
+    // The size the text has on screen, so it does not jump when typing starts. Never too small to read.
+    fontSize: clamp(Math.round(parseFloat(style.fontSize) * scale * 10) / 10, 12, 44),
+    padding: clamp(Math.round(parseFloat(style.paddingTop) * scale), 2, 40),
+  };
+}
 
 function pointNear(a: Point, b: Point): boolean {
   return Math.hypot(a.x - b.x, a.y - b.y) <= 4;
@@ -226,6 +268,14 @@ export function Overlay({
   usePopupDismiss(fontPopup.open, fontPopup.close, [fontContainer], fontTrigger);
   const [geometry, setGeometry] = useState<Geometry | null>(null);
   const [typingRect, setTypingRect] = useState<DOMRect | null>(null);
+  const [look, setLook] = useState<TypingLook | undefined>(undefined);
+  /** Set for loose text, which may grow down to the bottom of the slide as it is typed. */
+  const [typingMaxHeight, setTypingMaxHeight] = useState<number | undefined>(undefined);
+  /** True from the first movement of a drag until the slide shows its result. */
+  const [dragging, setDragging] = useState(false);
+  const [hover, setHover] = useState<Hover | null>(null);
+  /** Where a moved box was let go, so it can glide from there to its cells. */
+  const settle = useRef<{ index: number; rect: DOMRect } | null>(null);
   const [typing, setTyping] = useState<Typing | null>(null);
   const typingRef = useRef<Typing | null>(null);
   typingRef.current = typing;
@@ -350,20 +400,41 @@ export function Overlay({
 
     if (!typing) return void setTypingRect(null);
     let anchor: DOMRect | undefined;
+    let styled: Element | null | undefined;
     if (typing.kind === 'box') {
-      anchor = stage.querySelector<HTMLElement>(`:scope > .us-box[data-box="${typing.index}"]`)?.getBoundingClientRect();
+      styled = boxElement(stage, typing.index);
+      anchor = styled?.getBoundingClientRect();
     } else {
-      anchor = boundsOf(loosePieceElements(stage, slide, typing.index));
-      if (!anchor) {
+      const pieces = loosePieceElements(stage, slide, typing.index);
+      const loose = stage.querySelector<HTMLElement>(':scope > .us-loose');
+      styled = loose;
+      anchor = boundsOf(pieces);
+      if (!anchor || !loose) {
         setTypingRect(null);
         storeTyping(null);
         return;
       }
+      // Loose text runs the width of the slide, so the area does too: lines wrap where they will on the slide.
+      const looseRect = loose.getBoundingClientRect();
+      const inset = parseFloat(getComputedStyle(loose).paddingLeft) * viewScale(stage);
+      anchor = new DOMRect(
+        looseRect.left + inset - LOOSE_PAD,
+        anchor.top - LOOSE_PAD,
+        looseRect.width - 2 * inset + 2 * LOOSE_PAD,
+        anchor.height + 2 * LOOSE_PAD,
+      );
     }
+    if (styled) {
+      const next = typingLook(stage, styled);
+      if (typing.kind === 'loose') next.padding = LOOSE_PAD;
+      setLook((current) => (current && JSON.stringify(current) === JSON.stringify(next) ? current : next));
+    }
+    setTypingMaxHeight(typing.kind === 'loose' && anchor ? bounds.bottom - anchor.top - 4 : undefined);
     setTypingRect(anchor ? localRect(anchor, bounds) : null);
   }, [frame, selected, slide, stage, storeTyping, typing]);
 
-  useEffect(() => {
+  // Layout effects: the outline is measured and drawn in the same frame as the slide it sits on.
+  useLayoutEffect(() => {
     updateGeometry();
     const observer = new ResizeObserver(updateGeometry);
     observer.observe(frame);
@@ -374,6 +445,27 @@ export function Overlay({
       window.removeEventListener('resize', updateGeometry);
     };
   }, [slide, updateGeometry]);
+
+  // A new stage means the slide was drawn again: the drag is over, and a moved box glides into its cells.
+  useLayoutEffect(() => {
+    setDragging(false);
+    setHover(null);
+    const from = settle.current;
+    settle.current = null;
+    const element = from && boxElement(stage, from.index);
+    if (!from || !element) return;
+    const now = element.getBoundingClientRect();
+    const scale = viewScale(stage);
+    const dx = (from.rect.left - now.left) / scale;
+    const dy = (from.rect.top - now.top) / scale;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+    element.style.translate = `${dx}px ${dy}px`;
+    void element.offsetWidth; // start the glide from where the box was let go
+    element.classList.add('us-settling');
+    element.style.translate = '';
+    const timer = window.setTimeout(() => element.classList.remove('us-settling'), 200);
+    return () => window.clearTimeout(timer);
+  }, [stage]);
 
   const withSelected = useCallback(
     (
@@ -622,16 +714,48 @@ export function Overlay({
       frame.classList.remove('us-dragging');
       setGhost(null);
 
-      if (!commit) return;
+      const el = current.el;
+      /** Puts the dragged box back where the slide has it. */
+      const putBack = (glide: boolean) => {
+        setDragging(false);
+        if (!el || !el.isConnected) return;
+        if (current.kind === 'resize') {
+          el.style.setProperty('grid-column', `${current.original.col[0]} / ${current.original.col[1] + 1}`);
+          el.style.setProperty('grid-row', `${current.original.row[0]} / ${current.original.row[1] + 1}`);
+        }
+        el.classList.remove('us-lifted');
+        if (glide) {
+          el.classList.add('us-settling');
+          window.setTimeout(() => el.classList.remove('us-settling'), 200);
+        }
+        el.style.translate = '';
+      };
+
+      if (!commit) {
+        putBack(false);
+        return;
+      }
 
       if (current.moved) {
         suppressClick.current = true;
         window.setTimeout(() => {
           suppressClick.current = false;
         });
-        if (current.area) {
-          if (current.kind === 'draw') insert(current.area);
-          else if (!sameArea(current.area, current.original)) setSpan(current.boxIndex, current.area);
+        if (current.kind === 'draw') {
+          setDragging(false);
+          if (current.area) insert(current.area);
+        } else if (current.area && !sameArea(current.area, current.original)) {
+          // The box stays where it was let go until the slide is drawn again, then glides into its cells.
+          if (el && current.kind === 'move') settle.current = { index: current.boxIndex, rect: el.getBoundingClientRect() };
+          setSpan(current.boxIndex, current.area);
+          // If the change could not be made, nothing is drawn again, so put the box back here.
+          window.setTimeout(() => {
+            if (!el?.isConnected) return;
+            settle.current = null;
+            putBack(true);
+          }, 400);
+        } else {
+          putBack(true);
         }
         frame.focus({ preventScroll: true });
         return;
@@ -653,20 +777,60 @@ export function Overlay({
       if (box) onMoveCursor(box.range.from);
     };
 
+    /** Shows what is under the pointer: an outline on a box, and a cursor for what a press would do. */
+    const showHover = (event: PointerEvent) => {
+      const target = event.target;
+      if (typingRef.current || (target instanceof Element && target.closest('.us-floating-bar, .us-typing-area, .us-handle'))) {
+        frame.style.cursor = '';
+        setHover(null);
+        return;
+      }
+      const hits = boxesAt(stage, event.clientX, event.clientY);
+      const index = selected !== null && hits.includes(selected) ? selected : hits[0];
+      const element = index === undefined ? null : boxElement(stage, index);
+      if (index === undefined || !element) {
+        frame.style.cursor = loosePieceAt(stage, slide, event.clientX, event.clientY) === undefined ? 'crosshair' : 'text';
+        setHover(null);
+        return;
+      }
+      frame.style.cursor = 'move';
+      const rect = element.getBoundingClientRect();
+      const bounds = frame.getBoundingClientRect();
+      const next = { index, left: rect.left - bounds.left, top: rect.top - bounds.top, width: rect.width, height: rect.height };
+      setHover((shown) => (shown && JSON.stringify(shown) === JSON.stringify(next) ? shown : next));
+    };
+
+    const onPointerLeave = () => {
+      if (!drag.current) setHover(null);
+    };
+
     const onPointerMove = (event: PointerEvent) => {
       const current = drag.current;
+      if (!current) showHover(event);
       if (!current || current.pointerId !== event.pointerId) return;
       if (event.buttons === 0) {
         finishDrag(event, false);
         return;
       }
       if (!current.moved && Math.hypot(event.clientX - current.start.x, event.clientY - current.start.y) < 4) return;
-      current.moved = true;
-      frame.classList.add('us-dragging');
-      const cell = cellAt(stage, grid, event.clientX, event.clientY);
       const stageRect = stage.getBoundingClientRect();
-      const dc = Math.round((event.clientX - current.start.x) / (stageRect.width / grid.cols));
-      const dr = Math.round((event.clientY - current.start.y) / (stageRect.height / grid.rows));
+      const cellWidth = stageRect.width / grid.cols;
+      const cellHeight = stageRect.height / grid.rows;
+      if (!current.moved) {
+        current.moved = true;
+        frame.classList.add('us-dragging');
+        setDragging(true);
+        setHover(null);
+        fontPopup.close();
+        if (current.kind !== 'draw') {
+          current.el = boxElement(stage, current.boxIndex) ?? undefined;
+          current.el?.classList.remove('us-settling');
+          current.el?.classList.add('us-lifted');
+        }
+      }
+      const cell = cellAt(stage, grid, event.clientX, event.clientY);
+      const dc = Math.round((event.clientX - current.start.x) / cellWidth);
+      const dr = Math.round((event.clientY - current.start.y) / cellHeight);
       let area: GridArea;
       if (current.kind === 'move') {
         area = moveSpan(current.original.col, current.original.row, dc, dr, grid);
@@ -677,6 +841,20 @@ export function Overlay({
           col: [Math.min(current.startCell.col, cell.col), Math.max(current.startCell.col, cell.col)],
           row: [Math.min(current.startCell.row, cell.row), Math.max(current.startCell.row, cell.row)],
         };
+      }
+      if (current.kind === 'move' && current.el) {
+        // The box itself follows the pointer; the dashed outline shows the cells it will land on.
+        const scale = viewScale(stage);
+        const { col, row } = current.original;
+        const dx = clamp(event.clientX - current.start.x, -(col[0] - 1) * cellWidth, (grid.cols - col[1]) * cellWidth);
+        const dy = clamp(event.clientY - current.start.y, -(row[0] - 1) * cellHeight, (grid.rows - row[1]) * cellHeight);
+        current.el.style.translate = `${dx / scale}px ${dy / scale}px`;
+      }
+      if (current.area && sameArea(current.area, area)) return;
+      if (current.kind === 'resize' && current.el) {
+        // The box takes its new cells as the handle moves, so the text shows how it will wrap.
+        current.el.style.setProperty('grid-column', `${area.col[0]} / ${area.col[1] + 1}`);
+        current.el.style.setProperty('grid-row', `${area.row[0]} / ${area.row[1] + 1}`);
       }
       current.area = area;
       setGhost(area);
@@ -815,6 +993,7 @@ export function Overlay({
 
     frame.addEventListener('pointerdown', onPointerDown);
     frame.addEventListener('pointermove', onPointerMove);
+    frame.addEventListener('pointerleave', onPointerLeave);
     frame.addEventListener('pointerup', onPointerUp);
     frame.addEventListener('pointercancel', onPointerCancel);
     frame.addEventListener('lostpointercapture', onLostPointerCapture);
@@ -824,6 +1003,7 @@ export function Overlay({
     return () => {
       frame.removeEventListener('pointerdown', onPointerDown);
       frame.removeEventListener('pointermove', onPointerMove);
+      frame.removeEventListener('pointerleave', onPointerLeave);
       frame.removeEventListener('pointerup', onPointerUp);
       frame.removeEventListener('pointercancel', onPointerCancel);
       frame.removeEventListener('lostpointercapture', onLostPointerCapture);
@@ -832,8 +1012,8 @@ export function Overlay({
       frame.removeEventListener('keydown', onKeyDown);
     };
   }, [
-    beginTyping, duplicate, frame, getDeck, grid, insert, onMoveCursor, onRedo, onSelectSlide, onUndo, remove,
-    selected, setSpan, slide.boxes, slide.index, stage, withSelected,
+    beginTyping, duplicate, fontPopup.close, frame, getDeck, grid, insert, onMoveCursor, onRedo, onSelectSlide, onUndo,
+    remove, selected, setSpan, slide, stage, withSelected,
   ]);
 
   const box = selected === null ? undefined : slide.boxes[selected];
@@ -862,11 +1042,20 @@ export function Overlay({
           <div className="us-ghost" style={areaStyle(stage, frame, grid, ghost)} aria-hidden="true" />
         </>
       )}
+      {hover && !dragging && !typing && hover.index !== selected && (
+        <div
+          className="us-hover"
+          style={{ left: hover.left, top: hover.top, width: hover.width, height: hover.height }}
+          aria-hidden="true"
+        />
+      )}
       {typing && typingRect && (
         <Suspense fallback={null}>
           <TypingArea
             key={typing.session}
             rect={typingRect}
+            look={look}
+            maxHeight={typingMaxHeight}
             text={typing.text}
             from={typing.from}
             onChange={changeTyping}
@@ -883,7 +1072,7 @@ export function Overlay({
           />
         </Suspense>
       )}
-      {!typing && box && geometry && (
+      {!typing && !dragging && box && geometry && (
         <>
           <div className="us-selection" data-box={selected} style={selectionStyle} aria-hidden="true">
             {HANDLES.map((edge) => <span key={edge} className={`us-handle us-handle-${edge}`} data-edge={edge} />)}

@@ -4,6 +4,7 @@ import { parseDeck } from '../core/parse';
 import { fitSlide, type FitResult } from '../render/fit';
 import { renderSlide } from '../render/renderSlide';
 import { App } from './App';
+import { startTheme } from './theme';
 
 declare global {
   interface Window {
@@ -29,6 +30,8 @@ if (new URLSearchParams(location.search).has('test')) {
     },
   };
 }
+
+startTheme();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
