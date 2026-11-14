@@ -10,7 +10,7 @@ title: Welcome to uslides
 
 Slides from plain text, right in your browser. No account, nothing to install, and it works offline.
 
-👉 Double-click any text on a slide to change it, or type on the left.
+👉 Double-click or double-tap any text on a slide to change it.
 
 ---
 
@@ -46,7 +46,7 @@ A line with `---` on its own starts a new slide.
 ::: box col=1-11 row=4-18 bg=#ff6b6b color=white
 ## Drag me
 
-Move a box by dragging it. Pull a corner to resize it.
+Select a box, then drag it to move it. Pull a corner to resize it.
 :::
 
 ::: box col=12-21 row=4-11 bg=#ffd43b color=#1a1a2b
