@@ -95,11 +95,12 @@ test('adding a slide commits text from an open box editor first', async ({ page 
   await expect.poll(() => getSource(page)).toContain('draft');
 });
 
-test('add-slide buttons are hidden at 600 pixels wide', async ({ page }) => {
+test('add-slide buttons are there at 600 pixels wide', async ({ page }) => {
   await page.setViewportSize({ width: 600, height: 900 });
   await page.goto(`/?test#md=${encodeURIComponent(SAMPLE)}`);
   await expect(page.locator('.slide-card')).toHaveCount(4);
 
-  await expect(page.getByRole('button', { name: 'Add slide', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Add slide at the end', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add slide', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Add slide at the end', exact: true }).click();
+  await expect(page.locator('.slide-card')).toHaveCount(5);
 });

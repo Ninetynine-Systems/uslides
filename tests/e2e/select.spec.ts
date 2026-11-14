@@ -168,15 +168,17 @@ test('the bar sits below the box when there is no room above', async ({ page }) 
   expect(bar!.y).toBeGreaterThan(box!.y + box!.height);
 });
 
-test('no selection on a narrow screen', async ({ page }) => {
+test('a box can be selected on a narrow screen', async ({ page }) => {
   await page.setViewportSize({ width: 600, height: 900 });
   await page.goto(`/?test#md=${encodeURIComponent('# A\n\n::: box col=1-6 row=1-3\nLeft\n:::\n')}`);
   await expect(page.locator('.us-box')).toBeVisible();
 
+  await expect(page.locator('.us-edit-overlay')).toHaveCount(1);
+
   await clickBox(page);
 
-  await expect(page.locator('.us-selection')).toHaveCount(0);
-  await expect(page.locator('.slide-frame')).toHaveAttribute('role', 'button');
+  await expect(page.locator('.us-selection')).toHaveCount(1);
+  await expect(page.locator('.slide-frame')).toHaveAttribute('role', 'group');
 });
 
 test('the editable slide is a named group and announces box selection', async ({ page }) => {

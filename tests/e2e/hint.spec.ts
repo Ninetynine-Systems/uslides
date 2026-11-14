@@ -118,11 +118,11 @@ test('the hint is absent from present mode and downloads', async ({ page }) => {
   expect(html).not.toContain('us-hint');
 });
 
-test('the hint is absent from narrow screens', async ({ page }) => {
+test('the hint shows on narrow screens too', async ({ page }) => {
   await page.setViewportSize({ width: 600, height: 900 });
   await page.goto(`/?test#md=${encodeURIComponent(SAMPLE)}`);
   await expect(page.locator('.slide-card')).toHaveCount(4);
-  await expect(page.locator('.us-hint')).toHaveCount(0);
+  await expect(page.locator('.us-hint')).toHaveCount(1);
 });
 
 test('storage errors do not stop the hint or drawing', async ({ page }) => {

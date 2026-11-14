@@ -10,6 +10,7 @@ import {
   BringToFront,
   Copy,
   PaintBucket,
+  Pencil,
   SendToBack,
   Trash2,
 } from 'lucide-react';
@@ -118,6 +119,8 @@ export type FloatingBarProps = {
   onBack(): void;
   onDuplicate(): void;
   onDelete(): void;
+  /** Starts typing in the box. Shown on touch screens, where there is no double-click. */
+  onEditText?(): void;
   fontSlot?: ReactNode;
 };
 
@@ -131,6 +134,7 @@ export function FloatingBar({
   onBack,
   onDuplicate,
   onDelete,
+  onEditText,
   fontSlot,
 }: FloatingBarProps) {
   const bar = useRef<HTMLDivElement>(null);
@@ -161,6 +165,7 @@ export function FloatingBar({
   };
   return (
     <div ref={bar} className="us-floating-bar" style={style} data-placement={above ? 'above' : 'below'}>
+      {onEditText && <IconButton label="Edit text" icon={Pencil} onClick={onEditText} />}
       <ColourControl
         kind="fill"
         theme={theme}

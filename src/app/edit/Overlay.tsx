@@ -42,10 +42,14 @@ type Drag = {
   area: GridArea | null;
   hits: number[];
   selectedAtStart: number | null;
+  /** True when a finger started this, not a mouse or pen. */
+  touch: boolean;
   /** The box element that follows the pointer, once the drag has started moving. */
   el?: HTMLElement;
 } & (
   | { kind: 'draw' }
+  /** A finger press that has not chosen anything yet. It only counts if the finger lifts without moving. */
+  | { kind: 'tap'; boxIndex: number | null }
   | { kind: 'move'; boxIndex: number; original: GridArea }
   | { kind: 'resize'; boxIndex: number; edge: Edge; original: GridArea }
 );
@@ -311,6 +315,8 @@ export function Overlay({
   /** True from the first movement of a drag until the slide shows its result. */
   const [dragging, setDragging] = useState(false);
   const [hover, setHover] = useState<Hover | null>(null);
+  /** True when the last press on this slide came from a finger. Starts from what the device mostly uses. */
+  const [touchInput, setTouchInput] = useState(() => window.matchMedia('(pointer: coarse)').matches);
   /** Where a moved box was let go, so it can glide from there to its cells. */
   const settle = useRef<{ index: number; rect: DOMRect } | null>(null);
   const [typing, setTyping] = useState<Typing | null>(null);
@@ -480,6 +486,11 @@ export function Overlay({
       ? null
       : stage.querySelector<HTMLElement>(`:scope > .us-box[data-box="${selected}"]`);
     setGeometry(selectedBox ? { anchor: restingRect(selectedBox, stage), bounds } : null);
+    // The selected box is marked, so the styles can let a finger drag it instead of scrolling the page.
+    for (const marked of stage.querySelectorAll(':scope > .us-picked')) {
+      if (marked !== selectedBox) marked.classList.remove('us-picked');
+    }
+    selectedBox?.classList.add('us-picked');
 
     if (!typing) return void setTypingRect(null);
     let anchor: DOMRect | undefined;
@@ -805,12 +816,26 @@ export function Overlay({
   }, [onRedo, reloadTyping]);
 
   useEffect(() => {
+    const tapStart = (event: PointerEvent, start: Point, hits: number[]) => ({
+      kind: 'tap' as const,
+      pointerId: event.pointerId,
+      start,
+      startCell: cellAt(stage, grid, event.clientX, event.clientY),
+      moved: false,
+      area: null,
+      hits,
+      selectedAtStart: selected,
+      touch: true,
+    });
+
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return;
       const target = event.target;
       if (target instanceof Element && target.closest('.us-floating-bar, .us-typing-area, .us-typing-bar')) return;
       const point = { x: event.clientX, y: event.clientY };
       const hits = boxesAt(stage, event.clientX, event.clientY);
+      const touch = event.pointerType === 'touch';
+      setTouchInput(touch);
       const handle = target instanceof Element ? target.closest<HTMLElement>('.us-handle[data-edge]') : null;
       const edge = handle?.dataset.edge as Edge | undefined;
       let nextDrag: Drag;
@@ -826,6 +851,7 @@ export function Overlay({
           area: null,
           hits,
           selectedAtStart: selected,
+          touch,
           boxIndex: selected,
           edge,
           original: { col: box.col, row: box.row },
@@ -834,6 +860,12 @@ export function Overlay({
         const boxIndex = selected !== null && hits.includes(selected) ? selected : hits[0]!;
         const box = slide.boxes[boxIndex];
         if (!box) return;
+        if (touch && selected !== boxIndex) {
+          // A finger that lands on a box may be about to scroll the page. The box is selected only if the
+          // finger lifts again without moving, and it can be dragged once it is selected.
+          drag.current = { ...tapStart(event, point, hits), boxIndex };
+          return;
+        }
         if (selected !== boxIndex) {
           setSelected(boxIndex);
           lastPoint.current = null;
@@ -851,9 +883,14 @@ export function Overlay({
           area: null,
           hits,
           selectedAtStart: selected,
+          touch,
           boxIndex,
           original: { col: box.col, row: box.row },
         };
+      } else if (touch) {
+          // A finger on empty space scrolls the page. Boxes are added with the Add box button instead.
+          drag.current = { ...tapStart(event, point, hits), boxIndex: null };
+          return;
       } else {
         setSelected(null);
         lastPoint.current = null;
@@ -866,6 +903,7 @@ export function Overlay({
           area: null,
           hits,
           selectedAtStart: selected,
+          touch,
         };
       }
 
@@ -885,6 +923,38 @@ export function Overlay({
       if (frame.hasPointerCapture(event.pointerId)) frame.releasePointerCapture(event.pointerId);
       frame.classList.remove('us-dragging');
       setGhost(null);
+
+      if (current.kind === 'tap') {
+        if (!commit || current.moved) return;
+        if (current.boxIndex !== null) {
+          const tapped = slide.boxes[current.boxIndex];
+          if (!tapped) return;
+          setSelected(current.boxIndex);
+          lastPoint.current = current.start;
+          if (slideSelectedRef.current) onSlideSelect?.(false);
+          onSelectSlide?.();
+          onMoveCursor(tapped.range.from);
+          frame.focus({ preventScroll: true });
+          return;
+        }
+        // A second tap on text that sits outside any box, once its slide is selected, starts typing in it.
+        const freshDeck = getDeck();
+        const freshSlide = freshDeck?.slides[slide.index];
+        const looseIndex = slideSelectedRef.current && freshSlide
+          ? loosePieceAt(stage, freshSlide, current.start.x, current.start.y)
+          : undefined;
+        if (looseIndex !== undefined) {
+          suppressClick.current = true;
+          window.setTimeout(() => {
+            suppressClick.current = false;
+          });
+          beginTyping({ kind: 'loose', index: looseIndex }, freshDeck, current.start);
+          return;
+        }
+        setSelected(null);
+        lastPoint.current = null;
+        return;
+      }
 
       const el = current.el;
       /** Puts the dragged box back where the slide has it. */
@@ -943,6 +1013,11 @@ export function Overlay({
         const index = current.hits.indexOf(current.selectedAtStart);
         if (index !== -1) next = current.hits[(index + 1) % current.hits.length]!;
       }
+      // A finger has no double-click, so a tap on the box that is already selected starts typing in it.
+      if (current.touch && current.selectedAtStart === current.boxIndex && next === current.boxIndex) {
+        beginTyping({ kind: 'box', index: next }, undefined, current.start);
+        return;
+      }
       setSelected(next);
       lastPoint.current = current.start;
       const box = slide.boxes[next];
@@ -978,8 +1053,12 @@ export function Overlay({
 
     const onPointerMove = (event: PointerEvent) => {
       const current = drag.current;
-      if (!current) showHover(event);
+      if (!current && event.pointerType !== 'touch') showHover(event);
       if (!current || current.pointerId !== event.pointerId) return;
+      if (current.kind === 'tap') {
+        if (Math.hypot(event.clientX - current.start.x, event.clientY - current.start.y) >= 8) current.moved = true;
+        return;
+      }
       if (event.buttons === 0) {
         finishDrag(event, false);
         return;
@@ -1214,7 +1293,9 @@ export function Overlay({
     <div className="us-edit-overlay">
       {showHint && active && !slideSelected && slide.boxes.length === 0 && (
         <p className="us-hint" aria-hidden="true">
-          Drag on the slide to draw a box. Double-click text to edit it.
+          {touchInput
+            ? 'Tap Add box to add a box. Tap a box twice to type in it.'
+            : 'Drag on the slide to draw a box. Double-click text to edit it.'}
         </p>
       )}
       <div className="us-selection-status" aria-live="polite" aria-atomic="true">
@@ -1281,6 +1362,7 @@ export function Overlay({
             anchor={geometry.anchor}
             bounds={geometry.bounds}
             onSet={setAttrs}
+            onEditText={touchInput && selected !== null ? () => beginTyping({ kind: 'box', index: selected }) : undefined}
             fontSlot={(
               <div ref={fontContainer} className="us-font-control">
                 <IconButton

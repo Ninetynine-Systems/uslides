@@ -267,7 +267,9 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
 /* The slide the text cursor is in. */
 .preview-scroll .slide-card.current .slide-frame { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent), var(--shadow-slide); }
 .slide-card.current figcaption { color: var(--accent-ink); font-weight: 600; }
-.slide-frame:has(.us-edit-overlay) { touch-action: none; cursor: crosshair; }
+/* A finger on a slide scrolls the page. Only the selected box and its handles take a drag. */
+.slide-frame:has(.us-edit-overlay) { touch-action: pan-y pinch-zoom; cursor: crosshair; }
+.us-box.us-picked, .us-handle { touch-action: none; }
 .slide-frame:focus { outline: none; }
 .slide-frame:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* The overlay's own grid sits outside the scaled slide, so its lines are already screen pixels. */
@@ -422,6 +424,11 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
 }
 /* A larger area to grab than the square that is drawn. */
 .us-handle::before { content: ''; position: absolute; inset: -7px; }
+/* Fingers need more room than a mouse pointer. */
+@media (pointer: coarse) {
+  .us-handle { width: 14px; height: 14px; }
+  .us-handle::before { inset: -12px; }
+}
 .us-handle-nw, .us-handle-se { cursor: nwse-resize; }
 .us-handle-ne, .us-handle-sw { cursor: nesw-resize; }
 .us-handle-n, .us-handle-s { cursor: ns-resize; }
@@ -619,9 +626,18 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
   .app.list-open .workspace { display: none; }
   .workspace { grid-template-columns: 1fr; }
   .editor-pane { display: none; }
+  /* The Markdown text takes the whole screen in place of the slides. */
+  .workspace.phone-text .editor-pane { display: flex; flex-direction: column; }
+  .workspace.phone-text .editor-pane > .editor { flex: 1; min-height: 0; }
+  .workspace.phone-text .preview-pane { display: none; }
+  .phone-text-bar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 0.9rem; border-bottom: 1px solid var(--line); }
+  .phone-text-bar .label-btn { width: auto; padding: 0 12px; }
+  .phone-text-bar .label-btn span { display: inline; }
   .decks { border-right: 0; }
   /* On a phone the actions take their own rows under the name, and wrap instead of scrolling sideways. */
   .toolbar-actions { flex-basis: 100%; }
+  /* Undo and Redo sit at the right edge here, so their tooltips open leftward and stay on screen. */
+  .toolbar-history .icon-btn::after { left: auto; right: 0; transform: none; }
   .decklist-head { flex-wrap: wrap; }
   /* Menus open under the row and span the screen, whichever button they belong to. */
   .toolbar .share { position: static; }

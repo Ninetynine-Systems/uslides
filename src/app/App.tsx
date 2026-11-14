@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { setBoxAttrs, setDeckFont, type EditResult } from '../core/edit';
 import { externalHosts } from '../core/external';
@@ -23,6 +24,7 @@ import { exportBackup, importBackup } from '../storage/backup';
 import { dismissSafariNote, requestPersistence, SAFARI_NOTE, shouldShowSafariNote } from '../storage/persist';
 import { registerSW } from 'virtual:pwa-register';
 import { ConflictDialog, FilePicker } from './FileDialogs';
+import { LabelButton } from './IconButton';
 import { isImageDrop } from './editor/dropMarker';
 import { Notices, useNotices } from './Notices';
 import { Present } from './Present';
@@ -239,9 +241,18 @@ export function App() {
   const deckFontPicker = useRef<HTMLDivElement>(null);
   usePopupDismiss(deckFont.open, deckFont.close, [deckFontTrigger, deckFontPicker], deckFontTrigger);
   const wide = useWide();
+  /** On a phone there is room for one side only. True shows the Markdown text in place of the slides. */
+  const [phoneText, setPhoneText] = useState(false);
+  const showingText = !wide && phoneText;
   const { notices, notify, dismiss } = useNotices();
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const editor = useRef<EditorHandle>(null);
+  /** True once the text editor has loaded. Every change made on a slide goes through it. */
+  const [editorLoaded, setEditorLoaded] = useState(false);
+  const attachEditor = useCallback((handle: EditorHandle | null) => {
+    editor.current = handle;
+    setEditorLoaded(handle !== null);
+  }, []);
   const workspace = useRef<HTMLElement>(null);
   /** 1-based slide shown in present mode, or undefined when not presenting. */
   const [presenting, setPresenting] = useState<number | undefined>(() => parseRoute(location.hash).present);
@@ -1016,11 +1027,11 @@ export function App() {
         onAgentHelp={openAgentHelp}
         onPresent={() => startPresenting(1)}
         onPresenterView={() => startPresenterView(1)}
-        history={wide ? {
+        history={{
           ...history_,
           onUndo: undoOnSlide,
           onRedo: redoOnSlide,
-        } : undefined}
+        }}
         onCopyLink={copyLink}
         onPackImages={guarded(packAllImages)}
         onDownloadMarkdown={guarded(downloadMd)}
@@ -1058,17 +1069,24 @@ export function App() {
       </div>
       <main
         ref={workspace}
-        className={editorHidden ? 'workspace editor-hidden' : 'workspace'}
+        className={wide ? (editorHidden ? 'workspace editor-hidden' : 'workspace') : showingText ? 'workspace phone-text' : 'workspace'}
         style={wide && editorHidden ? { gridTemplateColumns: 'minmax(0, 1fr)' } : wide ? {
           // Each side keeps 280px, or half the room when the workspace is too narrow for both.
           gridTemplateColumns: `minmax(min(280px, calc(50% - 4px)), ${editorFraction}fr) 8px minmax(min(280px, calc(50% - 4px)), ${1 - editorFraction}fr)`,
         } : undefined}
       >
         <div className="editor-pane">
-          {ready && wide && (
+          {showingText && (
+            <div className="phone-text-bar">
+              <LabelButton label="Back to slides" icon={ArrowLeft} onClick={() => setPhoneText(false)} />
+              <span className="muted">Markdown text</span>
+            </div>
+          )}
+          {/* The text stays loaded on a phone too: every change made on a slide goes through it. */}
+          {ready && (
             <Suspense fallback={null}>
             <Editor
-              ref={editor}
+              ref={attachEditor}
               value={current.source}
               onChange={sourceChanged}
               onCursorChange={(pos) => setCurrentSlide(slideAtPosition(deckRef.current, pos) - 1)}
@@ -1106,9 +1124,10 @@ export function App() {
             getSource={getSource}
             onUndo={undoOnSlide}
             onRedo={redoOnSlide}
-            editable={wide}
-            editorHidden={editorHidden}
-            onToggleEditor={toggleEditor}
+            // On a phone the text editor is out of sight, so the slide tools wait until it can take their changes.
+            editable={wide || editorLoaded}
+            editorHidden={wide ? editorHidden : true}
+            onToggleEditor={wide ? toggleEditor : () => setPhoneText(true)}
             showHint={!showPresent}
             onFit={onFit}
             onSelectSlide={(i) => {
