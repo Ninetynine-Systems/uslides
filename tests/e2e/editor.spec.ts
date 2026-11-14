@@ -284,3 +284,22 @@ test('a link to a deck that does not exist shows another deck', async ({ page })
   await moreMenu(page, 'Duplicate deck');
   await expect(items).toHaveCount(2);
 });
+
+test('a --- line that starts a slide shows the slide number and title', async ({ page }) => {
+  const source = '# One\n\n---\n\n# Second slide\n\n```\n---\n```\n\n---\n\nNo heading\n';
+  await page.goto(`/?test#md=${encodeURIComponent(source)}`);
+  const editor = page.getByRole('textbox', { name: 'Deck source' });
+  await expect(editor).toBeVisible();
+
+  const labels = page.locator('.editor .cm-slide-label');
+  await expect(labels).toHaveText(['Slide 2 · Second slide', 'Slide 3']);
+  // The dashes inside the code block are not a divider.
+  await expect(page.locator('.editor .cm-slide-divider')).toHaveCount(2);
+
+  // The label follows the text as it is typed, and the text itself is untouched.
+  await editor.click();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.type('\n---\n\n# Fresh');
+  await expect(labels).toHaveText(['Slide 2 · Second slide', 'Slide 3', 'Slide 4 · Fresh']);
+  expect(await page.evaluate(() => window.__uslides!.getSource!())).toContain('\n---\n\n# Fresh');
+});

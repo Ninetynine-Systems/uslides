@@ -15,6 +15,7 @@ import type { EditResult } from '../core/edit';
 import type { Warning } from '../core/types';
 import { dataUriFold } from './editor/dataUriFold';
 import { pasteImage } from './editor/pasteImage';
+import { slideDividers } from './editor/slideDividers';
 
 /** Marks edits that came from the `value` prop, so they are not reported back through onChange. */
 const externalChange = Annotation.define<boolean>();
@@ -83,6 +84,7 @@ export function Editor({ value, onChange, onCursorChange, warnings = [], onNotic
           markdown(),
           EditorView.lineWrapping,
           dataUriFold(),
+          slideDividers(),
           EditorView.contentAttributes.of({ 'aria-label': 'Deck source' }),
           EditorView.updateListener.of((u) => {
             if (u.docChanged && !u.transactions.some((t) => t.annotation(externalChange))) {

@@ -197,6 +197,31 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
 .editor .cm-activeLine,
 .editor .cm-activeLineGutter { background: var(--hover); }
 .editor .cm-activeLineGutter { color: var(--text); }
+/* A `---` line that starts a slide: a rule runs from the dashes to the label of the slide that follows. */
+.editor .cm-slide-divider {
+  position: relative;
+  background-image: linear-gradient(var(--accent), var(--accent));
+  background-repeat: no-repeat;
+  background-position: calc(4ch + 6px) 50%;
+  background-size: calc(100% - 4ch - 18px) 1.5px;
+}
+.editor .cm-slide-label {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  max-width: calc(100% - 7ch - 24px);
+  padding: 1px 9px;
+  overflow: hidden;
+  transform: translateY(-50%);
+  color: var(--accent-ink);
+  font: 600 12px/1.5 system-ui, sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--accent-soft);
+  border-radius: 999px;
+  /* A click on the label lands on the line under it. */
+  pointer-events: none;
+}
 /* The editor's own search bar, warnings and tooltips, in the app's colours. */
 .editor .cm-editor .cm-panels { color: var(--text); background: var(--panel); border-color: var(--line); }
 .editor .cm-editor .cm-panel.cm-search { padding: 8px 10px; }
