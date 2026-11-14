@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Archive, ArchiveRestore, Ellipsis, Info, Plus, Square, SquareCheckBig } from 'lucide-react';
+import { Archive, ArchiveRestore, Bot, Ellipsis, Info, Plus, Square, SquareCheckBig } from 'lucide-react';
 import { IconButton, LabelButton, MenuItem } from './IconButton';
 import { usePopup, usePopupDismiss } from './usePopup';
 
@@ -14,6 +14,7 @@ type Props = {
   onBackup(): void;
   onRestore(): void;
   onAbout(): void;
+  onAgentHelp(): void;
   askFirst: boolean;
   onAskFirstChange(on: boolean): void;
 };
@@ -32,7 +33,7 @@ export function relativeTime(then: number, now: number): string {
 }
 
 export function DeckList({
-  decks, activeId, now = Date.now(), onSelect, onNew, onBackup, onRestore, onAbout, askFirst, onAskFirstChange,
+  decks, activeId, now = Date.now(), onSelect, onNew, onBackup, onRestore, onAbout, onAgentHelp, askFirst, onAskFirstChange,
 }: Props) {
   const menu = usePopup();
   const container = useRef<HTMLElement>(null);
@@ -60,6 +61,7 @@ export function DeckList({
             aria-checked={askFirst}
             onClick={() => onAskFirstChange(!askFirst)}
           />
+          <MenuItem label="Use with an AI agent" icon={Bot} onClick={choose(onAgentHelp)} />
           <MenuItem label="About uslides" icon={Info} onClick={choose(onAbout)} />
         </div>
       )}

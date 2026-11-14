@@ -16,6 +16,7 @@ import {
   purgeDeletedDecks, renameDeck, restoreDeck, setDeckPrivacy,
 } from '../storage/db';
 import { About, VersionBadge } from './About';
+import { AgentHelp } from './AgentHelp';
 import { DeckList, type DeckSummary } from './DeckList';
 import type { EditorHandle } from './Editor';
 import { exportBackup, importBackup } from '../storage/backup';
@@ -226,6 +227,12 @@ export function App() {
   const [askFirst, setAskFirst] = useState(readAskFirst);
   const [aboutOpen, setAboutOpen] = useState(false);
   const closeAbout = useCallback(() => setAboutOpen(false), []);
+  const [agentHelpOpen, setAgentHelpOpen] = useState(false);
+  const closeAgentHelp = useCallback(() => setAgentHelpOpen(false), []);
+  const openAgentHelp = useCallback(() => {
+    setAboutOpen(false);
+    setAgentHelpOpen(true);
+  }, []);
   const [allowedOnce, setAllowedOnce] = useState<Set<string>>(() => new Set());
   const deckFont = usePopup();
   const deckFontTrigger = useRef<HTMLButtonElement>(null);
@@ -1006,6 +1013,7 @@ export function App() {
         onDuplicate={guarded(duplicate)}
         onDelete={guarded(remove)}
         onAbout={() => setAboutOpen(true)}
+        onAgentHelp={openAgentHelp}
         onPresent={() => startPresenting(1)}
         onPresenterView={() => startPresenterView(1)}
         history={wide ? {
@@ -1043,6 +1051,7 @@ export function App() {
           onBackup={guarded(backupAll)}
           onRestore={() => restoreInput.current?.click()}
           onAbout={() => setAboutOpen(true)}
+          onAgentHelp={openAgentHelp}
           askFirst={askFirst}
           onAskFirstChange={changeAskFirst}
         />
@@ -1138,7 +1147,8 @@ export function App() {
         }}
       />
       {dragging && <div className="drop-overlay">Drop Markdown and image files to open them</div>}
-      {aboutOpen && <About onClose={closeAbout} />}
+      {aboutOpen && <About onClose={closeAbout} onAgentHelp={openAgentHelp} />}
+      {agentHelpOpen && <AgentHelp onClose={closeAgentHelp} notify={notify} />}
       {sync.conflict && <ConflictDialog onChoose={(c) => guarded(() => sync.resolve(c))()} />}
       {folderChoice && (
         <FilePicker

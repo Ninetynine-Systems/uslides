@@ -5,13 +5,20 @@ import type { Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vitest/config';
 
-/** Publishes the agent skill file at /SKILL.md, so agents can fetch it from the site. */
+/** Publishes the agent skill file at /SKILL.md, so agents and the app's AI agent panel can fetch it. */
 function skillFile(): Plugin {
+  const read = () => readFileSync('skill/uslides/SKILL.md', 'utf8');
   return {
     name: 'uslides-skill-file',
-    apply: 'build',
     generateBundle() {
-      this.emitFile({ type: 'asset', fileName: 'SKILL.md', source: readFileSync('skill/uslides/SKILL.md', 'utf8') });
+      this.emitFile({ type: 'asset', fileName: 'SKILL.md', source: read() });
+    },
+    // The dev server has no build output, so it serves the file straight from disk.
+    configureServer(server) {
+      server.middlewares.use('/SKILL.md', (_req, res) => {
+        res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+        res.end(read());
+      });
     },
   };
 }

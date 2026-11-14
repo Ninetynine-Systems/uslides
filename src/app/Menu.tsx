@@ -14,6 +14,12 @@ export function Menu({ label, icon, children }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   usePopupDismiss(popup.open, popup.close, [container], trigger);
+  // Choosing an item removes it from the page. Focus moves to the menu button first, so a dialog
+  // the item opens can hand focus back to something that still exists when it closes.
+  const chooseAndClose = () => {
+    trigger.current?.focus();
+    popup.close();
+  };
 
   return (
     <div ref={container} className="share">
@@ -25,7 +31,7 @@ export function Menu({ label, icon, children }: Props) {
         aria-expanded={popup.open}
         onClick={popup.toggle}
       />
-      {popup.open && <div className="share-menu">{children(popup.close)}</div>}
+      {popup.open && <div className="share-menu">{children(chooseAndClose)}</div>}
     </div>
   );
 }

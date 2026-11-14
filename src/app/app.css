@@ -595,6 +595,9 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
   right: 12px;
   bottom: 10px;
   z-index: 9;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 3px 10px;
   color: var(--muted);
   font-size: 0.72rem;
@@ -645,7 +648,8 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
 .about-dialog { width: min(480px, 100%); max-width: 480px; max-height: calc(100vh - 32px); overflow: auto; }
 .about-dialog:focus { outline: none; }
 .about-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -6px -8px 4px 0; }
-.about-head h2 { margin: 0; font-size: 1.25rem; }
+.about-head h2 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 1.25rem; }
+.logo { flex: 0 0 auto; }
 .modal p.about-lead { margin: 0 0 18px; color: var(--muted); font-size: 0.95rem; font-weight: 400; }
 .about-points { display: flex; flex-direction: column; gap: 14px; margin: 0 0 20px; padding: 0; list-style: none; }
 .about-points li { display: flex; gap: 12px; }
@@ -657,6 +661,34 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
 .about-links a:hover { color: var(--accent-ink); background: var(--panel); }
 .about-links a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .about-links svg { flex: 0 0 auto; color: var(--muted); }
+/* The About page's way in to the AI agent panel. */
+.about-agent { width: 100%; justify-content: center; margin: 0 0 14px; }
+/* The AI agent panel. It reuses the About page's layout. */
+.agent-dialog { width: min(560px, 100%); max-width: 560px; }
+.agent-subhead { margin: 0 0 10px; font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.agent-prompt {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  background: var(--hover);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.agent-prompt:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.agent-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Labelled buttons shrink to icons on phones elsewhere; here the words are the point. */
+.agent-actions .label-btn { width: auto; padding: 0 12px; }
+.agent-actions .label-btn span { display: inline; }
+.agent-download { color: var(--text); text-decoration: none; background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--radius); line-height: 1.25; }
+.agent-download:hover { background: var(--hover); }
+.agent-download:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.modal p.agent-error { margin: 12px 0 0; color: var(--danger); font-size: 0.9rem; font-weight: 400; }
+.modal p.agent-note { margin: 12px 0 0; font-size: 0.85rem; font-weight: 400; }
 .modal p.about-build { margin: 14px 0 0; font-size: 0.75rem; font-weight: 400; }
 .drop-overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; color: var(--accent-ink); font-size: 1.4rem; font-weight: 600; text-align: center; background: color-mix(in srgb, var(--accent-soft) 88%, transparent); border: 4px dashed var(--accent); z-index: 30; pointer-events: none; }
 .linked { position: relative; }

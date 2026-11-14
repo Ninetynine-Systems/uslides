@@ -44,6 +44,7 @@ test('More shows its actions in order with Delete separated', async ({ page }) =
     'Open folder',
     'Pack images',
     'Duplicate deck',
+    'Use with an AI agent',
     'About uslides',
     'Delete deck',
   ]);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type Ref } from 'react';
 import {
-  ChevronDown, Copy, Download, Ellipsis, FileCode, Info, FileText, FileUp, FolderOpen, ImageDown, Link, Link2, Moon,
+  Bot, ChevronDown, Copy, Download, Ellipsis, FileCode, Info, FileText, FileUp, FolderOpen, ImageDown, Link, Link2, Moon,
   PanelLeftClose, PanelLeftOpen, Play, Presentation, Printer, Redo2, Share2, Sun, Trash2, TriangleAlert, Type, Undo2,
 } from 'lucide-react';
 import { IconButton, LabelButton, MenuItem } from './IconButton';
@@ -21,6 +21,7 @@ type Props = {
   onDuplicate(): void;
   onDelete(): void;
   onAbout(): void;
+  onAgentHelp(): void;
   onPresent(): void;
   onPresenterView(): void;
   /** Undefined where the deck cannot be edited (a narrow screen), so the buttons are not shown. */
@@ -173,7 +174,7 @@ function PresentButton({ onPresent, onPresenterView }: { onPresent(): void; onPr
 }
 
 export function Toolbar({
-  listOpen, onToggleList, name, renameDisabled, deckFontOpen, onDeckFont, deckFontTriggerRef, onRename, onDuplicate, onDelete, onAbout, onPresent,
+  listOpen, onToggleList, name, renameDisabled, deckFontOpen, onDeckFont, deckFontTriggerRef, onRename, onDuplicate, onDelete, onAbout, onAgentHelp, onPresent,
   onPresenterView, history, onCopyLink,
   onPackImages, onDownloadMarkdown, onDownloadHtml, onPrint, onOpen, onOpenFolder, link, needsAccess, readOnly, onGrant, onUnlink,
 }: Props) {
@@ -238,6 +239,7 @@ export function Toolbar({
               )}
               <MenuItem label="Pack images" icon={ImageDown} onClick={() => { close(); onPackImages(); }} />
               <MenuItem label="Duplicate deck" icon={Copy} onClick={() => { close(); onDuplicate(); }} />
+              <MenuItem label="Use with an AI agent" icon={Bot} onClick={() => { close(); onAgentHelp(); }} />
               <MenuItem label="About uslides" icon={Info} onClick={() => { close(); onAbout(); }} />
               <hr />
               <MenuItem label="Delete deck" icon={Trash2} className="danger" onClick={() => { close(); onDelete(); }} />

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
-import { AtSign, Globe, HardDrive, Mail, WifiOff, X } from 'lucide-react';
+import { AtSign, Bot, Globe, HardDrive, Mail, WifiOff, X } from 'lucide-react';
 import { IconButton } from './IconButton';
+import { Logo } from './Logo';
 
 /** The version shown in the corner badge and on the About page. */
 export const VERSION_TEXT = `uslides · ${__BUILD_ID__} · ${__COMMIT__}`;
@@ -9,15 +10,20 @@ export const VERSION_TEXT = `uslides · ${__BUILD_ID__} · ${__COMMIT__}`;
 export function VersionBadge({ onClick }: { onClick(): void }) {
   return (
     <button type="button" className="version-badge" aria-label={`About uslides, version ${__BUILD_ID__}, commit ${__COMMIT__}`} title="About uslides" onClick={onClick}>
+      <Logo size={14} />
       {VERSION_TEXT}
     </button>
   );
 }
 
-type Props = { onClose(): void };
+type Props = {
+  onClose(): void;
+  /** Closes this page and opens the panel about AI agents. */
+  onAgentHelp(): void;
+};
 
 /** What uslides is, where decks are kept, and how to reach the people who make it. */
-export function About({ onClose }: Props) {
+export function About({ onClose, onAgentHelp }: Props) {
   const titleId = useId();
   const dialog = useRef<HTMLDivElement>(null);
   const opener = useRef<Element | null>(null);
@@ -47,7 +53,7 @@ export function About({ onClose }: Props) {
     >
       <div ref={dialog} className="modal about-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <div className="about-head">
-          <h2 id={titleId}>About uslides</h2>
+          <h2 id={titleId}><Logo size={28} />About uslides</h2>
           <IconButton label="Close" icon={X} onClick={onClose} />
         </div>
         <p className="about-lead">Slides you write in plain text, right in your browser. No account, nothing to install.</p>
@@ -82,6 +88,11 @@ export function About({ onClose }: Props) {
             </div>
           </li>
         </ul>
+
+        <button type="button" className="label-btn about-agent" onClick={onAgentHelp}>
+          <Bot size={18} aria-hidden />
+          Use uslides with an AI agent
+        </button>
 
         <div className="about-links">
           <a href="https://ninetynine.systems" target="_blank" rel="noreferrer">
