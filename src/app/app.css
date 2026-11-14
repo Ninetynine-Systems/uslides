@@ -662,7 +662,8 @@ body.us-resizing-workspace { cursor: col-resize; user-select: none; }
 .about-links a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .about-links svg { flex: 0 0 auto; color: var(--muted); }
 /* The About page's way in to the AI agent panel. */
-.about-agent { width: 100%; justify-content: center; margin: 0 0 14px; }
+/* Labelled buttons shrink to a 34px icon on phones. This one keeps its words, so it stays full width. */
+.label-btn.about-agent { width: 100%; padding: 0 12px; justify-content: center; margin: 0 0 14px; }
 /* The AI agent panel. It reuses the About page's layout. */
 .agent-dialog { width: min(560px, 100%); max-width: 560px; }
 .agent-subhead { margin: 0 0 10px; font-size: 0.8rem; font-weight: 600; color: var(--muted); }

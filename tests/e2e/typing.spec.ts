@@ -445,7 +445,8 @@ test('typing on a slide shows text as it looks on the slide, and the format butt
   await expect(typingArea(page).locator('.cm-line').nth(2)).toHaveText('Some bold words');
 
   await page.keyboard.press('ControlOrMeta+End');
-  await page.keyboard.press('Shift+ControlOrMeta+ArrowLeft');
+  // Select the last word. On a Mac that is Option+Shift+Left; Cmd+Shift+Left selects the whole line.
+  await page.keyboard.press(process.platform === 'darwin' ? 'Shift+Alt+ArrowLeft' : 'Shift+Control+ArrowLeft');
   await page.keyboard.press('ControlOrMeta+b');
   await expect.poll(() => getSource(page)).toContain('Some **bold** **words**');
 

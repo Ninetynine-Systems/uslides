@@ -70,7 +70,11 @@ function addFontLink(family: Family): void {
   document.head.append(link);
 }
 
-/** Loads the catalog fonts a deck uses and reports each completed browser font-loading pass. */
+/**
+ * Loads the catalog fonts a deck uses. The number it returns changes whenever slides must be drawn
+ * again: after the browser finishes loading fonts, and when the font list arrives. A blocked deck
+ * drawn before the list arrived treats a web font as a font on this device, and must be redrawn.
+ */
 export function useDeckFonts(deck: Deck | undefined, blocked: boolean): number {
   const [version, setVersion] = useState(0);
   const catalogVersion = useSyncExternalStore(subscribeCatalog, getCatalogVersion, getCatalogVersion);
@@ -96,7 +100,7 @@ export function useDeckFonts(deck: Deck | undefined, blocked: boolean): number {
     return () => fonts?.removeEventListener('loadingdone', loaded);
   }, [blocked, families]);
 
-  return version;
+  return version + catalogVersion;
 }
 
 /** Waits until the named fonts have settled, but never longer than the given limit. */

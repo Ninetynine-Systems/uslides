@@ -82,8 +82,9 @@ test('a blocked deck asks for no font and shows the theme font', async ({ page }
     'This deck wants to load images and fonts from 2 other websites. They are blocked until you allow them.',
   )).toBeVisible();
   await expect(page.locator('link[data-uslides-font]')).toHaveCount(0);
-  expect(await box.evaluate((element: HTMLElement) => ({ inline: element.style.fontFamily })))
-    .toEqual(expect.objectContaining({ inline: '' }));
+  // The slide is drawn again once the deck is known to be blocked, so wait for that drawing.
+  await expect.poll(() => page.locator('.slide-card .us-box').first().evaluate((element: HTMLElement) => element.style.fontFamily))
+    .toBe('');
   const families = await box.evaluate((element: HTMLElement) => ({
     box: getComputedStyle(element).fontFamily,
     stage: getComputedStyle(element.closest('.us-stage')!).fontFamily,

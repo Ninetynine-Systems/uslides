@@ -64,10 +64,12 @@ describe('font loading', () => {
     };
 
     await act(async () => root.render(createElement(FontLoader)));
+    // The number also counts the font list arriving, so compare against where it starts.
+    const start = versions.at(-1)!;
     await act(async () => dispatch('Other Font'));
-    expect(versions.at(-1)).toBe(0);
+    expect(versions.at(-1)).toBe(start);
     await act(async () => dispatch('"lOrA"'));
-    expect(versions.at(-1)).toBe(1);
+    expect(versions.at(-1)).toBe(start + 1);
     await act(async () => root.unmount());
   });
 

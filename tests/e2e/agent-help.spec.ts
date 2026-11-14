@@ -122,3 +122,14 @@ test('the deck list menu opens the same panel', async ({ page }) => {
   await decks.getByRole('button', { name: 'Use with an AI agent', exact: true }).click();
   await expect(panel(page)).toBeVisible();
 });
+
+test('on a phone the About page button keeps its full width and its words', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await moreMenu(page, 'About uslides');
+  const about = page.getByRole('dialog', { name: 'About uslides' });
+  const button = about.getByRole('button', { name: 'Use uslides with an AI agent' });
+  const [dialogBox, buttonBox] = [await about.boundingBox(), await button.boundingBox()];
+  expect(buttonBox!.width).toBeGreaterThan(dialogBox!.width * 0.7);
+  // The words fit inside the button instead of spilling out of it.
+  expect(await button.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+});
